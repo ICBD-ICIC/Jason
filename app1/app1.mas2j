@@ -14,9 +14,9 @@ MAS app1 {
 
     environment: env.Env
 
-    agents: bob;
-            alice;
-            carol;
+    agents: bob agentArchClass SocialAgArch;
+            alice agentArchClass SocialAgArch;
+            carol agentArchClass SocialAgArch;
 
     aslSourcePath: "src/agt";
 }

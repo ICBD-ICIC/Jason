@@ -129,9 +129,4 @@ public class Env extends Environment {
         System.out.println("Initialized " + content.size() + " messages, "
                         + filteredContent.size() + " passed moderation.");
     }
-
-    @Override
-    public boolean executeAction(String ag, Structure act) {
-        return true;
-    }
 }
