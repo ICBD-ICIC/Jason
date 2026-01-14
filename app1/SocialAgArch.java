@@ -35,14 +35,14 @@ public class SocialAgArch extends AgArch {
         return list;
     }
 
-    //por el momento solo traduce valores simples, no listas
+    //TODO: allow different value types
     private Map<String, String> translateVariables(Term v){
         String variables = v.toString();
         variables = variables.trim().substring(1, variables.length() - 1);
         String[] items = variables.split("\\s*,\\s*");
         Map<String, String> map = new HashMap<>();
         for (String item : items) {
-            // Assuming format is always c(v)
+            // Assuming format is always key(value)
             int openParen = item.indexOf('(');
             int closeParen = item.lastIndexOf(')');
             String key = item.substring(0, openParen);
@@ -52,7 +52,7 @@ public class SocialAgArch extends AgArch {
         return map;
     }
 
-
+    //TODO: How do I send this to the ENV???
     private boolean createPost(List<String> topics, Map<String, String> variables) {
         try {
             // 1. Build the prompt
@@ -114,5 +114,3 @@ public class SocialAgArch extends AgArch {
 //searchContent es perceive
 //searchAuthor es perceive
 //createPost es act
-    // topics --> [a, b, c]
-    // variables --> [c(v), c([v])].
