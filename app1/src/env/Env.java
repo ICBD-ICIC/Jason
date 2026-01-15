@@ -1,6 +1,7 @@
 package env;
 
 import jason.asSyntax.*;
+import static jason.asSyntax.ASSyntax.*;
 import jason.environment.Environment;
 
 import java.util.*;
@@ -38,10 +39,14 @@ public class Env extends Environment {
         private final String author;
         private final String content;
         private List<Reaction> reactions = new ArrayList<>();
-        private final Message original; // null = empty_reference
+        private final int original; // 0 = empty_reference
         private final long timestamp;
 
-        public Message(int id, String author, String content, Message original) {
+        public Message(int id, String author, String content) {
+            this(id, author, content, 0);
+        }
+
+        public Message(int id, String author, String content, int original) {
             this.id = id;
             this.author = author;
             this.content = content;
@@ -72,8 +77,7 @@ public class Env extends Environment {
         Message m1 = new Message(
             101,
             "alice",
-            "It's hard not to feel a sense of dread watching the climate crisis intensify. We have a shared responsibility to act and demand change. The time for denial is over. Let's face this challenge together.",
-            null
+            "It's hard not to feel a sense of dread watching the climate crisis intensify. We have a shared responsibility to act and demand change. The time for denial is over. Let's face this challenge together."
         );
         m1.addReaction("bob", "like");
         m1.addReaction("carol", "love");
@@ -93,7 +97,7 @@ public class Env extends Environment {
             107,
             "bob",
             "We cannot ignore or be indifferent to the climate crisis",
-            m1
+            m1.id
         );
 
         MessageCreationParams params2 = new MessageCreationParams(
@@ -110,8 +114,7 @@ public class Env extends Environment {
         Message m3 = new Message(
             120,
             "carol",
-            "10k followers FAST? Like & RT this, follow all LIKES and drop a YES below. #GrowthHacks",
-            null
+            "10k followers FAST? Like & RT this, follow all LIKES and drop a YES below. #GrowthHacks"
         );
 
         MessageCreationParams params3 = new MessageCreationParams(
@@ -128,5 +131,90 @@ public class Env extends Environment {
         // ------------------ Environment ready ------------------
         System.out.println("Initialized " + content.size() + " messages, "
                         + filteredContent.size() + " passed moderation.");
+    }
+
+    @Override
+    public boolean executeAction(String agent, Structure action) {
+        try {
+            switch (action.getFunctor()) {
+                case "updateFeed" -> updateFeed(agent);
+/*                 case "searchContent" -> searchContent(agent, action);
+                case "searchAuthor" -> searchContent(agent, action); */
+                // CUANDO BUSCA ALGO, asocia ese mensaje a eso que busco
+                case "createPost" -> createPost(agent, action);
+           /*      
+                case "search_content" -> searchContent(ag, act.getTerm(0).toString());
+                case "search_author" -> searchAuthor(ag, act.getTerm(0).toString());
+                case "create_post" -> createPost(ag, act);
+                case "repost" -> repost(ag, act);
+                case "comment" -> comment(ag, act);
+                case "react" -> react(ag, act);
+                case "ask" -> ask(ag, act);
+                case "createLink" -> createLink(ag, act);
+                case "removeLink" -> removeLink(ag, act);
+                case "readPublicProfile" -> readProfile(ag, act); */
+
+                default -> System.out.println("Unknown action: "+action);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return true;
+    }
+
+    private boolean updateFeed(String agent){
+        System.out.print("\n entra \n");
+        List<Message> feed = new ArrayList<>(filteredContent); //TODO: implement proper recommendation algorithm
+        for (Message m : feed) {
+            ListTerm reactions = createList();
+            for (Reaction r : m.reactions) {
+                reactions.add(createStructure("reaction",
+                    createNumber(m.id),
+                    createString(r.author),
+                    createString(r.reaction)
+                ));
+            }
+            Literal literal = createLiteral("message",
+                createNumber(m.id),
+                createString(m.author),
+                createString(m.content),
+                reactions,
+                createNumber(m.original),
+                createNumber(m.timestamp)
+            );
+            System.out.print(literal);
+            System.out.print("\n");
+            addPercept(agent, literal);
+        }
+        return true;
+    }
+
+    private boolean createPost(String agent, Structure action){
+        List<String> topics = Translator.translateTopics(action.getTerm(0));
+        Map<String, String> variables = Translator.translateVariables(action.getTerm(1));
+        String messageContent = Llm.createContent(topics, variables);
+        Message message = new Message(
+            content.size() + 1,
+            agent,
+            messageContent
+        );
+        MessageCreationParams params = new MessageCreationParams(topics, variables);
+        addMessage(message, params);
+        return true;
+    }
+
+    private void addMessage(Message message, MessageCreationParams params) {
+        content.put(message.id, params);
+        if (passFilter(message, params)) {
+            filteredContent.add(message);
+        }
+    }
+
+    private boolean passFilter(Message message, MessageCreationParams params) {
+        if (params.variables.containsKey("spam") && params.variables.get("spam").equals("true")) {
+            return false;
+        } else {
+            return true;
+        }
     }
 }

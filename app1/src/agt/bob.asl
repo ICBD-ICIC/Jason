@@ -10,4 +10,9 @@ follows(alice, 4.0).
 
 /* Plans */
 
-+!start : true <- .print("hello world.").
++!start : true <- 
+    .print("hello world."); 
+    updateFeed.
+
++message(I, A, C, R, O, T): true <-
+    .print(I, A, C, R, O, T).
