@@ -12,7 +12,8 @@ follows(alice, 4.0).
 
 +!start : true <- 
     .print("hello world."); 
-    updateFeed.
+    // updateFeed;
+    searchContent(climate_change).
 
 +message(I, A, C, O, T): true <-
     .print(I, A, C, O, T).

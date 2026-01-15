@@ -138,8 +138,8 @@ public class Env extends Environment {
         try {
             switch (action.getFunctor()) {
                 case "updateFeed" -> updateFeed(agent);
-/*                 case "searchContent" -> searchContent(agent, action);
-                case "searchAuthor" -> searchContent(agent, action); */
+                case "searchContent" -> searchContent(agent, action);
+                //case "searchAuthor" -> searchContent(agent, action);
                 // CUANDO BUSCA ALGO, asocia ese mensaje a eso que busco
                 case "createPost" -> createPost(agent, action);
            /*      
@@ -164,7 +164,28 @@ public class Env extends Environment {
 
     private boolean updateFeed(String agent){
         List<Message> feed = new ArrayList<>(filteredContent); //TODO: implement proper recommendation algorithm
-        for (Message m : feed) {
+        updatePercepts(agent, feed);
+        return true;
+    }
+
+    private boolean searchContent(String agent, Structure action){
+        String concept = action.getTerm(0).toString();
+        List<Message> feed = filteredContent.stream()
+            .filter(message -> {
+                MessageCreationParams params = content.get(message.id);
+                System.out.print(params);
+                System.out.print(params.topics().contains(concept));
+                System.out.print(concept);
+                return params.topics().contains(concept);
+            }).toList(); //TODO: implement proper recommendation algorithm
+        System.out.print(feed);
+        updatePercepts(agent, feed);
+        return true;
+    }
+
+    private void updatePercepts(String agent, List<Message> messages){
+        //TODO: verify if I need to swipe the percepts.
+        for (Message m : messages) {
             Literal literal = createLiteral("message",
                 createNumber(m.id),
                 createString(m.author),
@@ -182,7 +203,6 @@ public class Env extends Environment {
                 addPercept(agent, reactionLiteral);
             }
         }
-        return true;
     }
 
     private boolean createPost(String agent, Structure action){
