@@ -12,5 +12,4 @@ follows(bob, 8.5).
 +!start : true <- 
     .print("hello world."); 
     ?follows(X, Y); 
-    .print(X, Y); 
     createPost(["floods"], [raise_awareness(true), emotion("worry")]).

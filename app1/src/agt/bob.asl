@@ -14,5 +14,8 @@ follows(alice, 4.0).
     .print("hello world."); 
     updateFeed.
 
-+message(I, A, C, R, O, T): true <-
-    .print(I, A, C, R, O, T).
++message(I, A, C, O, T): true <-
+    .print(I, A, C, O, T).
+
++reaction(I, A, R): true <-
+    .print(I, A, R).

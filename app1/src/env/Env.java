@@ -163,28 +163,24 @@ public class Env extends Environment {
     }
 
     private boolean updateFeed(String agent){
-        System.out.print("\n entra \n");
         List<Message> feed = new ArrayList<>(filteredContent); //TODO: implement proper recommendation algorithm
         for (Message m : feed) {
-            ListTerm reactions = createList();
-            for (Reaction r : m.reactions) {
-                reactions.add(createStructure("reaction",
-                    createNumber(m.id),
-                    createString(r.author),
-                    createString(r.reaction)
-                ));
-            }
             Literal literal = createLiteral("message",
                 createNumber(m.id),
                 createString(m.author),
                 createString(m.content),
-                reactions,
                 createNumber(m.original),
                 createNumber(m.timestamp)
             );
-            System.out.print(literal);
-            System.out.print("\n");
             addPercept(agent, literal);
+            for (Reaction r : m.reactions) {
+                Literal reactionLiteral = createLiteral("reaction",
+                    createNumber(m.id),
+                    createString(r.author),
+                    createString(r.reaction)
+                );
+                addPercept(agent, reactionLiteral);
+            }
         }
         return true;
     }
