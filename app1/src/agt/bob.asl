@@ -13,7 +13,9 @@ follows(alice, 4.0).
 +!start : true <- 
     .print("hello world."); 
     // updateFeed;
-    searchContent(climate_change).
+    //searchContent(climate_change)
+    //searchContent(no_hay)
+    searchAuthor(alice).
 
 +message(I, A, C, O, T): true <-
     .print(I, A, C, O, T).

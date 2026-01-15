@@ -139,7 +139,7 @@ public class Env extends Environment {
             switch (action.getFunctor()) {
                 case "updateFeed" -> updateFeed(agent);
                 case "searchContent" -> searchContent(agent, action);
-                //case "searchAuthor" -> searchContent(agent, action);
+                case "searchAuthor" -> searchAuthor(agent, action);
                 // CUANDO BUSCA ALGO, asocia ese mensaje a eso que busco
                 case "createPost" -> createPost(agent, action);
            /*      
@@ -173,10 +173,17 @@ public class Env extends Environment {
         List<Message> feed = filteredContent.stream()
             .filter(message -> {
                 MessageCreationParams params = content.get(message.id);
-                System.out.print(params);
-                System.out.print(params.topics().contains(concept));
-                System.out.print(concept);
                 return params.topics().contains(concept);
+            }).toList(); //TODO: implement proper recommendation algorithm
+        updatePercepts(agent, feed);
+        return true;
+    }
+    
+    private boolean searchAuthor(String agent, Structure action){
+        String author = action.getTerm(0).toString();
+        List<Message> feed = filteredContent.stream()
+            .filter(message -> {
+                return message.author.equals(author);
             }).toList(); //TODO: implement proper recommendation algorithm
         System.out.print(feed);
         updatePercepts(agent, feed);
