@@ -15,10 +15,14 @@ follows(alice, 4.0).
     // updateFeed;
     //searchContent(climate_change)
     //searchContent(no_hay)
-    searchAuthor(alice).
+    //searchAuthor(alice)
+    updateFeed;
+    ?message(I, A, C, O, T);
+    repost(I);
+    searchAuthor(bob).
 
-+message(I, A, C, O, T): true <-
-    .print(I, A, C, O, T).
+//+message(I, A, C, O, T): true <-
+//    .print(I, A, C, O, T).
 
-+reaction(I, A, R): true <-
-    .print(I, A, R).
+//+reaction(I, A, R): true <-
+//    .print(I, A, R).

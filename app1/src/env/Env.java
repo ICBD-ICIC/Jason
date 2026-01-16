@@ -5,6 +5,8 @@ import static jason.asSyntax.ASSyntax.*;
 import jason.environment.Environment;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class Env extends Environment {
 
@@ -61,8 +63,9 @@ public class Env extends Environment {
 
     private static record MessageCreationParams(List<String> topics, Map<String, String> variables){}
 
-    private final Map<Integer, MessageCreationParams> content = new HashMap<>();
-    private final Set<Message> filteredContent = new HashSet<>();
+    private final Map<Integer, MessageCreationParams> content = new ConcurrentHashMap<>();
+    private final Map<Integer, Message> filteredContent = new ConcurrentHashMap<>();
+    private final AtomicInteger messageCounter = new AtomicInteger(0);
 
     @Override
     public void init(String[] args) {
@@ -75,7 +78,7 @@ public class Env extends Environment {
 
         // ------------------ Message 1 ------------------
         Message m1 = new Message(
-            101,
+            messageCounter.incrementAndGet(),
             "alice",
             "It's hard not to feel a sense of dread watching the climate crisis intensify. We have a shared responsibility to act and demand change. The time for denial is over. Let's face this challenge together."
         );
@@ -90,11 +93,11 @@ public class Env extends Environment {
         );
 
         content.put(m1.id, params1);
-        filteredContent.add(m1);
+        filteredContent.put(m1.id, m1);
 
         // ------------------ Message 2 ------------------
         Message m2 = new Message(
-            107,
+            messageCounter.incrementAndGet(),
             "bob",
             "We cannot ignore or be indifferent to the climate crisis",
             m1.id
@@ -108,11 +111,11 @@ public class Env extends Environment {
         );
 
         content.put(m2.id, params2);
-        filteredContent.add(m2);
+        filteredContent.put(m2.id, m2);
 
         // ------------------ Message 3 ------------------
         Message m3 = new Message(
-            120,
+            messageCounter.incrementAndGet(),
             "carol",
             "10k followers FAST? Like & RT this, follow all LIKES and drop a YES below. #GrowthHacks"
         );
@@ -142,10 +145,8 @@ public class Env extends Environment {
                 case "searchAuthor" -> searchAuthor(agent, action);
                 // CUANDO BUSCA ALGO, asocia ese mensaje a eso que busco
                 case "createPost" -> createPost(agent, action);
+                case "repost" -> repost(agent, action);
            /*      
-                case "search_content" -> searchContent(ag, act.getTerm(0).toString());
-                case "search_author" -> searchAuthor(ag, act.getTerm(0).toString());
-                case "create_post" -> createPost(ag, act);
                 case "repost" -> repost(ag, act);
                 case "comment" -> comment(ag, act);
                 case "react" -> react(ag, act);
@@ -163,14 +164,14 @@ public class Env extends Environment {
     }
 
     private boolean updateFeed(String agent){
-        List<Message> feed = new ArrayList<>(filteredContent); //TODO: implement proper recommendation algorithm
+        List<Message> feed = new ArrayList<>(filteredContent.values()); //TODO: implement proper recommendation algorithm
         updatePercepts(agent, feed);
         return true;
     }
 
     private boolean searchContent(String agent, Structure action){
         String concept = action.getTerm(0).toString();
-        List<Message> feed = filteredContent.stream()
+        List<Message> feed = filteredContent.values().stream()
             .filter(message -> {
                 MessageCreationParams params = content.get(message.id);
                 return params.topics().contains(concept);
@@ -181,11 +182,10 @@ public class Env extends Environment {
     
     private boolean searchAuthor(String agent, Structure action){
         String author = action.getTerm(0).toString();
-        List<Message> feed = filteredContent.stream()
+        List<Message> feed = filteredContent.values().stream()
             .filter(message -> {
                 return message.author.equals(author);
             }).toList(); //TODO: implement proper recommendation algorithm
-        System.out.print(feed);
         updatePercepts(agent, feed);
         return true;
     }
@@ -217,7 +217,7 @@ public class Env extends Environment {
         Map<String, String> variables = Translator.translateVariables(action.getTerm(1));
         String messageContent = Llm.createContent(topics, variables);
         Message message = new Message(
-            content.size() + 1,
+            messageCounter.incrementAndGet(),
             agent,
             messageContent
         );
@@ -226,10 +226,33 @@ public class Env extends Environment {
         return true;
     }
 
+    private boolean repost(String agent, Structure action){
+        int originalId = Integer.parseInt(action.getTerm(0).toString());
+
+        Message original = filteredContent.get(originalId);
+        MessageCreationParams originalParams = content.get(originalId);
+        
+        Message repost = new Message(
+            messageCounter.incrementAndGet(),
+            agent,
+            original.content,
+            original.id
+        );
+
+        content.put(repost.id, originalParams);
+        filteredContent.put(repost.id, repost);
+
+        System.out.print(filteredContent);
+        System.out.print(content);
+
+        return true;
+    }
+
+
     private void addMessage(Message message, MessageCreationParams params) {
         content.put(message.id, params);
         if (passFilter(message, params)) {
-            filteredContent.add(message);
+            filteredContent.put(message.id, message);
         }
     }
 
