@@ -19,6 +19,7 @@ follows(alice, 4.0).
     updateFeed;
     ?message(I, A, C, O, T);
     repost(I);
+    comment(I, ["music"], [raise_awareness(true), emotion("happy")]);
     searchAuthor(bob).
 
 //+message(I, A, C, O, T): true <-

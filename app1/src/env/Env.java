@@ -31,7 +31,7 @@ public class Env extends Environment {
         }
     }
 
-    private final List<Edge> socialNetwork = new ArrayList<>();
+    private final List<Edge> socialNetwork = Collections.synchronizedList(new ArrayList<>());
 
     /* -------- Messages -------- */
     private static record Reaction(String author, String reaction){}
@@ -40,7 +40,7 @@ public class Env extends Environment {
         private final int id;
         private final String author;
         private final String content;
-        private List<Reaction> reactions = new ArrayList<>();
+        private List<Reaction> reactions = Collections.synchronizedList(new ArrayList<>());
         private final int original; // 0 = empty_reference
         private final long timestamp;
 
@@ -67,6 +67,9 @@ public class Env extends Environment {
     private final Map<Integer, Message> filteredContent = new ConcurrentHashMap<>();
     private final AtomicInteger messageCounter = new AtomicInteger(0);
 
+    //TODO: add edges as percepts to the corresponding agents, ç
+    //OR add the beliefs on the agents file 
+    //OR start from 0 and make the agents setup with actions on !start 
     @Override
     public void init(String[] args) {
         /* --- Social Network (Example SN) --- */
@@ -125,7 +128,7 @@ public class Env extends Environment {
             new HashMap(){{ 
                 put("sentiment", "positive"); 
                 put("toxicity", "0"); 
-                put("spam", "True"); }}
+                put("spam", "true"); }}
         );
 
         content.put(m3.id, params3);
@@ -146,14 +149,14 @@ public class Env extends Environment {
                 // CUANDO BUSCA ALGO, asocia ese mensaje a eso que busco
                 case "createPost" -> createPost(agent, action);
                 case "repost" -> repost(agent, action);
+                case "comment" -> comment(agent, action);
            /*      
-                case "repost" -> repost(ag, act);
                 case "comment" -> comment(ag, act);
                 case "react" -> react(ag, act);
                 case "ask" -> ask(ag, act);
-                case "createLink" -> createLink(ag, act);
+                case "createLink" -> createLink(ag, act); Quizas el sn deba ser concurrent tmb
                 case "removeLink" -> removeLink(ag, act);
-                case "readPublicProfile" -> readProfile(ag, act); */
+                case "readPublicProfile" -> readProfile(ag, act); Hacer una coleccion de esos datos en el ENV*/
 
                 default -> System.out.println("Unknown action: "+action);
             }
@@ -171,21 +174,23 @@ public class Env extends Environment {
 
     private boolean searchContent(String agent, Structure action){
         String concept = action.getTerm(0).toString();
-        List<Message> feed = filteredContent.values().stream()
-            .filter(message -> {
-                MessageCreationParams params = content.get(message.id);
-                return params.topics().contains(concept);
-            }).toList(); //TODO: implement proper recommendation algorithm
+        List<Message> feed = new ArrayList<>(filteredContent.values());
+        feed = feed.stream()
+                    .filter(message -> {
+                        MessageCreationParams params = content.get(message.id);
+                        return params.topics().contains(concept);
+                    }).toList(); //TODO: implement proper recommendation algorithm
         updatePercepts(agent, feed);
         return true;
     }
     
     private boolean searchAuthor(String agent, Structure action){
         String author = action.getTerm(0).toString();
-        List<Message> feed = filteredContent.values().stream()
-            .filter(message -> {
-                return message.author.equals(author);
-            }).toList(); //TODO: implement proper recommendation algorithm
+        List<Message> feed = new ArrayList<>(filteredContent.values());
+        feed = feed.stream()
+                    .filter(message -> {
+                        return message.author.equals(author);
+                    }).toList(); //TODO: implement proper recommendation algorithm
         updatePercepts(agent, feed);
         return true;
     }
@@ -228,26 +233,37 @@ public class Env extends Environment {
 
     private boolean repost(String agent, Structure action){
         int originalId = Integer.parseInt(action.getTerm(0).toString());
-
         Message original = filteredContent.get(originalId);
         MessageCreationParams originalParams = content.get(originalId);
-        
         Message repost = new Message(
             messageCounter.incrementAndGet(),
             agent,
             original.content,
             original.id
         );
-
         content.put(repost.id, originalParams);
         filteredContent.put(repost.id, repost);
-
-        System.out.print(filteredContent);
-        System.out.print(content);
-
         return true;
     }
 
+    private boolean comment(String agent, Structure action){
+        int originalId = Integer.parseInt(action.getTerm(0).toString());
+        String originalContent = filteredContent.get(originalId).content;
+        List<String> topics = Translator.translateTopics(action.getTerm(1));
+        Map<String, String> variables = Translator.translateVariables(action.getTerm(2));
+        String messageContent = Llm.createContent(originalContent, topics, variables);
+        Message message = new Message(
+            messageCounter.incrementAndGet(),
+            agent,
+            messageContent,
+            originalId
+        );
+        MessageCreationParams params = new MessageCreationParams(topics, variables);
+        addMessage(message, params);
+        System.out.print(filteredContent);
+        System.out.print(content);
+        return true;
+    }
 
     private void addMessage(Message message, MessageCreationParams params) {
         content.put(message.id, params);
