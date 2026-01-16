@@ -20,7 +20,7 @@ follows(alice, 4.0).
     ?message(I, A, C, O, T);
     repost(I);
     comment(I, ["music"], [raise_awareness(true), emotion("happy")]);
-    searchAuthor(bob).
+    react(I, "love").
 
 //+message(I, A, C, O, T): true <-
 //    .print(I, A, C, O, T).

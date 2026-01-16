@@ -70,6 +70,7 @@ public class Env extends Environment {
     //TODO: add edges as percepts to the corresponding agents, ç
     //OR add the beliefs on the agents file 
     //OR start from 0 and make the agents setup with actions on !start 
+    //OR use the functions here
     @Override
     public void init(String[] args) {
         /* --- Social Network (Example SN) --- */
@@ -150,8 +151,8 @@ public class Env extends Environment {
                 case "createPost" -> createPost(agent, action);
                 case "repost" -> repost(agent, action);
                 case "comment" -> comment(agent, action);
+                case "react" -> react(agent, action);
            /*      
-                case "comment" -> comment(ag, act);
                 case "react" -> react(ag, act);
                 case "ask" -> ask(ag, act);
                 case "createLink" -> createLink(ag, act); Quizas el sn deba ser concurrent tmb
@@ -260,8 +261,14 @@ public class Env extends Environment {
         );
         MessageCreationParams params = new MessageCreationParams(topics, variables);
         addMessage(message, params);
-        System.out.print(filteredContent);
-        System.out.print(content);
+        return true;
+    }
+
+    private boolean react(String agent, Structure action){
+        int originalId = Integer.parseInt(action.getTerm(0).toString());
+        Message originalMessage = filteredContent.get(originalId);
+        String reaction = action.getTerm(1).toString();
+        originalMessage.addReaction(agent, reaction);
         return true;
     }
 
