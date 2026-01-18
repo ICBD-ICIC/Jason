@@ -1,8 +1,9 @@
 // Agent carol in project app1
 
 /* Initial beliefs and rules */
-follows(alice, 7.3).
-follows(bob, 5.0).
+//Static beliefs in .asl are not affected by removePercept().
+//follows(carol, alice, 7.3).
+//follows(carol, bob, 5.0).
 
 /* Initial goals */
 
@@ -10,4 +11,14 @@ follows(bob, 5.0).
 
 /* Plans */
 
-+!start : true <- .print("hello world.").
++!start : true <- 
+    .print("hello world.");
+    //createLink(alice);
+    //createLink(bob);
+    removeLink(alice).
+
+/* +follows(A,B,C) : true <-
+    .print(A,B,C). */
+
+-follows(A,B,C) : true <-
+    .print(A,B,C).

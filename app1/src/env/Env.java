@@ -29,8 +29,17 @@ public class Env extends Environment {
         public void updateWeight(double weight) {
             this.weight = weight;
         }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null || getClass() != obj.getClass()) return false;
+            Edge edge = (Edge) obj;
+            return from.equals(edge.from) && to.equals(edge.to);
+        }
     }
 
+    //TODO: search for a more efficient implementation
     private final List<Edge> socialNetwork = Collections.synchronizedList(new ArrayList<>());
 
     /* -------- Messages -------- */
@@ -67,9 +76,7 @@ public class Env extends Environment {
     private final Map<Integer, Message> filteredContent = new ConcurrentHashMap<>();
     private final AtomicInteger messageCounter = new AtomicInteger(0);
 
-    //TODO: add edges as percepts to the corresponding agents, ç
-    //OR add the beliefs on the agents file 
-    //OR start from 0 and make the agents setup with actions on !start 
+    //TODO: start from 0 and make the agents setup with actions on !start 
     //OR use the functions here
     @Override
     public void init(String[] args) {
@@ -79,6 +86,9 @@ public class Env extends Environment {
         socialNetwork.add(new Edge("bob","carol",9.8));
         socialNetwork.add(new Edge("carol","bob",5.0));
         socialNetwork.add(new Edge("carol","alice",7.3));
+
+        addPercept("carol", edgeLiteral(new Edge("carol","alice",7.3)));
+        addPercept("carol", edgeLiteral(new Edge("carol","bob",5.0)));
 
         // ------------------ Message 1 ------------------
         Message m1 = new Message(
@@ -147,16 +157,15 @@ public class Env extends Environment {
                 case "updateFeed" -> updateFeed(agent);
                 case "searchContent" -> searchContent(agent, action);
                 case "searchAuthor" -> searchAuthor(agent, action);
-                // CUANDO BUSCA ALGO, asocia ese mensaje a eso que busco
+                // CUANDO BUSCA ALGO, deberia asociar cada literal a algo?
                 case "createPost" -> createPost(agent, action);
                 case "repost" -> repost(agent, action);
                 case "comment" -> comment(agent, action);
                 case "react" -> react(agent, action);
+                case "createLink" -> createLink(agent, action);
+                case "removeLink" -> removeLink(agent, action);
            /*      
-                case "react" -> react(ag, act);
-                case "ask" -> ask(ag, act);
-                case "createLink" -> createLink(ag, act); Quizas el sn deba ser concurrent tmb
-                case "removeLink" -> removeLink(ag, act);
+                case "ask" -> ask(ag, act); Hacer una coleccion de esos datos en el ENV?
                 case "readPublicProfile" -> readProfile(ag, act); Hacer una coleccion de esos datos en el ENV*/
 
                 default -> System.out.println("Unknown action: "+action);
@@ -285,5 +294,43 @@ public class Env extends Environment {
         } else {
             return true;
         }
+    }
+
+    //TODO if already existis, return false?
+    //TODO add percepts followed(to, from) ?
+    private boolean createLink(String agent, Structure action){
+        String to = action.getTerm(0).toString();
+        Edge link = new Edge(agent, to);
+        socialNetwork.add(link);
+        addPercept(agent, edgeLiteral(link));
+        return true;
+    }
+
+    //TODO do something if link does not exist?
+    //TODO remove percepts followed(to, from) ?
+    private boolean removeLink(String agent, Structure action){
+        String to = action.getTerm(0).toString();
+        Edge target = new Edge(agent, to);
+        synchronized (socialNetwork) {
+            Iterator<Edge> it = socialNetwork.iterator();
+            while (it.hasNext()) {
+                Edge e = it.next();
+                if (e.equals(target)) {
+                    it.remove();
+                    removePercept(agent, edgeLiteral(e));
+                    break;
+                }
+            }
+        }
+        return true;
+    }
+    
+    private Literal edgeLiteral(Edge edge){
+        Literal literal = createLiteral("follows",
+            createString(edge.from),
+            createString(edge.to),
+            createNumber(edge.weight)   
+        );
+        return literal;
     }
 }
