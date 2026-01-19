@@ -87,8 +87,9 @@ public class Env extends Environment {
         socialNetwork.add(new Edge("carol","bob",5.0));
         socialNetwork.add(new Edge("carol","alice",7.3));
 
-        addPercept("carol", edgeLiteral(new Edge("carol","alice",7.3)));
-        addPercept("carol", edgeLiteral(new Edge("carol","bob",5.0)));
+        addPercept("carol", createLiteral("follows", createString("alice")));
+        addPercept("carol", createLiteral("follows", createString("bob")));
+        addPercept("alice", createLiteral("followedBy", createString("carol")));
 
         // ------------------ Message 1 ------------------
         Message m1 = new Message(
@@ -182,6 +183,7 @@ public class Env extends Environment {
         return true;
     }
 
+    //TODO: random or ordered but limited to an amount
     private boolean searchContent(String agent, Structure action){
         String concept = action.getTerm(0).toString();
         List<Message> feed = new ArrayList<>(filteredContent.values());
@@ -297,17 +299,16 @@ public class Env extends Environment {
     }
 
     //TODO if already existis, return false?
-    //TODO add percepts followed(to, from) ?
     private boolean createLink(String agent, Structure action){
         String to = action.getTerm(0).toString();
         Edge link = new Edge(agent, to);
         socialNetwork.add(link);
-        addPercept(agent, edgeLiteral(link));
+        addPercept(agent, createLiteral("follows", createString(to)));
+        addPercept(to, createLiteral("followedBy", createString(agent)));
         return true;
     }
 
     //TODO do something if link does not exist?
-    //TODO remove percepts followed(to, from) ?
     private boolean removeLink(String agent, Structure action){
         String to = action.getTerm(0).toString();
         Edge target = new Edge(agent, to);
@@ -317,20 +318,12 @@ public class Env extends Environment {
                 Edge e = it.next();
                 if (e.equals(target)) {
                     it.remove();
-                    removePercept(agent, edgeLiteral(e));
+                    removePercept(agent, createLiteral("follows", createString(to)));
+                    removePercept(to, createLiteral("followedBy", createString(agent)));
                     break;
                 }
             }
         }
         return true;
-    }
-    
-    private Literal edgeLiteral(Edge edge){
-        Literal literal = createLiteral("follows",
-            createString(edge.from),
-            createString(edge.to),
-            createNumber(edge.weight)   
-        );
-        return literal;
     }
 }

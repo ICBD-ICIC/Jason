@@ -1,7 +1,6 @@
 // Agent alice in project app1
 
 /* Initial beliefs and rules */
-follows(alice, bob, 8.5).
 
 /* Initial goals */
 
@@ -9,6 +8,9 @@ follows(alice, bob, 8.5).
 
 /* Plans */
 
-+!start : true <- 
-    .print("hello world."); 
++!start : followedBy(X) <- 
+    .print(X); 
     createPost(["floods"], [raise_awareness(true), emotion("worry")]).
+
+-followedBy(X) : true <-
+    .print(X).

@@ -20,5 +20,5 @@
 /* +follows(A,B,C) : true <-
     .print(A,B,C). */
 
--follows(A,B,C) : true <-
-    .print(A,B,C).
+-follows(A) : true <-
+    .print(A).
