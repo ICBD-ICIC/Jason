@@ -14,9 +14,11 @@ MAS app1 {
 
     environment: env.Env
 
-    agents: bob [verbose=1];
-            alice [verbose=1];
-            carol [verbose=1];
+    agents: bob     [verbose=1] 
+                    agentArchClass arch.SocialAgArch
+                    beliefBaseClass bb.NoRemoveBeliefBase;
+            //alice [verbose=1] agentArchClass arch.SocialAgArch;
+            //carol [verbose=1] agentArchClass arch.SocialAgArch;
 
     aslSourcePath: "src/agt";
 }

@@ -1,8 +1,6 @@
 // Agent bob in project app1
 
 /* Initial beliefs and rules */
-follows(bob, carol, 5.0).
-follows(bob, alice, 4.0).
 
 /* Initial goals */
 
@@ -11,19 +9,20 @@ follows(bob, alice, 4.0).
 /* Plans */
 
 +!start : true <- 
-    .print("hello world."); 
-    // updateFeed;
-    //searchContent(climate_change)
-    //searchContent(no_hay)
-    //searchAuthor(alice)
-    updateFeed;
+    updateFeed.
+
++sentiment(I,V) : true <-
+    //.print(I, V);
     ?message(I, A, C, O, T);
+    //.print(C);
     repost(I);
     comment(I, ["music"], [raise_awareness(true), emotion("happy")]);
     react(I, "love").
 
-//+message(I, A, C, O, T): true <-
-//    .print(I, A, C, O, T).
+//+message(I, A, C, O, T) : true <- 
+//    .print(C).
 
-//+reaction(I, A, R): true <-
-//    .print(I, A, R).
++interpretation(I, sentiment(A)) : true <-
+    //.print(A);
+    ?message(I,AM,C,O,T);
+    .print(C).
