@@ -8,6 +8,8 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ConcurrentHashMap;
 
+import lib.Translator;
+
 public class Env extends Environment {
 
     /* -------- Social Network -------- */
@@ -232,7 +234,7 @@ public class Env extends Environment {
     private boolean createPost(String agent, Structure action){
         List<String> topics = Translator.translateTopics(action.getTerm(0));
         Map<String, String> variables = Translator.translateVariables(action.getTerm(1));
-        String messageContent = Llm.createContent(topics, variables);
+        String messageContent = action.getTerm(2).toString();
         Message message = new Message(
             messageCounter.incrementAndGet(),
             agent,
@@ -258,12 +260,13 @@ public class Env extends Environment {
         return true;
     }
 
+    //TODO: FIX
     private boolean comment(String agent, Structure action){
         int originalId = Integer.parseInt(action.getTerm(0).toString());
         String originalContent = filteredContent.get(originalId).content;
         List<String> topics = Translator.translateTopics(action.getTerm(1));
         Map<String, String> variables = Translator.translateVariables(action.getTerm(2));
-        String messageContent = Llm.createContent(originalContent, topics, variables);
+        String messageContent = "WIP"; //Llm.createContent(originalContent, topics, variables);
         Message message = new Message(
             messageCounter.incrementAndGet(),
             agent,
