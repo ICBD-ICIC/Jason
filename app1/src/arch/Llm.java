@@ -5,21 +5,13 @@ import jason.asSyntax.*;
 import java.util.*;
 
 public final class Llm {
-    //TODO: implement local llm usage 
-    public static String createContent(List<String> topics, Map<String, String> variables){
-        System.out.print("\n WIP");
-        System.out.print(topics);
-        System.out.print(variables);
-        System.out.print("\n");
-        return "TODO";
+    //TODO: use gemini (add an init(), and set it up on the agent arch)
+    public static String createContent(Term topics, Term variables){
+        return "TODO: createContent t and v";
     }
 
-    //TODO: implement local llm usage 
-    public static String createContent(String content, List<String> topics, Map<String, String> variables){
-        System.out.print("\n WIP comment");
-        System.out.print(topics);
-        System.out.print(variables);
-        System.out.print("\n WIP");
-        return "TODO comment";
+    //TODO: use gemini 
+    public static String createContent(Term interpretations, Term originalContent, Term topics, Term variables){
+        return "TODO: createContent i c t and v";
     }
 }

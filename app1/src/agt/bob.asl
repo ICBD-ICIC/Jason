@@ -11,18 +11,12 @@
 +!start : true <- 
     updateFeed.
 
-+sentiment(I,V) : true <-
-    //.print(I, V);
-    ?message(I, A, C, O, T);
-    //.print(C);
++message(I,"alice",C,O,T) : true <-
+    .findall(X, interpretation(I,X), Xs);
+    .print(Xs);
     repost(I);
-    comment(I, ["music"], [raise_awareness(true), emotion("happy")]);
-    react(I, "love").
+    createPost(["floods"], [raise_awareness(true), emotion("worry")]);
+    react(I, "love");
+    comment(I, Xs, C, ["music"], [raise_awareness(true), emotion("happy")]);
+    searchAuthor(bob).
 
-//+message(I, A, C, O, T) : true <- 
-//    .print(C).
-
-+interpretation(I, sentiment(A)) : true <-
-    //.print(A);
-    ?message(I,AM,C,O,T);
-    .print(C).

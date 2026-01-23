@@ -41,7 +41,7 @@ public class Env extends Environment {
         }
     }
 
-    //TODO: search for a more efficient implementation
+    //TODO: search for a more efficient implementation, maybe a list per agent.
     private final List<Edge> socialNetwork = Collections.synchronizedList(new ArrayList<>());
 
     /* -------- Messages -------- */
@@ -72,6 +72,7 @@ public class Env extends Environment {
         }
     }
 
+    //TODO: do we need them in string or we can keep them as terms? to see searchContent 
     private static record MessageCreationParams(List<String> topics, Map<String, String> variables){}
 
     private final Map<Integer, MessageCreationParams> content = new ConcurrentHashMap<>();
@@ -155,26 +156,22 @@ public class Env extends Environment {
 
     @Override
     public boolean executeAction(String agent, Structure action) {
-        try {
-            switch (action.getFunctor()) {
-                case "updateFeed" -> updateFeed(agent);
-                case "searchContent" -> searchContent(agent, action);
-                case "searchAuthor" -> searchAuthor(agent, action);
-                // CUANDO BUSCA ALGO, deberia asociar cada literal a algo?
-                case "createPost" -> createPost(agent, action);
-                case "repost" -> repost(agent, action);
-                case "comment" -> comment(agent, action);
-                case "react" -> react(agent, action);
-                case "createLink" -> createLink(agent, action);
-                case "removeLink" -> removeLink(agent, action);
-           /*      
-                case "ask" -> ask(ag, act); Hacer una coleccion de esos datos en el ENV?
-                case "readPublicProfile" -> readProfile(ag, act); Hacer una coleccion de esos datos en el ENV*/
+        System.out.println("ENV executing: " + action.getFunctor());
+        switch (action.getFunctor()) {
+            case "updateFeed" -> updateFeed(agent);
+            case "searchContent" -> searchContent(agent, action);
+            case "searchAuthor" -> searchAuthor(agent, action);
+            case "createPost" -> createPost(agent, action);
+            case "repost" -> repost(agent, action);
+            case "comment" -> comment(agent, action);
+            case "react" -> react(agent, action);
+            case "createLink" -> createLink(agent, action);
+            case "removeLink" -> removeLink(agent, action);
+        /*      
+            case "ask" -> ask(ag, act); Hacer una coleccion de esos datos en el ENV?
+            case "readPublicProfile" -> readProfile(ag, act); Hacer una coleccion de esos datos en el ENV*/
 
-                default -> System.out.println("Unknown action: "+action);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
+            default -> System.out.println("Unknown action: "+action);
         }
         return true;
     }
@@ -210,7 +207,7 @@ public class Env extends Environment {
     }
 
     private void updatePercepts(String agent, List<Message> messages){
-        //TODO: verify if I need to swipe the percepts.
+        clearPercepts(agent);
         for (Message m : messages) {
             Literal literal = createLiteral("message",
                 createNumber(m.id),
@@ -260,13 +257,11 @@ public class Env extends Environment {
         return true;
     }
 
-    //TODO: FIX
     private boolean comment(String agent, Structure action){
         int originalId = Integer.parseInt(action.getTerm(0).toString());
-        String originalContent = filteredContent.get(originalId).content;
         List<String> topics = Translator.translateTopics(action.getTerm(1));
         Map<String, String> variables = Translator.translateVariables(action.getTerm(2));
-        String messageContent = "WIP"; //Llm.createContent(originalContent, topics, variables);
+        String messageContent = action.getTerm(3).toString();
         Message message = new Message(
             messageCounter.incrementAndGet(),
             agent,
