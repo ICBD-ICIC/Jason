@@ -28,7 +28,7 @@ dependencies {
     // to use locally installed jars:
     implementation fileTree(dir: 'lib', include: '*.jar')
 
-    implementation 'org.json:json:20230227'
+    implementation 'com.google.genai:google-genai:1.4.1'
 }
 
 sourceSets {

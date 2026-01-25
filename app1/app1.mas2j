@@ -15,7 +15,7 @@ MAS app1 {
     environment: env.Env
 
     agents: bob     [verbose=1] 
-                    agentArchClass arch.SocialAgArch
+                    agentArchClass arch.GeminiAgArch
                     beliefBaseClass bb.NoRemoveBeliefBase;
             //alice [verbose=1] agentArchClass arch.SocialAgArch;
             //carol [verbose=1] agentArchClass arch.SocialAgArch;
