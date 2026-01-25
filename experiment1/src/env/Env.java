@@ -41,7 +41,6 @@ public class Env extends Environment {
         }
     }
 
-    //TODO: search for a more efficient implementation, maybe a list per agent.
     private final List<Edge> socialNetwork = Collections.synchronizedList(new ArrayList<>());
 
     /* -------- Messages -------- */
@@ -72,86 +71,22 @@ public class Env extends Environment {
         }
     }
 
-    //TODO: do we need them in string or we can keep them as terms? to see searchContent 
     private static record MessageCreationParams(List<String> topics, Map<String, String> variables){}
 
     private final Map<Integer, MessageCreationParams> content = new ConcurrentHashMap<>();
     private final Map<Integer, Message> filteredContent = new ConcurrentHashMap<>();
     private final AtomicInteger messageCounter = new AtomicInteger(0);
 
-    //TODO: start from 0 and make the agents setup with actions on !start 
-    //OR use the functions here
     @Override
     public void init(String[] args) {
-        /* --- Social Network (Example SN) --- */
-        socialNetwork.add(new Edge("alice","bob",8.5));
-        socialNetwork.add(new Edge("bob","alice",4.0));
-        socialNetwork.add(new Edge("bob","carol",9.8));
-        socialNetwork.add(new Edge("carol","bob",5.0));
-        socialNetwork.add(new Edge("carol","alice",7.3));
-
-        addPercept("carol", createLiteral("follows", createString("alice")));
-        addPercept("carol", createLiteral("follows", createString("bob")));
-        addPercept("alice", createLiteral("followedBy", createString("carol")));
-
-        // ------------------ Message 1 ------------------
-        Message m1 = new Message(
-            messageCounter.incrementAndGet(),
-            "alice",
-            "It's hard not to feel a sense of dread watching the climate crisis intensify. We have a shared responsibility to act and demand change. The time for denial is over. Let's face this challenge together."
+        addMessage(
+            new Message(
+                messageCounter.incrementAndGet(),
+                "Joe Biden", 
+                "If we don't take urgent action to address the climate emergency, our planet may never recover. We must get the climate change denier out of the White House and tackle this crisis head-on."
+            ), 
+            new MessageCreationParams(new ArrayList<>(), new HashMap<>())
         );
-        m1.addReaction("bob", "like");
-        m1.addReaction("carol", "love");
-
-        MessageCreationParams params1 = new MessageCreationParams(
-            List.of("climate_change", "awareness"),
-            new HashMap(){{ 
-                put("sentiment", "negative"); 
-                put("toxicity", "0"); }}
-        );
-
-        content.put(m1.id, params1);
-        filteredContent.put(m1.id, m1);
-
-        // ------------------ Message 2 ------------------
-        Message m2 = new Message(
-            messageCounter.incrementAndGet(),
-            "bob",
-            "We cannot ignore or be indifferent to the climate crisis",
-            m1.id
-        );
-
-        MessageCreationParams params2 = new MessageCreationParams(
-            List.of("climate_change", "awareness"),
-            new HashMap(){{ 
-                put("sentiment", "negative"); 
-                put("toxicity", "0"); }}
-        );
-
-        content.put(m2.id, params2);
-        filteredContent.put(m2.id, m2);
-
-        // ------------------ Message 3 ------------------
-        Message m3 = new Message(
-            messageCounter.incrementAndGet(),
-            "carol",
-            "10k followers FAST? Like & RT this, follow all LIKES and drop a YES below. #GrowthHacks"
-        );
-
-        MessageCreationParams params3 = new MessageCreationParams(
-            List.of("audience_building"),
-            new HashMap(){{ 
-                put("sentiment", "positive"); 
-                put("toxicity", "0"); 
-                put("spam", "true"); }}
-        );
-
-        content.put(m3.id, params3);
-        // not added to filteredContent because it is spam
-
-        // ------------------ Environment ready ------------------
-        System.out.println("Initialized " + content.size() + " messages, "
-                        + filteredContent.size() + " passed moderation.");
     }
 
     @Override
@@ -167,30 +102,25 @@ public class Env extends Environment {
             case "react" -> react(agent, action);
             case "createLink" -> createLink(agent, action);
             case "removeLink" -> removeLink(agent, action);
-        /*      
-            case "ask" -> ask(ag, act); Hacer una coleccion de esos datos en el ENV?
-            case "readPublicProfile" -> readProfile(ag, act); Hacer una coleccion de esos datos en el ENV*/
-
             default -> System.out.println("Unknown action: "+action);
         }
         return true;
     }
 
     private boolean updateFeed(String agent){
-        List<Message> feed = new ArrayList<>(filteredContent.values()); //TODO: implement proper recommendation algorithm
+        List<Message> feed = new ArrayList<>(filteredContent.values());
         updatePercepts(agent, feed);
         return true;
     }
 
-    //TODO: random or ordered but limited to an amount
-    private boolean searchContent(String agent, Structure action){
+        private boolean searchContent(String agent, Structure action){
         String concept = action.getTerm(0).toString();
         List<Message> feed = new ArrayList<>(filteredContent.values());
         feed = feed.stream()
                     .filter(message -> {
                         MessageCreationParams params = content.get(message.id);
                         return params.topics().contains(concept);
-                    }).toList(); //TODO: implement proper recommendation algorithm
+                    }).toList();
         updatePercepts(agent, feed);
         return true;
     }
@@ -201,12 +131,11 @@ public class Env extends Environment {
         feed = feed.stream()
                     .filter(message -> {
                         return message.author.equals(author);
-                    }).toList(); //TODO: implement proper recommendation algorithm
+                    }).toList();
         updatePercepts(agent, feed);
         return true;
     }
-
-    //TODO: make sure the agent receives the feed in the correct order
+    
     private void updatePercepts(String agent, List<Message> messages){
         clearPercepts(agent);
         for (Message m : messages) {
@@ -297,7 +226,6 @@ public class Env extends Environment {
         }
     }
 
-    //TODO if already existis, return false?
     private boolean createLink(String agent, Structure action){
         String to = action.getTerm(0).toString();
         Edge link = new Edge(agent, to);
@@ -307,7 +235,6 @@ public class Env extends Environment {
         return true;
     }
 
-    //TODO do something if link does not exist?
     private boolean removeLink(String agent, Structure action){
         String to = action.getTerm(0).toString();
         Edge target = new Edge(agent, to);
