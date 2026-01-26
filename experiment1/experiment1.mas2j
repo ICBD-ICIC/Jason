@@ -15,8 +15,11 @@ MAS experiment1 {
     environment: env.Env
 
     agents: agent0 
-        agentArchClass arch.GeminiAgArch
-        beliefBaseClass bb.NoRemoveBeliefBase;
+                agentArchClass arch.GeminiAgArch
+                beliefBaseClass bb.NoRemoveBeliefBase;
+            agent1 
+                agentArchClass arch.GeminiAgArch
+                beliefBaseClass bb.NoRemoveBeliefBase;
 
     aslSourcePath: "src/agt";
 }

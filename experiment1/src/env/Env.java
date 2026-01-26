@@ -219,11 +219,7 @@ public class Env extends Environment {
     }
 
     private boolean passFilter(Message message, MessageCreationParams params) {
-        if (params.variables.containsKey("spam") && params.variables.get("spam").equals("true")) {
-            return false;
-        } else {
-            return true;
-        }
+        return true;
     }
 
     private boolean createLink(String agent, Structure action){

@@ -76,6 +76,11 @@ public class GeminiAgArch extends AgArch {
         return allPercepts;
     }
 
+    //[SI O SI YA YA]TODO: Creo que esto deberia ser una accion interna, que cada vez que llega un mensaje lo "lea" interpretandolo
+
+    //Otra accion interna despues de interpretar podria ser pasarle los datos del agente y preguntarle
+    //Supongo que tenemos que ponerle por param que es un agente gemini o algo asi
+
     //TODO: if it is a message from the agent, shouldn't the t and v be the originals?
     private List<Literal> interpret(int id, String content) {
         List<Literal> derived = new ArrayList<>();

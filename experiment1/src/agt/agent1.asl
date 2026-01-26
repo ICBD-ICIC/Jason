@@ -10,17 +10,12 @@ persona_description("You are a politically engaged individual, likely conservati
 /* Plans */
 
 +!start : true <- 
-    .print("agent0 before wait");
-    .wait(0);
-    .print("agent0 after wait");
+    .print("agent1 before wait");
+    .wait(1000);
+    .print("agent1 after wait");
     updateFeed;
     !read_messages.
 
-+!read_messages : message(I,A,C,O,T) <-
-    .findall(message(I,A,C,O,T), message(I,A,C,O,T), M);
-    .print(M).
-    //No imprime nada, o mando todo el feed en un percept (despues no puedo usarlo separado)
-    //O hago algo que de forma random decida leer lo que haya, si hay algo
-
-
-//quizas algo como que si tiene mas de N interpretaciones de algun topic o creador, que escriba/responda
++message(I,A,C,O,T) : true <-
+    ia.interpret(C, Interpretation);
+    .print(Interpretation).
