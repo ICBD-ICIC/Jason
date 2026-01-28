@@ -48,7 +48,7 @@ initial_affectivity_democrat(LR, LD, HR, HD) :-
     +hate(democrats, HD);
     .print("LR=", LR, " LD=", LD, " HR=", HR, " HD=", HD).
 
-/* +message(Id, Author, Content, Original, Timestamp) : 
++message(Id, Author, Content, Original, Timestamp) : 
     political_standpoint(PS) &
     demographics(D) &
     persona_description(PD) &
@@ -57,8 +57,12 @@ initial_affectivity_democrat(LR, LD, HR, HD) :-
     hate(republicans, HR) &
     hate(democrats, HD) 
 <-
-    ia.updateLove(republicans, LR, PS, D, PD, Content, NewLR);
-    ia.updateLove(republicans, LR, PS, D, PD, Content, NewLR);
-    ia.updateLove(republicans, LR, PS, D, PD, Content, NewLR);
-    ia.updateLove(republicans, LR, PS, D, PD, Content, NewLR);
-    -+ */
+    ia.updateAffectivity(love, republicans, LR, PS, D, PD, Content, NewLR);
+    ia.updateAffectivity(love, democrats, LD, PS, D, PD, Content, NewLD);
+    ia.updateAffectivity(hate, republicans, HR, PS, D, PD, Content, NewHR);
+    ia.updateAffectivity(hate, democrats, HD, PS, D, PD, Content, NewHD);
+    -+love(republicans, NewLR);
+    -+love(democrats, NewLD);
+    -+hate(republicans, NewHR);
+    -+hate(democrats, NewHD);
+    .print("LR=", NewLR, " LD=", NewLD, " HR=", NewHR, " HD=", NewHD).

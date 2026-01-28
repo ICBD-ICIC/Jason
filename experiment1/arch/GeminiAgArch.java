@@ -14,7 +14,7 @@ import com.google.genai.types.GenerateContentResponse;
 public class GeminiAgArch extends AgArch implements LlmAgArch{
 
     private final Client client = new Client();
-    private static final String model = "gemini-3-flash-preview";
+    private static final String model = "gemini-2.5-flash";
 
     // ---------------- PUBLIC API ----------------
 
@@ -55,6 +55,46 @@ public class GeminiAgArch extends AgArch implements LlmAgArch{
         System.out.print("\nPROMPT: " + prompt + "\n");
 
         return getResponse(prompt);
+    }
+
+    public int updateLove(String group, String current, String political_standpoint, String demographics, String persona_description, String content) {
+        String prompt = String.format(
+            "Your are %s. %s %s\n" +
+            "Your current level of support for %s is %s (on a scale from 0 to 10). \n" +
+            "Given the following message: \n %s" +
+            "On a scale from 0 to 10, where 0 represents no support at all and 10 signifies unwavering support, how would you now rate your level of support for  %s after considering the message above?\n" +
+            "Respond with a single integer between 0 and 10.", 
+            political_standpoint, 
+            demographics,
+            persona_description,
+            group,
+            current,
+            content,
+            group);
+
+        System.out.print("\nPROMPT: " + prompt + "\n");
+
+        return Integer.parseInt(getResponse(prompt));
+    }
+
+    public int updateHate(String group, String current, String political_standpoint, String demographics, String persona_description, String content) {
+        String prompt = String.format(
+            "Your are %s. %s %s\n" +
+            "Your current level of dislike for %s is %s (on a scale from 0 to 10). \n" +
+            "Given the following message: \n %s" +
+            "On a scale from 0 to 10, where 0 means no dislike at all and 10 represents extreme hatred, how would you now rate your level of dislike for the %s after considering the message above?\n" +
+            "Respond with a single integer between 0 and 10.", 
+            political_standpoint, 
+            demographics,
+            persona_description,
+            group,
+            current,
+            content,
+            group);
+
+        System.out.print("\nPROMPT: " + prompt + "\n");
+
+        return Integer.parseInt(getResponse(prompt));
     }
 
     private String getResponse(String prompt) {
