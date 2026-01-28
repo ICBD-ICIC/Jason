@@ -15,11 +15,27 @@ MAS experiment1 {
     environment: env.Env
 
     agents: agent0 
-                agentArchClass arch.GeminiAgArch
-                beliefBaseClass bb.NoRemoveBeliefBase;
+                agentArchClass arch.GeminiAgArch;
             agent1 
-                agentArchClass arch.GeminiAgArch
-                beliefBaseClass bb.NoRemoveBeliefBase;
+                agentArchClass arch.GeminiAgArch;
+            agent2 
+                agentArchClass arch.GeminiAgArch;
+            agent3 
+                agentArchClass arch.GeminiAgArch;
+            agent4 
+                agentArchClass arch.GeminiAgArch;
+            agent5 
+                agentArchClass arch.GeminiAgArch;
+            agent6 
+                agentArchClass arch.GeminiAgArch;
+            agent7 
+                agentArchClass arch.GeminiAgArch;
+            agent8 
+                agentArchClass arch.GeminiAgArch;
+            agent9 
+                agentArchClass arch.GeminiAgArch;
+            agent10
+                agentArchClass arch.GeminiAgArch;    
 
     aslSourcePath: "src/agt";
 }

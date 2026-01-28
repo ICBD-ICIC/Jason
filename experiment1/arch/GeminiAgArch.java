@@ -2,109 +2,87 @@ package arch;
 
 import jason.architecture.AgArch;
 import jason.asSyntax.*;
-import static jason.asSyntax.ASSyntax.*;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Collection;
-import java.util.*;
-
-import jason.asSemantics.ActionExec;
+import java.util.Map;
 
 import lib.Translator;
 
-public class GeminiAgArch extends AgArch {
+import com.google.genai.Client;
+import com.google.genai.types.GenerateContentResponse;
 
-    @Override
-    public void act(ActionExec actionExec) {
-        Structure action = actionExec.getActionTerm();
-        switch (action.getFunctor()) {
-            case "createPost" -> {
-                Term topics = action.getTerm(0);
-                Term variables = action.getTerm(1);
-                
-                String content = Gemini.createContent(topics, variables);
+public class GeminiAgArch extends AgArch implements LlmAgArch{
 
-                Structure envAction = createStructure(
-                    "createPost",
-                    topics,
-                    variables,
-                    createString(content)
-                );
-                ActionExec envActionExec = new ActionExec(envAction, actionExec.getIntention());
-                super.act(envActionExec);
+    private final Client client = new Client();
+    private static final String model = "gemini-3-flash-preview";
+
+    // ---------------- PUBLIC API ----------------
+
+    public String createContent(Term topics, Term variables) {
+        List<String> topicList = Translator.translateTopics(topics);
+        Map<String, String> varMap = Translator.translateVariables(variables);
+        String prompt = String.format("Create a tweet that talks about %s and has the following characteristics: %s", topicList.toString(), varMap.toString());
+
+        System.out.print("\nPROMPT: " + prompt + "\n");
+
+        return getResponse(prompt);
+    }
+
+    public String createContent(Term interpretations, Term originalContent, Term topics, Term variables) {
+        List<String> topicList = Translator.translateTopics(topics);
+        Map<String, String> varMap = Translator.translateVariables(variables);
+
+        String original = originalContent.toString();
+        Map<String, String> interpMap = Translator.translateVariables(interpretations);
+
+        String prompt = String.format(
+            "Using the original content: \"%s\" and its interpretation: \"%s\", " +
+            "create a new tweet that also discusses %s and includes the following characteristics: %s",
+            original, interpMap.toString(), topicList.toString(), varMap.toString()
+        );
+
+        System.out.print("\nPROMPT: " + prompt + "\n");
+
+        return getResponse(prompt);
+    }
+
+    public String sentiment(String text) {
+        String prompt = String.format(
+            "Analyze the following text and determine its sentiment. Respond only with one of these labels: Positive, Negative, or Neutral. " + 
+            "Do not add any explanations or punctuation.\n " +
+            "Text: %s", text);
+
+        System.out.print("\nPROMPT: " + prompt + "\n");
+
+        return getResponse(prompt);
+    }
+
+    private String getResponse(String prompt) {
+        final int maxRetries = 3; 
+        final long retryDelay = 1000; 
+        int attempt = 0;
+
+        while (attempt < maxRetries) {
+            try {
+                GenerateContentResponse response = client.models.generateContent(model, prompt, null);
+                System.out.print("\nRESPONSE: " + response.text() + "\n");
+                return response.text();
+            } catch (Exception e) {
+                attempt++;
+                System.err.println("Error generating content (attempt " + attempt + "): " + e.getMessage());
+                if (attempt >= maxRetries) {
+                    System.err.println("Max retries reached. Returning empty string.");
+                    return "";
+                }
+                try {
+                    Thread.sleep(retryDelay);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    System.err.println("Retry sleep interrupted.");
+                    return "";
+                }
             }
-            case "comment" -> {
-                Term originalId = action.getTerm(0);
-                Term interpretations = action.getTerm(1);
-                Term originalContent = action.getTerm(2);
-                Term topics = action.getTerm(3);
-                Term variables = action.getTerm(4);
-                
-                String content = Gemini.createContent(interpretations, originalContent, topics, variables);
-
-                Structure envAction = createStructure(
-                    "comment",
-                    originalId,
-                    topics,
-                    variables,
-                    createString(content)
-                );
-                ActionExec envActionExec = new ActionExec(envAction, actionExec.getIntention());
-                super.act(envActionExec);
-            }
-            default -> super.act(actionExec);
         }
-    }
-
-    @Override
-    public List<Literal> perceive() {
-        Collection<Literal> percepts = super.perceive();
-        if (percepts == null) {
-            percepts = List.of(); // no percepts this cycle
-        }
-        List<Literal> allPercepts = new ArrayList<>();
-        for (Literal p : percepts) {
-            allPercepts.add(p);
-            if (p.getFunctor().equals("message")) {
-                int id = Integer.parseInt(p.getTerm(0).toString());
-                String content = p.getTerm(2).toString();
-                allPercepts.addAll(interpret(id, content));
-            }
-        }
-        System.out.print("\n" + allPercepts + "\n");
-        return allPercepts;
-    }
-
-    //[SI O SI YA YA]TODO: Creo que esto deberia ser una accion interna, que cada vez que llega un mensaje lo "lea" interpretandolo
-
-    //Otra accion interna despues de interpretar podria ser pasarle los datos del agente y preguntarle
-    //Supongo que tenemos que ponerle por param que es un agente gemini o algo asi
-
-    //TODO: if it is a message from the agent, shouldn't the t and v be the originals?
-    private List<Literal> interpret(int id, String content) {
-        List<Literal> derived = new ArrayList<>();
-        String sentiment = sentiment(content);
-        boolean spam = isSpam(content);
-
-        Term sentimentTerm = createLiteral("sentiment", createString(sentiment));
-        Literal sentimentInterpretation = createLiteral("interpretation", createNumber(id), sentimentTerm);
-        derived.add(sentimentInterpretation);
-
-        Term spamTerm = createLiteral("spam", createAtom(Boolean.toString(spam)));
-        Literal spamInterpretation = createLiteral("interpretation", createNumber(id), spamTerm);
-        derived.add(spamInterpretation);
-
-        return derived;
-    }
-
-    //TODO: use LLM to calculate this
-    private String sentiment(String text) {
-        return "positive";
-    }
-
-    //TODO: use LLM to calculate this
-    private boolean isSpam(String text) {
-        return false;
+        return "";
     }
 }
