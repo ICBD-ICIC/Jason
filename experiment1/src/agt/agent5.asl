@@ -7,3 +7,9 @@ persona_description("You are skeptical of established climate science. You belie
 
 /* Initial goals */
 !initiate_republican.
+
+/* Plans */
++!start : random_miliseconds(X) <-
+    .wait(X);
+    updateFeed;
+    !comment_latest.

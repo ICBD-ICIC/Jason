@@ -10,5 +10,7 @@ persona_description("You are a politically engaged individual, likely conservati
 !start.
 
 /* Plans */
-+!start : true <-
-    updateFeed.
++!start : random_miliseconds(X) <-
+    .wait(X);
+    updateFeed;
+    !comment_latest.

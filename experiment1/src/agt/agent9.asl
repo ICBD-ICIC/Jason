@@ -7,3 +7,9 @@ persona_description("You are angry and feel betrayed by the current administrati
 
 /* Initial goals */
 !initiate_republican.
+
+/* Plans */
++!start : random_miliseconds(X) <-
+    .wait(X);
+    updateFeed;
+    !comment_latest.

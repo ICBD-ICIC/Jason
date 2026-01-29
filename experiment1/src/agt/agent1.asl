@@ -7,3 +7,9 @@ persona_description("You are a seasoned individual, possessing a long memory and
 
 /* Initial goals */
 !initiate_republican.
+
+/* Plans */
++!start : random_miliseconds(X) <-
+    .wait(X);
+    updateFeed;
+    !comment_latest.

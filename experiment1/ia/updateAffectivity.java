@@ -18,12 +18,12 @@ public class updateAffectivity extends DefaultInternalAction {
         }
 
         String affectivity = args[0].toString();
-        String group = args[1].toString();
-        String current = args[2].toString();
-        String politicalStandpoint = args[3].toString();
-        String demographics = args[4].toString();
-        String personaDescription = args[5].toString();
-        String content = args[6].toString();
+        Term group = args[1];
+        Term current = args[2];
+        Term politicalStandpoint = args[3];
+        Term demographics = args[4];
+        Term personaDescription = args[5];
+        Term content = args[6];
 
         LlmAgArch llm = (LlmAgArch) arch;
 

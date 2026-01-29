@@ -46,51 +46,51 @@ public class GeminiAgArch extends AgArch implements LlmAgArch{
         return getResponse(prompt);
     }
 
-    public String sentiment(String text) {
+    public String sentiment(Term text) {
         String prompt = String.format(
             "Analyze the following text and determine its sentiment. Respond only with one of these labels: Positive, Negative, or Neutral. " + 
             "Do not add any explanations or punctuation.\n " +
-            "Text: %s", text);
+            "Text: %s", fromJasonString(text));
 
         System.out.print("\nPROMPT: " + prompt + "\n");
 
         return getResponse(prompt);
     }
 
-    public int updateLove(String group, String current, String political_standpoint, String demographics, String persona_description, String content) {
+    public int updateLove(Term group, Term current, Term political_standpoint, Term demographics, Term persona_description, Term content) {
         String prompt = String.format(
             "Your are %s. %s %s\n" +
             "Your current level of support for %s is %s (on a scale from 0 to 10). \n" +
-            "Given the following message: \n %s" +
+            "Given the following message: \n '%s'\n" +
             "On a scale from 0 to 10, where 0 represents no support at all and 10 signifies unwavering support, how would you now rate your level of support for  %s after considering the message above?\n" +
             "Respond with a single integer between 0 and 10.", 
-            political_standpoint, 
-            demographics,
-            persona_description,
-            group,
-            current,
-            content,
-            group);
+            fromJasonString(political_standpoint),
+            fromJasonString(demographics),
+            fromJasonString(persona_description),
+            fromJasonString(group),
+            fromJasonString(current),
+            fromJasonString(content),
+            fromJasonString(group));
 
         System.out.print("\nPROMPT: " + prompt + "\n");
 
         return Integer.parseInt(getResponse(prompt));
     }
 
-    public int updateHate(String group, String current, String political_standpoint, String demographics, String persona_description, String content) {
+    public int updateHate(Term group, Term current, Term political_standpoint, Term demographics, Term persona_description, Term content) {
         String prompt = String.format(
             "Your are %s. %s %s\n" +
             "Your current level of dislike for %s is %s (on a scale from 0 to 10). \n" +
-            "Given the following message: \n %s" +
+            "Given the following message: \n '%s'\n" +
             "On a scale from 0 to 10, where 0 means no dislike at all and 10 represents extreme hatred, how would you now rate your level of dislike for the %s after considering the message above?\n" +
             "Respond with a single integer between 0 and 10.", 
-            political_standpoint, 
-            demographics,
-            persona_description,
-            group,
-            current,
-            content,
-            group);
+            fromJasonString(political_standpoint),
+            fromJasonString(demographics),
+            fromJasonString(persona_description),
+            fromJasonString(group),
+            fromJasonString(current),
+            fromJasonString(content),
+            fromJasonString(group));
 
         System.out.print("\nPROMPT: " + prompt + "\n");
 
@@ -105,7 +105,7 @@ public class GeminiAgArch extends AgArch implements LlmAgArch{
         while (attempt < maxRetries) {
             try {
                 GenerateContentResponse response = client.models.generateContent(model, prompt, null);
-                System.out.print("\nRESPONSE: " + response.text() + "\n");
+                System.out.print("RESPONSE: " + response.text() + "\n");
                 return response.text();
             } catch (Exception e) {
                 attempt++;
@@ -124,5 +124,15 @@ public class GeminiAgArch extends AgArch implements LlmAgArch{
             }
         }
         return "";
+    }
+
+    private static String fromJasonString(Term jasonString) {
+        String s = jasonString.toString();
+        if (s == null) return "";
+            s = s.trim();
+        if (s.length() >= 2 && s.startsWith("\"") && s.endsWith("\"")) {
+            return s.substring(1, s.length() - 1);
+        }
+        return s;
     }
 }

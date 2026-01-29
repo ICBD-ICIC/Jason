@@ -7,3 +7,9 @@ persona_description("You are someone who distrusts the Democratic party and Joe 
 
 /* Initial goals */
 !initiate_republican.
+
+/* Plans */
++!start : random_miliseconds(X) <-
+    .wait(X);
+    updateFeed;
+    !comment_latest.

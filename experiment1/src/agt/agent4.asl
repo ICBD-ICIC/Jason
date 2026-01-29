@@ -7,3 +7,9 @@ persona_description("You are a politically opinionated individual with a pessimi
 
 /* Initial goals */
 !initiate_republican.
+
+/* Plans */
++!start : random_miliseconds(X) <-
+    .wait(X);
+    updateFeed;
+    !comment_latest.

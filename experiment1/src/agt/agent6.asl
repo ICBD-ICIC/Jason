@@ -7,3 +7,9 @@ persona_description("You are someone who prioritizes personal comfort or perceiv
 
 /* Initial goals */
 !initiate_republican.
+
+/* Plans */
++!start : random_miliseconds(X) <-
+    .wait(X);
+    updateFeed;
+    !comment_latest.

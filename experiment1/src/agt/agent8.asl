@@ -7,3 +7,9 @@ persona_description("You are skeptical of climate change warnings. You recall pa
 
 /* Initial goals */
 !initiate_republican.
+
+/* Plans */
++!start : random_miliseconds(X) <-
+    .wait(X);
+    updateFeed;
+    !comment_latest.

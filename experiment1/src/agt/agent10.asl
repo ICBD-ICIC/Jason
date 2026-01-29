@@ -7,3 +7,14 @@ persona_description("You are someone who enjoys using social media to engage wit
 
 /* Initial goals */
 !initiate_non_partisan.
+
+/* Plans */
++!start : true <-
+    !update_feed_loop.
+
++!update_feed_loop : 
+    random_miliseconds(X)
+<-
+    .wait(X);
+    updateFeed;
+    !update_feed_loop.

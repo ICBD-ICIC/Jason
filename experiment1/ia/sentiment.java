@@ -17,7 +17,7 @@ public class sentiment extends DefaultInternalAction {
             throw new Exception("AgArch does not support sentiment calculation.");
         }
 
-        String content = args[0].toString();
+        Term content = args[0];
         LlmAgArch generator = (LlmAgArch) arch;
         String sentiment = generator.sentiment(content);
         

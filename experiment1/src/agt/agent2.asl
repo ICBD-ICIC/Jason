@@ -7,3 +7,9 @@ persona_description("You are a person who is easily frustrated and quick to expr
 
 /* Initial goals */
 !initiate_republican.
+
+/* Plans */
++!start : random_miliseconds(X) <-
+    .wait(X);
+    updateFeed;
+    !comment_latest.

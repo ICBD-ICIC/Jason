@@ -3,6 +3,11 @@ random_range_int(Min, Max, R) :-
     Y = X * (Max - Min) + Min &
     R = math.floor(Y).
 
+random_miliseconds(X) :-
+    .random(R) &
+    M = R * 10000 &
+    X = math.floor(M).
+
 initial_affectivity_non_partisan(LR, LD, HR, HD) :-
     random_range_int(0, 4, LR) &
     random_range_int(0, 4, LD) &
@@ -48,6 +53,32 @@ initial_affectivity_democrat(LR, LD, HR, HD) :-
     +hate(democrats, HD);
     .print("LR=", LR, " LD=", LD, " HR=", HR, " HD=", HD).
 
++!update_latest(Id, Timestamp) : 
+    not latest_message(_, _)
+<-
+    +latest_message(Id, Timestamp).
+
++!update_latest(Id, Timestamp) :
+    latest_message(_, OldTs) & Timestamp > OldTs
+<-
+    -latest_message(_, OldTs);
+    +latest_message(Id, Timestamp).
+
++!update_latest(_, _) :
+    latest_message(_, OldTs) & Timestamp <= OldTs
+<-
+    true.
+
++!comment_latest :
+    latest_message(Id, _)
+<-
+    Topics = [reaction];
+    Vars = [tone(critical)];
+    Comment = "This post shows how disconnected political elites are from everyday Americans.";
+    comment(Id, Topics, Vars, Comment).
+
++!comment_latest : true <- !comment_latest.    
+
 +message(Id, Author, Content, Original, Timestamp) : 
     political_standpoint(PS) &
     demographics(D) &
@@ -65,4 +96,5 @@ initial_affectivity_democrat(LR, LD, HR, HD) :-
     -+love(democrats, NewLD);
     -+hate(republicans, NewHR);
     -+hate(democrats, NewHD);
-    .print("LR=", NewLR, " LD=", NewLD, " HR=", NewHR, " HD=", NewHD).
+    .print("LR=", NewLR, " LD=", NewLD, " HR=", NewHR, " HD=", NewHD);
+    !update_latest(Id, Timestamp).

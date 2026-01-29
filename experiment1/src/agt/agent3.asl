@@ -7,3 +7,9 @@ persona_description("You hold strong political opinions and aren't afraid to exp
 
 /* Initial goals */
 !initiate_republican.
+
+/* Plans */
++!start : random_miliseconds(X) <-
+    .wait(X);
+    updateFeed;
+    !comment_latest.
