@@ -1,85 +1,41 @@
-random_range_int(Min, Max, R) :-
-    .random(X) &
-    Y = X * (Max - Min) + Min &
-    R = math.floor(Y).
++your_turn : true <-
+    .wait(initiation_done);
+    !act;
+    .my_name(Name);
+    .send(orchestrator, tell, done(Name)).  
 
-random_miliseconds(X) :-
-    .random(R) &
-    M = R * 10000 &
-    X = math.floor(M).
++finish : true <-
+    !update_affectivity.
 
-initial_affectivity_non_partisan(LR, LD, HR, HD) :-
-    random_range_int(0, 4, LR) &
-    random_range_int(0, 4, LD) &
-    random_range_int(0, 10, HR) &
-    random_range_int(0, 10, HD).
-
-initial_affectivity_republican(LR, LD, HR, HD) :-
-    random_range_int(5, 10, LR) &
-    random_range_int(0, 4, LD) &
-    random_range_int(0, 4, HR) &
-    random_range_int(0, 10, HD).
-
-initial_affectivity_democrat(LR, LD, HR, HD) :-
-    random_range_int(0, 4, LR) &
-    random_range_int(5, 10, LD) &
-    random_range_int(0, 10, HR) &
-    random_range_int(0, 4, HD).
-
-+!initiate_republican : 
-    initial_affectivity_republican(LR, LD, HR, HD)
++!initiate_affectivity : 
+    political_standpoint(PS) &
+    demographics(D) &
+    persona_description(PD)
 <-
+    +love(republicans, 10);
+    +love(democrats, 10);
+    +hate(republicans, 10);
+    +hate(democrats, 10);
+    +initiation_done;
+    .print("LR=", LR, " LD=", LD, " HR=", HR, " HD=", HD).
+
+/* +!initiate_affectivity : 
+    political_standpoint(PS) &
+    demographics(D) &
+    persona_description(PD)
+<-
+    ia.initiateAffectivity(love, republicans, PS, D, PD, LR);
+    ia.initiateAffectivity(love, democrats, PS, D, PD, LD);
+    ia.initiateAffectivity(hate, republicans, PS, D, PD, HR);
+    ia.initiateAffectivity(hate, democrats, PS, D, PD, HD);
     +love(republicans, LR);
     +love(democrats, LD);
     +hate(republicans, HR);
     +hate(democrats, HD);
-    .print("LR=", LR, " LD=", LD, " HR=", HR, " HD=", HD).
+    +initiation_done;
+    .print("LR=", LR, " LD=", LD, " HR=", HR, " HD=", HD). */
 
-+!initiate_democrat : 
-    initial_affectivity_democrat(LR, LD, HR, HD)
-<-
-    +love(republicans, LR);
-    +love(democrats, LD);
-    +hate(republicans, HR);
-    +hate(democrats, HD);
-    .print("LR=", LR, " LD=", LD, " HR=", HR, " HD=", HD).
-
-+!initiate_non_partisan : 
-    initial_affectivity_non_partisan(LR, LD, HR, HD)
-<-
-    +love(republicans, LR);
-    +love(democrats, LD);
-    +hate(republicans, HR);
-    +hate(democrats, HD);
-    .print("LR=", LR, " LD=", LD, " HR=", HR, " HD=", HD).
-
-+!update_latest(Id, Timestamp) : 
-    not latest_message(_, _)
-<-
-    +latest_message(Id, Timestamp).
-
-+!update_latest(Id, Timestamp) :
-    latest_message(_, OldTs) & Timestamp > OldTs
-<-
-    -latest_message(_, OldTs);
-    +latest_message(Id, Timestamp).
-
-+!update_latest(_, _) :
-    latest_message(_, OldTs) & Timestamp <= OldTs
-<-
-    true.
-
-+!comment_latest :
-    latest_message(Id, _)
-<-
-    Topics = [reaction];
-    Vars = [tone(critical)];
-    Comment = "This post shows how disconnected political elites are from everyday Americans.";
-    comment(Id, Topics, Vars, Comment).
-
-+!comment_latest : true <- !comment_latest.    
-
-+message(Id, Author, Content, Original, Timestamp) : 
++!update_affectivity :     
     political_standpoint(PS) &
     demographics(D) &
     persona_description(PD) &
@@ -96,5 +52,24 @@ initial_affectivity_democrat(LR, LD, HR, HD) :-
     -+love(democrats, NewLD);
     -+hate(republicans, NewHR);
     -+hate(democrats, NewHD);
-    .print("LR=", NewLR, " LD=", NewLD, " HR=", NewHR, " HD=", NewHD);
-    !update_latest(Id, Timestamp).
+    .print("LR=", NewLR, " LD=", NewLD, " HR=", NewHR, " HD=", NewHD).
+
++!act : 
+    political_standpoint(PS) &
+    demographics(D) &
+    persona_description(PD)
+<-
+    updateFeed;
+    .wait(feed_order(FeedList));
+    !collect_messages(FeedList, "", ConversationList);
+    ia.reply(PS, D, PD, ConversationList, Response);
+    FeedList = [Last | _];
+    comment(Last, [], [], Response).
+
++!collect_messages([] , Conversation, Conversation) : true <- true.
+
++!collect_messages([ID|Tail], Conversation, Result) : true <-
+    .wait(message(ID, Author, Content, _, _));
+    .concat("@", Author, ": ", Content, Post);
+    .concat(Post, Conversation, UpdatedConversation);
+    !collect_messages(Tail, UpdatedConversation, Result).

@@ -11,13 +11,13 @@
 */
 
 MAS experiment1 {
-
     environment: env.Env
 
     agents: agent0 
                 agentArchClass arch.GeminiAgArch;
             agent1 
-                agentArchClass arch.GeminiAgArch;
+                agentArchClass arch.GeminiAgArch
+                beliefBaseClass bb.NoRemoveBeliefBase;
             agent2 
                 agentArchClass arch.GeminiAgArch;
             agent3 
@@ -35,7 +35,8 @@ MAS experiment1 {
             agent9 
                 agentArchClass arch.GeminiAgArch;
             agent10
-                agentArchClass arch.GeminiAgArch;    
+                agentArchClass arch.GeminiAgArch;
+            orchestrator;    
 
     aslSourcePath: "src/agt";
 }

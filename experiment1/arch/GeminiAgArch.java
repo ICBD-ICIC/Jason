@@ -46,6 +46,21 @@ public class GeminiAgArch extends AgArch implements LlmAgArch{
         return getResponse(prompt);
     }
 
+    public String reply(Term politicalStandpoint, Term demographics, Term personaDescription, Term conversation) {
+        String prompt = String.format(
+            "Your are %s. %s %s\n" +
+            "You are a Twitter user reading the following thread: \n '%s'\n" +
+            "Reply to it. Stay under 280 characters per message", 
+            fromJasonString(politicalStandpoint),
+            fromJasonString(demographics),
+            fromJasonString(personaDescription),
+            fromJasonString(conversation));
+
+        System.out.print("\nPROMPT: " + prompt + "\n");
+
+        return getResponse(prompt);
+    }
+
     public String sentiment(Term text) {
         String prompt = String.format(
             "Analyze the following text and determine its sentiment. Respond only with one of these labels: Positive, Negative, or Neutral. " + 
@@ -57,43 +72,61 @@ public class GeminiAgArch extends AgArch implements LlmAgArch{
         return getResponse(prompt);
     }
 
-    public int updateLove(Term group, Term current, Term political_standpoint, Term demographics, Term persona_description, Term content) {
+    public int updateLove(Term group, Term current, Term politicalStandpoint, Term demographics, Term personaDescription, Term content) {
         String prompt = String.format(
             "Your are %s. %s %s\n" +
             "Your current level of support for %s is %s (on a scale from 0 to 10). \n" +
             "Given the following message: \n '%s'\n" +
-            "On a scale from 0 to 10, where 0 represents no support at all and 10 signifies unwavering support, how would you now rate your level of support for  %s after considering the message above?\n" +
+            "On a scale from 0 to 10, where 0 represents no support at all and 10 signifies unwavering support, how would you now rate your level of support for %s after considering the message above?\n" +
             "Respond with a single integer between 0 and 10.", 
-            fromJasonString(political_standpoint),
+            fromJasonString(politicalStandpoint),
             fromJasonString(demographics),
-            fromJasonString(persona_description),
+            fromJasonString(personaDescription),
             fromJasonString(group),
             fromJasonString(current),
             fromJasonString(content),
             fromJasonString(group));
-
-        System.out.print("\nPROMPT: " + prompt + "\n");
-
         return Integer.parseInt(getResponse(prompt));
     }
 
-    public int updateHate(Term group, Term current, Term political_standpoint, Term demographics, Term persona_description, Term content) {
+    public int updateHate(Term group, Term current, Term politicalStandpoint, Term demographics, Term personaDescription, Term content) {
         String prompt = String.format(
             "Your are %s. %s %s\n" +
             "Your current level of dislike for %s is %s (on a scale from 0 to 10). \n" +
             "Given the following message: \n '%s'\n" +
-            "On a scale from 0 to 10, where 0 means no dislike at all and 10 represents extreme hatred, how would you now rate your level of dislike for the %s after considering the message above?\n" +
+            "On a scale from 0 to 10, where 0 means no dislike at all and 10 represents extreme hatred, how would you now rate your level of dislike for %s after considering the message above?\n" +
             "Respond with a single integer between 0 and 10.", 
-            fromJasonString(political_standpoint),
+            fromJasonString(politicalStandpoint),
             fromJasonString(demographics),
-            fromJasonString(persona_description),
+            fromJasonString(personaDescription),
             fromJasonString(group),
             fromJasonString(current),
             fromJasonString(content),
             fromJasonString(group));
+        return Integer.parseInt(getResponse(prompt));
+    }
 
-        System.out.print("\nPROMPT: " + prompt + "\n");
+    public int initiateLove(Term group, Term politicalStandpoint, Term demographics, Term personaDescription) {
+        String prompt = String.format(
+            "Your are %s. %s %s\n" +
+            "On a scale from 0 to 10, where 0 represents no support at all and 10 signifies unwavering support, how would you now rate your level of support for %s?\n" +
+            "Respond with a single integer between 0 and 10.", 
+            fromJasonString(politicalStandpoint),
+            fromJasonString(demographics),
+            fromJasonString(personaDescription),
+            fromJasonString(group));
+        return Integer.parseInt(getResponse(prompt));
+    }
 
+    public int initiateHate(Term group, Term politicalStandpoint, Term demographics, Term personaDescription) {
+        String prompt = String.format(
+            "Your are %s. %s %s\n" +
+            "On a scale from 0 to 10, where 0 means no dislike at all and 10 represents extreme hatred, how would you now rate your level of dislike for %s?\n" +
+            "Respond with a single integer between 0 and 10.", 
+            fromJasonString(politicalStandpoint),
+            fromJasonString(demographics),
+            fromJasonString(personaDescription),
+            fromJasonString(group));
         return Integer.parseInt(getResponse(prompt));
     }
 

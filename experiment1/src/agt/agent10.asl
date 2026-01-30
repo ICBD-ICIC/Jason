@@ -6,15 +6,4 @@ demographics("Your demographics are female, white, not hispanic or latino, with 
 persona_description("You are someone who enjoys using social media to engage with public figures. You are politically aware and interested in current events, particularly those involving natural disasters. You have a sense of humor, a bit sarcastic, and you're not afraid to express yourself directly. You are tech-savvy enough to use Twitter effectively and you are looking for a response from a prominent individual.").
 
 /* Initial goals */
-!initiate_non_partisan.
-
-/* Plans */
-+!start : true <-
-    !update_feed_loop.
-
-+!update_feed_loop : 
-    random_miliseconds(X)
-<-
-    .wait(X);
-    updateFeed;
-    !update_feed_loop.
+!initiate_affectivity.

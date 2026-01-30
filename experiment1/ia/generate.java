@@ -14,7 +14,7 @@ public class generate extends DefaultInternalAction {
     public Object execute(TransitionSystem ts, Unifier un, Term[] args) throws Exception {
         AgArch arch = ts.getAgArch();
         if (!(arch instanceof LlmAgArch)) {
-            throw new Exception("AgArch does not support content generation");
+            throw new Exception("AgArch does not support content generation.");
         }
 
         LlmAgArch generator = (LlmAgArch) arch;

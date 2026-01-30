@@ -109,11 +109,12 @@ public class Env extends Environment {
 
     private boolean updateFeed(String agent){
         List<Message> feed = new ArrayList<>(filteredContent.values());
+        feed.sort((m1, m2) -> Long.compare(m2.timestamp, m1.timestamp));
         updatePercepts(agent, feed);
         return true;
     }
 
-        private boolean searchContent(String agent, Structure action){
+    private boolean searchContent(String agent, Structure action){
         String concept = action.getTerm(0).toString();
         List<Message> feed = new ArrayList<>(filteredContent.values());
         feed = feed.stream()
@@ -121,6 +122,7 @@ public class Env extends Environment {
                         MessageCreationParams params = content.get(message.id);
                         return params.topics().contains(concept);
                     }).toList();
+        feed.sort((m1, m2) -> Long.compare(m2.timestamp, m1.timestamp));
         updatePercepts(agent, feed);
         return true;
     }
@@ -132,13 +134,19 @@ public class Env extends Environment {
                     .filter(message -> {
                         return message.author.equals(author);
                     }).toList();
+        feed.sort((m1, m2) -> Long.compare(m2.timestamp, m1.timestamp));
         updatePercepts(agent, feed);
         return true;
     }
     
     private void updatePercepts(String agent, List<Message> messages){
         clearPercepts(agent);
+
+        List<Term> ids = new ArrayList<>();
+
         for (Message m : messages) {
+            ids.add(createNumber(m.id));
+
             Literal literal = createLiteral("message",
                 createNumber(m.id),
                 createString(m.author),
@@ -156,6 +164,8 @@ public class Env extends Environment {
                 addPercept(agent, reactionLiteral);
             }
         }
+        Literal feedOrder = createLiteral("feed_order", createList(ids));
+        addPercept(agent, feedOrder);
     }
 
     private boolean createPost(String agent, Structure action){

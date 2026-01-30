@@ -20,6 +20,9 @@ public final class Translator {
     public static Map<String, String> translateVariables(Term v){
         String variables = v.toString();
         variables = variables.trim().substring(1, variables.length() - 1);
+       if (variables.isEmpty()) {
+            return new HashMap<>();
+        }
         String[] items = variables.split("\\s*,\\s*");
         Map<String, String> map = new HashMap<>();
         for (String item : items) {

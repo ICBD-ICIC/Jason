@@ -7,21 +7,35 @@ public interface LlmAgArch {
 
     String createContent(Term interpretations, Term originalContent, Term topics, Term variables);
 
+    String reply(Term politicalStandpoint, Term demographics, Term personaDescription, Term conversation);
+
     String sentiment(Term text);
 
     int updateLove(
         Term group, 
         Term current, 
-        Term political_standpoint, 
+        Term politicalStandpoint, 
         Term demographics,
-        Term persona_description, 
+        Term personaDescription, 
         Term content);
 
     int updateHate(
         Term group, 
         Term current, 
-        Term political_standpoint, 
+        Term politicalStandpoint, 
         Term demographics,
-        Term persona_description, 
+        Term personaDescription, 
         Term content);
+    
+    int initiateLove(
+        Term group, 
+        Term politicalStandpoint, 
+        Term demographics,
+        Term personaDescription);
+
+    int initiateHate(
+        Term group,
+        Term politicalStandpoint, 
+        Term demographics,
+        Term personaDescription);
 }
