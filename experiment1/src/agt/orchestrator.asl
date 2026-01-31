@@ -11,6 +11,8 @@ next(agent9, agent0).
 
 current_turn(agent0).
 last_agent(agent9).
+total_agents(10).
+finished_agents(0).
 
 !start_round_robin.
 
@@ -32,3 +34,14 @@ last_agent(agent9).
     .print("entra");            
     -+current_turn(Next);
     .send(Next, tell, your_turn). 
+
++finished(Agent) : 
+    finished_agents(N) 
+<-
+    -+finished_agents(N+1).
+
++finished_agents(N) : 
+    total_agents(T) &
+    N == T
+<-
+    .stopMAS.

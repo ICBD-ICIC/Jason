@@ -1,11 +1,13 @@
 +your_turn : true <-
     .wait(initiation_done);
-    !act;
+    //!act;
     .my_name(Name);
     .send(orchestrator, tell, done(Name)).  
 
 +finish : true <-
-    !update_affectivity.
+    !update_affectivity;
+    .my_name(Name);
+    .send(orchestrator, tell, finished(Name)).
 
 +!initiate_affectivity : 
     political_standpoint(PS) &
@@ -44,6 +46,22 @@
     hate(republicans, HR) &
     hate(democrats, HD) 
 <-
+    -+love(republicans, 8);
+    -+love(democrats, 8);
+    -+hate(republicans, 8);
+    -+hate(democrats, 8);
+    .print("LR=", NewLR, " LD=", NewLD, " HR=", NewHR, " HD=", NewHD).
+
+
+/* +!update_affectivity :     
+    political_standpoint(PS) &
+    demographics(D) &
+    persona_description(PD) &
+    love(republicans, LR) &
+    love(democrats, LD) &
+    hate(republicans, HR) &
+    hate(democrats, HD) 
+<-
     ia.updateAffectivity(love, republicans, LR, PS, D, PD, Content, NewLR);
     ia.updateAffectivity(love, democrats, LD, PS, D, PD, Content, NewLD);
     ia.updateAffectivity(hate, republicans, HR, PS, D, PD, Content, NewHR);
@@ -53,7 +71,7 @@
     -+hate(republicans, NewHR);
     -+hate(democrats, NewHD);
     .print("LR=", NewLR, " LD=", NewLD, " HR=", NewHR, " HD=", NewHD).
-
+ */
 +!act : 
     political_standpoint(PS) &
     demographics(D) &
