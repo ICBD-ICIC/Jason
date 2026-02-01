@@ -11,7 +11,7 @@ next(agent9, agent0).
 
 current_turn(agent0).
 last_agent(agent9).
-total_agents(10).
+total_agents(11).
 finished_agents(0).
 
 !start_round_robin.
@@ -30,8 +30,7 @@ finished_agents(0).
 +done(Agent) : 
     current_turn(Agent) &
     next(Agent, Next)
-<-       
-    .print("entra");            
+<-                 
     -+current_turn(Next);
     .send(Next, tell, your_turn). 
 

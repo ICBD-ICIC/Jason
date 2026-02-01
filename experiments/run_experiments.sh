@@ -1,19 +1,24 @@
 #!/bin/bash
 
-RESULTS_DIR="results/experiment1"
-LOG_FILE="mas.log"
+MAS_FILE="$1"
 RUNS=50
 
-# Create results directory if it doesn't exist
+if [ -z "$MAS_FILE" ]; then
+    echo "Usage: $0 <mas_file>"
+    exit 1
+fi
+
+MAS_NAME=$(basename "$MAS_FILE" .mas2j)
+RESULTS_DIR="results/${MAS_NAME}"
+LOG_FILE="mas.log"
+
 mkdir -p "$RESULTS_DIR"
 
 for i in $(seq 1 $RUNS); do
     echo "Starting run $i of $RUNS..."
 
-    # Run gradle command
-    gradle clean run
+    gradle clean run -PmasFile="$MAS_FILE"
 
-    # Check if log file exists
     if [ -f "$LOG_FILE" ]; then
         TIMESTAMP=$(date +"%Y%m%d_%H%M%S_%N")
         mv "$LOG_FILE" "$RESULTS_DIR/mas_run${i}_${TIMESTAMP}.log"

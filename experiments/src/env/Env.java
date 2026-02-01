@@ -91,7 +91,6 @@ public class Env extends Environment {
 
     @Override
     public boolean executeAction(String agent, Structure action) {
-        System.out.println("ENV executing: " + action.getFunctor());
         switch (action.getFunctor()) {
             case "updateFeed" -> updateFeed(agent);
             case "searchContent" -> searchContent(agent, action);

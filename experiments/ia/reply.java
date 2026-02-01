@@ -25,6 +25,7 @@ public class reply extends DefaultInternalAction {
         Term conversation = args[3];
 
         String content = generator.reply(politicalStandpoint, demographics, personaDescription, conversation);
+        System.out.println("Generated reply: " + content);
 
         return un.unifies(args[4], new StringTermImpl(content));
     }

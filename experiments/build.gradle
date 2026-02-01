@@ -1,5 +1,5 @@
 /*
-   Project experiment1
+   Project experiments
 
    Gradle build file for Jason Application
    enero 25, 2026 - 19:54:47
@@ -8,6 +8,10 @@
 plugins {
     id 'com.gradleup.shadow' version '8.3.3'
     id 'java'
+}
+
+ext {
+    masFile = project.findProperty("masFile") ?: "experiment1.mas2j"
 }
 
 defaultTasks 'run'
@@ -47,7 +51,7 @@ task run (type: JavaExec, dependsOn: 'classes') {
     group = 'Jason'
     description 'runs the application'
     mainClass = 'jason.infra.local.RunLocalMAS'
-    args = ['experiment1.mas2j']
+    args = [masFile]
 	// options:
 	//     args = ['experiment1.mas2j', '--debug', '--no-net', '--empty-mas']
 	//     args = ['experiment1.mas2j', '--log-conf', 'l.p'] // to use file l.p to configure logging
@@ -58,7 +62,7 @@ task runJade (type: JavaExec, dependsOn: 'classes') {
     group = 'Jason'
     description 'runs the application with Jade infrastructure'
     mainClass = 'jason.infra.jade.RunJadeMAS'
-    args = [ 'experiment1.mas2j', '-gui' ]
+    args = [ masFile, '-gui' ]
     // options:
     //     args = ['experiment1.mas2j', '-gui', '-sniffer' ]
     // and all usual JADE options for jade.Boot
@@ -68,8 +72,8 @@ task runJade (type: JavaExec, dependsOn: 'classes') {
 shadowJar {
     doFirst {
         copy {
-            from 'experiment1.mas2j'
-            rename 'experiment1.mas2j','default.mas2j'
+            from masFile
+            rename { "default.mas2j" }
             into project.projectDir.absolutePath + '/'
         }
     }

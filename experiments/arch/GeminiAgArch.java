@@ -14,7 +14,7 @@ import com.google.genai.types.GenerateContentResponse;
 public class GeminiAgArch extends AgArch implements LlmAgArch{
 
     private final Client client = new Client();
-    private static final String model = "gemini-2.5-flash";
+    private static final String model = "gemini-2.0-flash";
 
     // ---------------- PUBLIC API ----------------
 
@@ -22,9 +22,6 @@ public class GeminiAgArch extends AgArch implements LlmAgArch{
         List<String> topicList = Translator.translateTopics(topics);
         Map<String, String> varMap = Translator.translateVariables(variables);
         String prompt = String.format("Create a tweet that talks about %s and has the following characteristics: %s", topicList.toString(), varMap.toString());
-
-        System.out.print("\nPROMPT: " + prompt + "\n");
-
         return getResponse(prompt);
     }
 
@@ -40,9 +37,6 @@ public class GeminiAgArch extends AgArch implements LlmAgArch{
             "create a new tweet that also discusses %s and includes the following characteristics: %s",
             original, interpMap.toString(), topicList.toString(), varMap.toString()
         );
-
-        System.out.print("\nPROMPT: " + prompt + "\n");
-
         return getResponse(prompt);
     }
 
@@ -55,9 +49,6 @@ public class GeminiAgArch extends AgArch implements LlmAgArch{
             fromJasonString(demographics),
             fromJasonString(personaDescription),
             fromJasonString(conversation));
-
-        System.out.print("\nPROMPT: " + prompt + "\n");
-
         return getResponse(prompt);
     }
 
@@ -66,17 +57,14 @@ public class GeminiAgArch extends AgArch implements LlmAgArch{
             "Analyze the following text and determine its sentiment. Respond only with one of these labels: Positive, Negative, or Neutral. " + 
             "Do not add any explanations or punctuation.\n " +
             "Text: %s", fromJasonString(text));
-
-        System.out.print("\nPROMPT: " + prompt + "\n");
-
         return getResponse(prompt);
     }
 
-    public int updateLove(Term group, Term current, Term politicalStandpoint, Term demographics, Term personaDescription, Term content) {
+    public int updateLove(Term group, Term current, Term politicalStandpoint, Term demographics, Term personaDescription, Term conversation) {
         String prompt = String.format(
             "Your are %s. %s %s\n" +
             "Your current level of support for %s is %s (on a scale from 0 to 10). \n" +
-            "Given the following message: \n '%s'\n" +
+            "Given the following thread: \n '%s'\n" +
             "On a scale from 0 to 10, where 0 represents no support at all and 10 signifies unwavering support, how would you now rate your level of support for %s after considering the message above?\n" +
             "Respond with a single integer between 0 and 10.", 
             fromJasonString(politicalStandpoint),
@@ -84,26 +72,26 @@ public class GeminiAgArch extends AgArch implements LlmAgArch{
             fromJasonString(personaDescription),
             fromJasonString(group),
             fromJasonString(current),
-            fromJasonString(content),
+            fromJasonString(conversation),
             fromJasonString(group));
-        return Integer.parseInt(getResponse(prompt));
+        return getIntValue(getResponse(prompt));
     }
 
-    public int updateHate(Term group, Term current, Term politicalStandpoint, Term demographics, Term personaDescription, Term content) {
+    public int updateHate(Term group, Term current, Term politicalStandpoint, Term demographics, Term personaDescription, Term conversation) {
         String prompt = String.format(
             "Your are %s. %s %s\n" +
             "Your current level of dislike for %s is %s (on a scale from 0 to 10). \n" +
-            "Given the following message: \n '%s'\n" +
-            "On a scale from 0 to 10, where 0 means no dislike at all and 10 represents extreme hatred, how would you now rate your level of dislike for %s after considering the message above?\n" +
+            "Given the following thread: \n '%s'\n" +
+            "On a scale from 0 to 10, where 0 means no dislike at all and 10 represents extreme hatred, how would you now rate your level of dislike for %s after considering the thread above?\n" +
             "Respond with a single integer between 0 and 10.", 
             fromJasonString(politicalStandpoint),
             fromJasonString(demographics),
             fromJasonString(personaDescription),
             fromJasonString(group),
             fromJasonString(current),
-            fromJasonString(content),
+            fromJasonString(conversation),
             fromJasonString(group));
-        return Integer.parseInt(getResponse(prompt));
+        return getIntValue(getResponse(prompt));
     }
 
     public int initiateLove(Term group, Term politicalStandpoint, Term demographics, Term personaDescription) {
@@ -115,7 +103,7 @@ public class GeminiAgArch extends AgArch implements LlmAgArch{
             fromJasonString(demographics),
             fromJasonString(personaDescription),
             fromJasonString(group));
-        return Integer.parseInt(getResponse(prompt));
+        return getIntValue(getResponse(prompt));
     }
 
     public int initiateHate(Term group, Term politicalStandpoint, Term demographics, Term personaDescription) {
@@ -127,7 +115,7 @@ public class GeminiAgArch extends AgArch implements LlmAgArch{
             fromJasonString(demographics),
             fromJasonString(personaDescription),
             fromJasonString(group));
-        return Integer.parseInt(getResponse(prompt));
+        return getIntValue(getResponse(prompt));
     }
 
     private String getResponse(String prompt) {
@@ -138,6 +126,7 @@ public class GeminiAgArch extends AgArch implements LlmAgArch{
         while (attempt < maxRetries) {
             try {
                 GenerateContentResponse response = client.models.generateContent(model, prompt, null);
+                System.out.print("\nPROMPT: " + prompt + "\n");
                 System.out.print("RESPONSE: " + response.text() + "\n");
                 return response.text();
             } catch (Exception e) {
@@ -167,5 +156,13 @@ public class GeminiAgArch extends AgArch implements LlmAgArch{
             return s.substring(1, s.length() - 1);
         }
         return s;
+    }
+
+    private static int getIntValue(String s) {
+        try {
+            return Integer.parseInt(s.trim());
+        } catch (NumberFormatException e) {
+            return -1; 
+        }
     }
 }

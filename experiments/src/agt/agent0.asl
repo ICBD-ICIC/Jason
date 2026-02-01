@@ -7,5 +7,3 @@ persona_description("You are a politically engaged individual, likely conservati
 
 /* Initial goals */
 !initiate_affectivity.
-
-//poner que dos agentes respondan con variables para bajar el nivel de violencia y ver que pasa
