@@ -1,7 +1,7 @@
 import os
 import re
 
-LOG_DIR = "results/experiment1_good"
+LOG_DIR = "results/simulating_social_media_non_partisan/good"
 
 agent10_pattern = re.compile(
     r"\[agent10\]\s+LR=(\d+)\s+LD=(\d+)\s+HR=(\d+)\s+HD=(\d+)"
@@ -15,6 +15,7 @@ republicans = 0
 democrats = 0
 republicans_polarized = 0
 democrats_polarized = 0
+#high outgrup is republicans_polarized + democrats_polarized
 
 for filename in files:
     path = os.path.join(LOG_DIR, filename)

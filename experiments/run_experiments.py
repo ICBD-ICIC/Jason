@@ -17,6 +17,8 @@ DISCARD_DIR = RESULTS_DIR / "discard"
 GOOD_DIR.mkdir(parents=True, exist_ok=True)
 DISCARD_DIR.mkdir(parents=True, exist_ok=True)
 
+MAX_RETRIES = 5  # maximum number of retries per CSV
+
 # --- Helper functions ---
 def backup_agents(agent_count):
     backups = []
@@ -61,18 +63,34 @@ def read_csv_rows(csv_file):
 
 def process_csv(csv_file):
     print(f"Processing CSV: {csv_file.name}")
+
+    # --- Skip if a good log already exists for this CSV ---
+    existing_good_logs = list(GOOD_DIR.glob(f"{csv_file.stem}_*.log"))
+    if existing_good_logs:
+        print(f"Good log already exists for {csv_file.name}, skipping.")
+        print("-" * 40)
+        return
+
     rows = read_csv_rows(csv_file)
     agent_count = len(rows)
 
+    retries = 0
     success = False
-    while not success:
+    while not success and retries < MAX_RETRIES:
+        retries += 1
+        print(f"Attempt {retries}/{MAX_RETRIES} for {csv_file.name}")
         backups = backup_agents(agent_count)
         update_agents(rows)
-        run_mas(MAS_FILE)
+        try:
+            run_mas(MAS_FILE)
+        except subprocess.CalledProcessError:
+            print("MAS run failed. Restoring agents and retrying...")
+            restore_agents(backups)
+            continue
 
         log_path = Path(LOG_FILE)
         if not log_path.exists():
-            print(f"Warning: {LOG_FILE} not found. Retrying...")
+            print(f"Warning: {LOG_FILE} not found. Restoring agents and retrying...")
             restore_agents(backups)
             continue
 
@@ -82,7 +100,7 @@ def process_csv(csv_file):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         if count_agent10 <= 1:
             dest = DISCARD_DIR
-            print("Log discarded (0 or 1 [agent10] occurrence). Retrying...")
+            print("Log discarded (0 or 1 [agent10] occurrence).")
         else:
             dest = GOOD_DIR
             print("Log accepted as good run.")
@@ -93,6 +111,10 @@ def process_csv(csv_file):
         print(f"Saved to {dest_file}")
 
         restore_agents(backups)
+        print("-" * 40)
+
+    if not success:
+        print(f"Max retries reached for {csv_file.name}. Moving on.")
         print("-" * 40)
 
 # --- Main workflow ---
