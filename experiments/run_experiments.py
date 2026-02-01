@@ -41,7 +41,7 @@ def update_agents(rows):
         persona_description = persona_description.replace('"', '\\"')
 
         content = agent_file.read_text(encoding='utf-8')
-        content = content.replace("political_standpoint(ps_placeholder)", f"political_standpoint({political_standpoint})")
+        content = content.replace('political_standpoint(ps_placeholder)', f'political_standpoint("{political_standpoint}")')
         content = content.replace('demographics(d_placeholder)', f'demographics("{demographics}")')
         content = content.replace('persona_description(pd_placeholder)', f'persona_description("{persona_description}")')
         agent_file.write_text(content, encoding='utf-8')
