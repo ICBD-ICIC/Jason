@@ -21,12 +21,12 @@
     ia.initiateAffectivity(love, democrats, PS, D, PD, LD);
     ia.initiateAffectivity(hate, republicans, PS, D, PD, HR);
     ia.initiateAffectivity(hate, democrats, PS, D, PD, HD);
+    .print("LR=", LR, " LD=", LD, " HR=", HR, " HD=", HD);
     +love(republicans, LR);
     +love(democrats, LD);
     +hate(republicans, HR);
     +hate(democrats, HD);
-    +initiation_done;
-    .print("LR=", LR, " LD=", LD, " HR=", HR, " HD=", HD).
+    +initiation_done.
 
 +!update_affectivity(Conversation) :     
     political_standpoint(PS) &
