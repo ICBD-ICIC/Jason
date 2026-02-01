@@ -7,3 +7,16 @@ persona_description("You are someone who enjoys using social media to engage wit
 
 /* Initial goals */
 !initiate_affectivity.
+
+/* Plans */
++love(republicans, LR) : 
+    not finish &
+    LR >= 5
+<-
+    .stopMAS.
+
++love(democrats, LD) : 
+    not finish &
+    LD >= 5
+<-
+    .stopMAS.
