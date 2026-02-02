@@ -60,63 +60,77 @@ public class GeminiAgArch extends AgArch implements LlmAgArch{
         return getResponse(prompt);
     }
 
-    public int updateLove(Term group, Term current, Term politicalStandpoint, Term demographics, Term personaDescription, Term conversation) {
+    public int affectivity(
+            Term type,                     // "love" or "hate"
+            Term group,
+            Term current,                  // use null for initiation
+            Term politicalStandpoint,
+            Term demographics,
+            Term personaDescription,
+            Term conversation              // use null for initiation
+    ) {
+
+        String t = fromJasonString(type).toLowerCase();
+
+        String attitudeName;
+        String zeroLabel;
+        String tenLabel;
+        String partyAdj = partyAdjective(fromJasonString(group));
+
+        if ("love".equals(t)) {
+            attitudeName = "support";
+            zeroLabel = "no support at all";
+            tenLabel = "unwavering support";
+        } else if ("hate".equals(t)) {
+            attitudeName = "dislike";
+            zeroLabel = "no dislike at all";
+            tenLabel = "extreme hatred";
+        } else {
+            throw new IllegalArgumentException("Unknown attitude type: " + t);
+        }
+
+        boolean hasCurrent = current != null;
+        boolean hasConversation = conversation != null;
+
         String prompt = String.format(
             "Your are %s. %s %s\n" +
-            "Your current level of support for %s is %s (on a scale from 0 to 10). \n" +
-            "Given the following thread: \n '%s'\n" +
-            "On a scale from 0 to 10, where 0 represents no support at all and 10 signifies unwavering support, how would you now rate your level of support for %s after considering the message above?\n" +
-            "Respond with a single integer between 0 and 10.", 
+            (hasCurrent
+                ? "Your current level of %s for the %s Party is %s (on a scale from 0 to 10).\n"
+                : "") +
+            (hasConversation
+                ? "Given the following thread:\n'%s'\n"
+                : "") +
+            "On a scale from 0 to 10, where 0 means %s and 10 means %s, " +
+            "how would you rate your level of %s for the %s Party?\n" +
+            "Respond with a single integer between 0 and 10.",
             fromJasonString(politicalStandpoint),
             fromJasonString(demographics),
             fromJasonString(personaDescription),
-            fromJasonString(group),
-            fromJasonString(current),
-            fromJasonString(conversation),
-            fromJasonString(group));
+            hasCurrent ? attitudeName : "",
+            hasCurrent ? partyAdjective : "",
+            hasCurrent ? fromJasonString(current) : "",
+            hasConversation ? fromJasonString(conversation) : "",
+            zeroLabel,
+            tenLabel,
+            attitudeName,
+            partyAdj
+        );
+
         return getIntValue(getResponse(prompt));
     }
 
-    public int updateHate(Term group, Term current, Term politicalStandpoint, Term demographics, Term personaDescription, Term conversation) {
-        String prompt = String.format(
-            "Your are %s. %s %s\n" +
-            "Your current level of dislike for %s is %s (on a scale from 0 to 10). \n" +
-            "Given the following thread: \n '%s'\n" +
-            "On a scale from 0 to 10, where 0 means no dislike at all and 10 represents extreme hatred, how would you now rate your level of dislike for %s after considering the thread above?\n" +
-            "Respond with a single integer between 0 and 10.", 
-            fromJasonString(politicalStandpoint),
-            fromJasonString(demographics),
-            fromJasonString(personaDescription),
-            fromJasonString(group),
-            fromJasonString(current),
-            fromJasonString(conversation),
-            fromJasonString(group));
-        return getIntValue(getResponse(prompt));
+    private static String partyAdjective(String group) {
+        String g = group.toLowerCase();
+
+        if (g.contains("democrat")) {
+            return "Democratic";
+        }
+        if (g.contains("republican")) {
+            return "Republican";
+        }
+        return group;
     }
 
-    public int initiateLove(Term group, Term politicalStandpoint, Term demographics, Term personaDescription) {
-        String prompt = String.format(
-            "Your are %s. %s %s\n" +
-            "On a scale from 0 to 10, where 0 represents no support at all and 10 signifies unwavering support, how would you now rate your level of support for %s?\n" +
-            "Respond with a single integer between 0 and 10.", 
-            fromJasonString(politicalStandpoint),
-            fromJasonString(demographics),
-            fromJasonString(personaDescription),
-            fromJasonString(group));
-        return getIntValue(getResponse(prompt));
-    }
-
-    public int initiateHate(Term group, Term politicalStandpoint, Term demographics, Term personaDescription) {
-        String prompt = String.format(
-            "Your are %s. %s %s\n" +
-            "On a scale from 0 to 10, where 0 means no dislike at all and 10 represents extreme hatred, how would you now rate your level of dislike for %s?\n" +
-            "Respond with a single integer between 0 and 10.", 
-            fromJasonString(politicalStandpoint),
-            fromJasonString(demographics),
-            fromJasonString(personaDescription),
-            fromJasonString(group));
-        return getIntValue(getResponse(prompt));
-    }
 
     private String getResponse(String prompt) {
         final int maxRetries = 3; 

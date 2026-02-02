@@ -11,31 +11,12 @@ public interface LlmAgArch {
 
     String sentiment(Term text);
 
-    int updateLove(
+    int affectivity(
+        Term affectivityType,
         Term group, 
         Term current, 
         Term politicalStandpoint, 
         Term demographics,
         Term personaDescription, 
         Term content);
-
-    int updateHate(
-        Term group, 
-        Term current, 
-        Term politicalStandpoint, 
-        Term demographics,
-        Term personaDescription, 
-        Term content);
-    
-    int initiateLove(
-        Term group, 
-        Term politicalStandpoint, 
-        Term demographics,
-        Term personaDescription);
-
-    int initiateHate(
-        Term group,
-        Term politicalStandpoint, 
-        Term demographics,
-        Term personaDescription);
 }

@@ -1,2 +1,2 @@
 Execute:
-./run_experiments.sh experiment1.mas2j
+./run_experiments.sh simulating_social_media_non_partisan.mas2j

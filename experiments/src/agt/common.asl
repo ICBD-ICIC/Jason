@@ -17,10 +17,10 @@
     demographics(D) &
     persona_description(PD)
 <-
-    ia.initiateAffectivity(love, republicans, PS, D, PD, LR);
-    ia.initiateAffectivity(love, democrats, PS, D, PD, LD);
-    ia.initiateAffectivity(hate, republicans, PS, D, PD, HR);
-    ia.initiateAffectivity(hate, democrats, PS, D, PD, HD);
+    ia.affectivity(love, republicans, PS, D, PD, LR);
+    ia.affectivity(love, democrats, PS, D, PD, LD);
+    ia.affectivity(hate, republicans, PS, D, PD, HR);
+    ia.affectivity(hate, democrats, PS, D, PD, HD);
     .print("LR=", LR, " LD=", LD, " HR=", HR, " HD=", HD);
     +love(republicans, LR);
     +love(democrats, LD);
@@ -37,10 +37,10 @@
     hate(republicans, HR) &
     hate(democrats, HD) 
 <- 
-    ia.updateAffectivity(love, republicans, LR, PS, D, PD, Conversation, NewLR);
-    ia.updateAffectivity(love, democrats, LD, PS, D, PD, Conversation, NewLD);
-    ia.updateAffectivity(hate, republicans, HR, PS, D, PD, Conversation, NewHR);
-    ia.updateAffectivity(hate, democrats, HD, PS, D, PD, Conversation, NewHD);
+    ia.affectivity(love, republicans, LR, PS, D, PD, Conversation, NewLR);
+    ia.affectivity(love, democrats, LD, PS, D, PD, Conversation, NewLD);
+    ia.affectivity(hate, republicans, HR, PS, D, PD, Conversation, NewHR);
+    ia.affectivity(hate, democrats, HD, PS, D, PD, Conversation, NewHD);
     -+love(republicans, NewLR);
     -+love(democrats, NewLD);
     -+hate(republicans, NewHR);
