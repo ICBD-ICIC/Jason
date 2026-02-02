@@ -92,31 +92,42 @@ public class GeminiAgArch extends AgArch implements LlmAgArch{
         boolean hasCurrent = current != null;
         boolean hasConversation = conversation != null;
 
-        String prompt = String.format(
-            "Your are %s. %s %s\n" +
-            (hasCurrent
-                ? "Your current level of %s for the %s Party is %s (on a scale from 0 to 10).\n"
-                : "") +
-            (hasConversation
-                ? "Given the following thread:\n'%s'\n"
-                : "") +
+        StringBuilder prompt = new StringBuilder();
+
+        prompt.append(String.format(
+            "You are %s. %s %s\n",
+            fromJasonString(politicalStandpoint),
+            fromJasonString(demographics),
+            fromJasonString(personaDescription)
+        ));
+
+        if (hasCurrent) {
+            prompt.append(String.format(
+                "Your current level of %s for the %s Party is %s (on a scale from 0 to 10).\n",
+                attitudeName,
+                partyAdj,
+                fromJasonString(current)
+            ));
+        }
+
+        if (hasConversation) {
+            prompt.append(String.format(
+                "Given the following thread:\n'%s'\n",
+                fromJasonString(conversation)
+            ));
+        }
+
+        prompt.append(String.format(
             "On a scale from 0 to 10, where 0 means %s and 10 means %s, " +
             "how would you rate your level of %s for the %s Party?\n" +
             "Respond with a single integer between 0 and 10.",
-            fromJasonString(politicalStandpoint),
-            fromJasonString(demographics),
-            fromJasonString(personaDescription),
-            hasCurrent ? attitudeName : "",
-            hasCurrent ? partyAdjective : "",
-            hasCurrent ? fromJasonString(current) : "",
-            hasConversation ? fromJasonString(conversation) : "",
             zeroLabel,
             tenLabel,
             attitudeName,
             partyAdj
-        );
+        ));
 
-        return getIntValue(getResponse(prompt));
+        return getIntValue(getResponse(prompt.toString()));
     }
 
     private static String partyAdjective(String group) {

@@ -19,7 +19,7 @@ public class affectivity extends DefaultInternalAction {
 
         LlmAgArch llm = (LlmAgArch) arch;
 
-         Term affectivityType;
+        Term affectivityType;
         Term group;
         Term current = null;
         Term politicalStandpoint;

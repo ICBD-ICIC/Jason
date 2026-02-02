@@ -62,9 +62,10 @@ def read_csv_rows(csv_file):
     return rows
 
 def process_csv(csv_file):
+    global CURRENT_BACKUPS
+
     print(f"Processing CSV: {csv_file.name}")
 
-    # --- Skip if a good log already exists for this CSV ---
     existing_good_logs = list(GOOD_DIR.glob(f"{csv_file.stem}_*.log"))
     if existing_good_logs:
         print(f"Good log already exists for {csv_file.name}, skipping.")
@@ -76,41 +77,47 @@ def process_csv(csv_file):
 
     retries = 0
     success = False
+
     while not success and retries < MAX_RETRIES:
         retries += 1
         print(f"Attempt {retries}/{MAX_RETRIES} for {csv_file.name}")
-        backups = backup_agents(agent_count)
-        update_agents(rows)
+
+        CURRENT_BACKUPS = backup_agents(agent_count)
+
         try:
+            update_agents(rows)
             run_mas(MAS_FILE)
+
+            log_path = Path(LOG_FILE)
+            if not log_path.exists():
+                print(f"Warning: {LOG_FILE} not found.")
+                continue
+
+            with open(log_path, encoding='utf-8') as f:
+                count_agent10 = sum(1 for line in f if line.startswith("[agent10]"))
+
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+            if count_agent10 <= 1:
+                dest = DISCARD_DIR
+                print("Log discarded (0 or 1 [agent10] occurrence).")
+            else:
+                dest = GOOD_DIR
+                print("Log accepted as good run.")
+                success = True
+
+            dest_file = dest / f"{csv_file.stem}_{timestamp}.log"
+            shutil.move(LOG_FILE, dest_file)
+            print(f"Saved to {dest_file}")
+
         except subprocess.CalledProcessError:
-            print("MAS run failed. Restoring agents and retrying...")
-            restore_agents(backups)
-            continue
+            print("MAS run failed. Retrying...")
 
-        log_path = Path(LOG_FILE)
-        if not log_path.exists():
-            print(f"Warning: {LOG_FILE} not found. Restoring agents and retrying...")
-            restore_agents(backups)
-            continue
+        finally:
+            if CURRENT_BACKUPS:
+                restore_agents(CURRENT_BACKUPS)
+                CURRENT_BACKUPS = None
+                print("Agents restored.")
 
-        with open(log_path, encoding='utf-8') as f:
-            count_agent10 = sum(1 for line in f if line.startswith("[agent10]"))
-
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        if count_agent10 <= 1:
-            dest = DISCARD_DIR
-            print("Log discarded (0 or 1 [agent10] occurrence).")
-        else:
-            dest = GOOD_DIR
-            print("Log accepted as good run.")
-            success = True
-
-        dest_file = dest / f"{csv_file.stem}_{timestamp}.log"
-        shutil.move(LOG_FILE, dest_file)
-        print(f"Saved to {dest_file}")
-
-        restore_agents(backups)
         print("-" * 40)
 
     if not success:
