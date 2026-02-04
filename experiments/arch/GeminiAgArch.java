@@ -9,12 +9,14 @@ import java.util.Map;
 import lib.Translator;
 
 import com.google.genai.Client;
+import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.GenerateContentResponse;
 
 public class GeminiAgArch extends AgArch implements LlmAgArch{
 
     private final Client client = new Client();
-    private static final String model = "gemini-2.0-flash";
+    private static final String model = "gemini-2.0-flash"; 
+    private static final GenerateContentConfig config = GenerateContentConfig.builder().temperature(0.7f).build();
 
     // ---------------- PUBLIC API ----------------
 
@@ -150,7 +152,7 @@ public class GeminiAgArch extends AgArch implements LlmAgArch{
 
         while (attempt < maxRetries) {
             try {
-                GenerateContentResponse response = client.models.generateContent(model, prompt, null);
+                GenerateContentResponse response = client.models.generateContent(model, prompt, config);
                 System.out.print("\nPROMPT: " + prompt + "\n");
                 System.out.print("RESPONSE: " + response.text() + "\n");
                 return response.text();
