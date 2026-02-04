@@ -46,9 +46,9 @@ for filename in files:
         democrats += 1
 
     # Polarization condition
-    if LR2 >= 5 and HD2 >= 5:
+    if LR2 >= 5 and HD2 > 5:
         republicans_polarized += 1
-    if LD2 >= 5 and HR2 >= 5:
+    if LD2 >= 5 and HR2 > 5:
         democrats_polarized += 1
 
 
