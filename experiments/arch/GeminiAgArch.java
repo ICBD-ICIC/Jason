@@ -2,6 +2,8 @@ package arch;
 
 import jason.architecture.AgArch;
 import jason.asSyntax.*;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 
 import java.util.List;
 import java.util.Map;
@@ -46,7 +48,9 @@ public class GeminiAgArch extends AgArch implements LlmAgArch{
         String prompt = String.format(
             "Your are %s. %s %s\n" +
             "You are a Twitter user reading the following thread: \n '%s'\n" +
-            "Reply to it. Stay under 280 characters per message", 
+            "Consider and respond to the full context of the conversation. Avoid repetition; introduce new angles or synthesize previous ideas.\n" +
+            "You may tag the users you are replying to.\n" +
+            "Stay under 280 characters per message.", 
             fromJasonString(politicalStandpoint),
             fromJasonString(demographics),
             fromJasonString(personaDescription),
@@ -62,74 +66,123 @@ public class GeminiAgArch extends AgArch implements LlmAgArch{
         return getResponse(prompt);
     }
 
-    public int affectivity(
-            Term type,                     // "love" or "hate"
-            Term group,
-            Term current,                  // use null for initiation
-            Term politicalStandpoint,
-            Term demographics,
-            Term personaDescription,
-            Term conversation              // use null for initiation
-    ) {
+    public Term affectivity(Term currentAffect, Term context, Term content) {
+        Structure ctx = (Structure) context;
+        String politicalStandpoint = fromJasonString(ctx.getTerm(0));
+        String demographics        = fromJasonString(ctx.getTerm(1));
+        String persona             = fromJasonString(ctx.getTerm(2));
 
-        String t = fromJasonString(type).toLowerCase();
+        int lr = 0, ld = 0, hr = 0, hd = 0;
 
-        String attitudeName;
-        String zeroLabel;
-        String tenLabel;
-        String partyAdj = partyAdjective(fromJasonString(group));
+        boolean hasCurrent = currentAffect != null;
+        boolean hasContent = content != null;
 
-        if ("love".equals(t)) {
-            attitudeName = "support";
-            zeroLabel = "no support at all";
-            tenLabel = "unwavering support";
-        } else if ("hate".equals(t)) {
-            attitudeName = "dislike";
-            zeroLabel = "no dislike at all";
-            tenLabel = "extreme hatred";
-        } else {
-            throw new IllegalArgumentException("Unknown attitude type: " + t);
+        if (hasCurrent) {
+            Structure affect = (Structure) currentAffect;
+            lr = solveInt(affect.getTerm(0));
+            ld = solveInt(affect.getTerm(1));
+            hr = solveInt(affect.getTerm(2));
+            hd = solveInt(affect.getTerm(3));
         }
-
-        boolean hasCurrent = current != null;
-        boolean hasConversation = conversation != null;
 
         StringBuilder prompt = new StringBuilder();
 
         prompt.append(String.format(
             "You are %s. %s %s\n",
-            fromJasonString(politicalStandpoint),
-            fromJasonString(demographics),
-            fromJasonString(personaDescription)
+            politicalStandpoint,
+            demographics,
+            persona
         ));
 
         if (hasCurrent) {
             prompt.append(String.format(
-                "Your current level of %s for the %s Party is %s (on a scale from 0 to 10).\n",
-                attitudeName,
-                partyAdj,
-                fromJasonString(current)
+                "Your previous responses to the questionnaire are: \n" +
+                "Q1: %d\n" +
+                "Q2: %d\n" +
+                "Q3: %d\n" +
+                "Q4: %d\n",
+                lr, ld, hr, hd
             ));
         }
 
-        if (hasConversation) {
+        if (hasContent) {
             prompt.append(String.format(
-                "Given the following thread:\n'%s'\n",
-                fromJasonString(conversation)
+                "Based on the conversation:\n\"%s\"\n",
+                fromJasonString(content)
             ));
         }
 
-        prompt.append(String.format(
-            "On a scale from 0 to 10, where 0 means %s and 10 means %s, " +
-            "how would you rate your level of %s for the %s Party?\n" +
-            "Respond with a single integer between 0 and 10.",
-            zeroLabel,
-            tenLabel,
-            attitudeName,
-            partyAdj
-        ));
+        prompt.append(
+            "Q1. On a scale from 0 to 10, where 0 represents no support at all and 10 signifies unwavering support, " +
+            "how would you rate your level of support for the Republican Party?\n" +
+            "Q2. On a scale from 0 to 10, where 0 represents no support at all and 10 signifies unwavering support, " +
+            "how would you rate your level of support for the Democratic Party?\n" +
+            "Q3. On a scale from 0 to 10, where 0 means no dislike at all and 10 represents extreme hatred, " +
+            "how would you rate your level of dislike for the Republican Party?\n" +
+            "Q4. On a scale from 0 to 10, where 0 means no dislike at all and 10 represents extreme hatred, " +
+            "how would you rate your level of dislike for the Democratic Party?\n" +
+            "Reply to the four questions using the format <question identifier>: <value>. " +
+            "Just return the values."
+        );
 
-        return getIntValue(getResponse(prompt.toString()));
+        // -------- Call LLM --------
+        String response = getResponse(prompt.toString());
+
+        int[] values = parseQFormat(response);
+
+        // -------- Return affect structure --------
+        return ASSyntax.createStructure(
+            "affect",
+            new NumberTermImpl(values[0]), // Love Rep
+            new NumberTermImpl(values[1]), // Love Dem
+            new NumberTermImpl(values[2]), // Hate Rep
+            new NumberTermImpl(values[3])  // Hate Dem
+        );
+    }
+
+    private int solveInt(Term t) {
+        try {
+            return (int) ((NumberTerm) t).solve();
+        } catch (Exception e) {
+            throw new RuntimeException("Expected a NumberTerm, but got: " + t, e);
+        }
+    }
+
+
+    /**
+     * Parses responses like:
+     * Q1: 3
+     * Q2: 7
+     * Q3: 2
+     * Q4: 6
+     */
+    private int[] parseQFormat(String response) {
+
+        int[] values = new int[4];
+
+        Pattern p = Pattern.compile(
+            "Q([1-4])\\s*:\\s*(\\d+)",
+            Pattern.CASE_INSENSITIVE
+        );
+
+        Matcher m = p.matcher(response);
+
+        while (m.find()) {
+            int index = Integer.parseInt(m.group(1)) - 1;
+            int value = Integer.parseInt(m.group(2));
+            values[index] = value;
+        }
+
+        // basic validation
+        for (int i = 0; i < 4; i++) {
+            if (values[i] < 0 || values[i] > 10) {
+                throw new RuntimeException(
+                    "Invalid affectivity response: " + response
+                );
+            }
+        }
+
+        return values;
     }
 
     private static String partyAdjective(String group) {
@@ -154,7 +207,7 @@ public class GeminiAgArch extends AgArch implements LlmAgArch{
             try {
                 GenerateContentResponse response = client.models.generateContent(model, prompt, config);
                 System.out.print("\nPROMPT: " + prompt + "\n");
-                System.out.print("RESPONSE: " + response.text() + "\n");
+                System.out.print("RESPONSE:\n" + response.text() + "\n");
                 return response.text();
             } catch (Exception e) {
                 attempt++;
