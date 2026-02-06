@@ -6,9 +6,9 @@ from pathlib import Path
 from datetime import datetime
 
 # --- Configuration ---
-MAS_FILE = Path("simulating_social_media_non_partisan.mas2j")
+MAS_FILE = Path("simulating_social_media_non_partisan_bots.mas2j")
 AGT_DIR = Path("src/agt")
-CSV_DIR = Path(MAS_FILE.stem)  # folder with CSV files
+CSV_DIR = Path("simulating_social_media_non_partisan")
 RESULTS_DIR = Path("results") / MAS_FILE.stem  # results/<mas_name>
 LOG_FILE = "mas.log"
 

@@ -1,3 +1,4 @@
+/* Initial beliefs and rules */
 next(agent0, agent1).
 next(agent1, agent2).
 next(agent2, agent3).
@@ -14,8 +15,10 @@ last_agent(agent9).
 total_agents(11).
 finished_agents(0).
 
+/* Initial goals */
 !start_round_robin.
 
+/* Plans */
 +!start_round_robin : 
     current_turn(Agent)
 <-

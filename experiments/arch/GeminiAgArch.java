@@ -153,8 +153,6 @@ public class GeminiAgArch extends AgArch implements LlmAgArch{
         while (attempt < maxRetries) {
             try {
                 GenerateContentResponse response = client.models.generateContent(model, prompt, null);
-                System.out.print("\nPROMPT: " + prompt + "\n");
-                System.out.print("RESPONSE: " + response.text() + "\n");
                 return response.text();
             } catch (Exception e) {
                 attempt++;

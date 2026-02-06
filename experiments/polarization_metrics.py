@@ -56,6 +56,7 @@ for filename in files:
 
 total = len(files)
 print(total)
+print(republicans, democrats, republicans_polarized, democrats_polarized)
 
 avg_LR = sum(d['LR'] for d in diffs) / total
 avg_LD = sum(d['LD'] for d in diffs) / total
