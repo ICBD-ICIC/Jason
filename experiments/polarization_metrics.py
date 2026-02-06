@@ -55,6 +55,7 @@ for filename in files:
 # ----- Reporting -----
 
 total = len(files)
+print(total)
 
 avg_LR = sum(d['LR'] for d in diffs) / total
 avg_LD = sum(d['LD'] for d in diffs) / total

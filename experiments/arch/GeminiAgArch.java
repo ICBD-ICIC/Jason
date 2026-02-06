@@ -94,7 +94,7 @@ public class GeminiAgArch extends AgArch implements LlmAgArch{
             persona
         ));
 
-        if (hasCurrent) {
+/*         if (hasCurrent) {
             prompt.append(String.format(
                 "Your previous responses to the questionnaire are: \n" +
                 "Q1: %d\n" +
@@ -103,7 +103,7 @@ public class GeminiAgArch extends AgArch implements LlmAgArch{
                 "Q4: %d\n",
                 lr, ld, hr, hd
             ));
-        }
+        } */
 
         if (hasContent) {
             prompt.append(String.format(
