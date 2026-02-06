@@ -11,5 +11,12 @@ public interface LlmAgArch {
 
     String sentiment(Term text);
 
-    Term affectivity(Term currentAffect, Term context, Term content);
+    int affectivity(
+        Term affectivityType,
+        Term group, 
+        Term current, 
+        Term politicalStandpoint, 
+        Term demographics,
+        Term personaDescription, 
+        Term content);
 }
