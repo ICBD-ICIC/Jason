@@ -38,10 +38,8 @@ dependencies {
 sourceSets {
     main {
         java {
-            srcDir 'src/java'
-            srcDir 'src/env'
-            srcDir '.' // some old jason apps store .java files in project root
-            exclude 'tests/**'
+            srcDir '.' 
+            exclude 'test/**'
         }
         resources {
             srcDir 'src/resources'
@@ -49,7 +47,7 @@ sourceSets {
     }
     test {
         java {
-            srcDir 'tests'
+            srcDir 'test'
         }
     }
 }

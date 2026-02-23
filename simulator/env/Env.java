@@ -1,3 +1,5 @@
+package env;
+
 import jason.asSyntax.*;
 import static jason.asSyntax.ASSyntax.*;
 import jason.environment.Environment;
@@ -7,10 +9,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ConcurrentHashMap;
 
 import lib.JasonToJavaTranslator;
+import env.Message;
+import env.ContentManager;
 
 public class Env extends Environment {
-
-    /* -------- Social Network -------- */
     private static class Edge {
         private static final double DEFAULT_WEIGHT = 1.0;
 
@@ -18,22 +20,22 @@ public class Env extends Environment {
         private final String to;
         private double weight;
 
-        public Edge(String from, String to) {
+        private Edge(String from, String to) {
             this(from, to, DEFAULT_WEIGHT);
         }
 
-        public Edge(String from, String to, double weight) {
+        private Edge(String from, String to, double weight) {
             this.from = from;
             this.to = to;
             this.weight = weight;
         }
 
-        public void updateWeight(double weight) {
+        private void updateWeight(double weight) {
             this.weight = weight;
         }
 
         @Override
-        public boolean equals(Object obj) {
+        public boolean equals(Object obj) { 
             if (this == obj) return true;
             if (obj == null || getClass() != obj.getClass()) return false;
             Edge edge = (Edge) obj;
@@ -42,42 +44,7 @@ public class Env extends Environment {
     }
 
     private final Set<Edge> socialNetwork = Collections.synchronizedSet(new HashSet<>());
-
-    /* -------- Messages -------- */
-    private static record Reaction(String author, String reaction){}
-
-    private static class Message {
-        private static final int EMPTY_REFERENCE = 0;
-
-        private final int id;
-        private final String author;
-        private final String content;
-        private List<Reaction> reactions = Collections.synchronizedList(new ArrayList<>());
-        private final int original;
-        private final long timestamp;
-
-        public Message(int id, String author, String content) {
-            this(id, author, content, EMPTY_REFERENCE);
-        }
-
-        public Message(int id, String author, String content, int original) {
-            this.id = id;
-            this.author = author;
-            this.content = content;
-            this.original = original;
-            this.timestamp = System.currentTimeMillis();
-        }
-
-        public void addReaction(String author, String reaction) {
-            this.reactions.add(new Reaction(author, reaction));
-        }
-    }
-
-    private static record MessageCreationParams(List<String> topics, Map<String, Object> variables){}
-
-    private final Map<Integer, MessageCreationParams> content = new ConcurrentHashMap<>();
-    private final Map<Integer, Message> filteredContent = new ConcurrentHashMap<>();
-    private final AtomicInteger messageCounter = new AtomicInteger(0);
+    private final ContentManager contentManager = new DefaultContentManager();
 
     @Override
     public void init(String[] args) {
@@ -93,43 +60,31 @@ public class Env extends Environment {
             case "repost" -> repost(agent, action);
             case "comment" -> comment(agent, action);
             case "react" -> react(agent, action);
-            case "ask" -> ask(agent, action);
+            //case "ask" -> ask(agent, action);
             case "createLink" -> createLink(agent, action);
             case "removeLink" -> removeLink(agent, action);
-            case "readPublicProfile" -> readPublicProfile(agent, action);
+            //case "readPublicProfile" -> readPublicProfile(agent, action);
             default -> System.out.println("Unknown action: "+action);
         }
         return true;
     }
 
     private boolean updateFeed(String agent){
-        List<Message> feed = new ArrayList<>(filteredContent.values());
-        feed.sort((m1, m2) -> Long.compare(m2.timestamp, m1.timestamp));
+        List<Message> feed = contentManager.feedFilter(agent);
         updatePercepts(agent, feed);
         return true;
     }
 
     private boolean searchContent(String agent, Structure action){
         String concept = action.getTerm(0).toString();
-        List<Message> feed = new ArrayList<>(filteredContent.values());
-        feed = feed.stream()
-                    .filter(message -> {
-                        MessageCreationParams params = content.get(message.id);
-                        return params.topics().contains(concept);
-                    }).toList();
-        feed.sort((m1, m2) -> Long.compare(m2.timestamp, m1.timestamp));
+        List<Message> feed = contentManager.topicFilter(agent, concept);
         updatePercepts(agent, feed);
         return true;
     }
     
     private boolean searchAuthor(String agent, Structure action){
         String author = action.getTerm(0).toString();
-        List<Message> feed = new ArrayList<>(filteredContent.values());
-        feed = feed.stream()
-                    .filter(message -> {
-                        return message.author.equals(author);
-                    }).toList();
-        feed.sort((m1, m2) -> Long.compare(m2.timestamp, m1.timestamp));
+        List<Message> feed = contentManager.authorFilter(agent, author);
         updatePercepts(agent, feed);
         return true;
     }
@@ -150,11 +105,11 @@ public class Env extends Environment {
                 createNumber(m.timestamp)
             );
             addPercept(agent, literal);
-            for (Reaction r : m.reactions) {
+            for (Message.Reaction r : m.reactions) { 
                 Literal reactionLiteral = createLiteral("reaction",
                     createNumber(m.id),
-                    createString(r.author),
-                    createString(r.reaction)
+                    createString(r.author()), 
+                    createString(r.reaction())
                 );
                 addPercept(agent, reactionLiteral);
             }
@@ -167,28 +122,13 @@ public class Env extends Environment {
         List<String> topics = JasonToJavaTranslator.translateTopics(action.getTerm(0));
         Map<String, Object> variables = JasonToJavaTranslator.translateVariables(action.getTerm(1));
         String messageContent = action.getTerm(2).toString();
-        Message message = new Message(
-            messageCounter.incrementAndGet(),
-            agent,
-            messageContent
-        );
-        MessageCreationParams params = new MessageCreationParams(topics, variables);
-        addMessage(message, params);
+        contentManager.addMessage(agent, messageContent, topics, variables);
         return true;
     }
 
     private boolean repost(String agent, Structure action){
         int originalId = Integer.parseInt(action.getTerm(0).toString());
-        Message original = filteredContent.get(originalId);
-        MessageCreationParams originalParams = content.get(originalId);
-        Message repost = new Message(
-            messageCounter.incrementAndGet(),
-            agent,
-            original.content,
-            original.id
-        );
-        content.put(repost.id, originalParams);
-        filteredContent.put(repost.id, repost);
+        contentManager.repost(agent, originalId);
         return true;
     }
 
@@ -197,54 +137,35 @@ public class Env extends Environment {
         List<String> topics = JasonToJavaTranslator.translateTopics(action.getTerm(1));
         Map<String, Object> variables = JasonToJavaTranslator.translateVariables(action.getTerm(2));
         String messageContent = action.getTerm(3).toString();
-        Message message = new Message(
-            messageCounter.incrementAndGet(),
-            agent,
-            messageContent,
-            originalId
-        );
-        MessageCreationParams params = new MessageCreationParams(topics, variables);
-        addMessage(message, params);
+        contentManager.addMessage(agent, messageContent, topics, variables, originalId);
         return true;
     }
 
     private boolean react(String agent, Structure action){
         int originalId = Integer.parseInt(action.getTerm(0).toString());
-        Message originalMessage = filteredContent.get(originalId);
         String reaction = action.getTerm(1).toString();
-        originalMessage.addReaction(agent, reaction);
-        return true;
-    }
-
-    private void addMessage(Message message, MessageCreationParams params) {
-        content.put(message.id, params);
-        if (passFilter(message, params)) {
-            filteredContent.put(message.id, message);
-        }
-    }
-
-    private boolean passFilter(Message message, MessageCreationParams params) {
+        contentManager.addReaction(originalId, agent, reaction);
         return true;
     }
 
     private boolean createLink(String agent, Structure action){
-        String to = action.getTerm(0).toString();
+/*         String to = action.getTerm(0).toString();
         Edge link = new Edge(agent, to);
         socialNetwork.add(link);
         addPercept(agent, createLiteral("follows", createString(to)));
-        addPercept(to, createLiteral("followedBy", createString(agent)));
+        addPercept(to, createLiteral("followedBy", createString(agent))); */
         return true;
     }
 
     private boolean removeLink(String agent, Structure action){
-        String to = action.getTerm(0).toString();
+/*         String to = action.getTerm(0).toString();
         Edge target = new Edge(agent, to);
         synchronized (socialNetwork) {
             if (socialNetwork.remove(target)) {
                 removePercept(agent, createLiteral("follows", createString(to)));
                 removePercept(to, createLiteral("followedBy", createString(agent)));
             }
-        }
+        } */
         return true;
     }
 }
