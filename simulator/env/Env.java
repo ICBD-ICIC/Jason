@@ -11,39 +11,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import lib.JasonToJavaTranslator;
 import env.Message;
 import env.ContentManager;
+import env.NetworkManager;
 
 public class Env extends Environment {
-    private static class Edge {
-        private static final double DEFAULT_WEIGHT = 1.0;
-
-        private final String from;
-        private final String to;
-        private double weight;
-
-        private Edge(String from, String to) {
-            this(from, to, DEFAULT_WEIGHT);
-        }
-
-        private Edge(String from, String to, double weight) {
-            this.from = from;
-            this.to = to;
-            this.weight = weight;
-        }
-
-        private void updateWeight(double weight) {
-            this.weight = weight;
-        }
-
-        @Override
-        public boolean equals(Object obj) { 
-            if (this == obj) return true;
-            if (obj == null || getClass() != obj.getClass()) return false;
-            Edge edge = (Edge) obj;
-            return from.equals(edge.from) && to.equals(edge.to);
-        }
-    }
-
-    private final Set<Edge> socialNetwork = Collections.synchronizedSet(new HashSet<>());
+    
+    private final NetworkManager networkManager = new NetworkManager();
     private final ContentManager contentManager = new DefaultContentManager();
 
     @Override
@@ -149,23 +121,18 @@ public class Env extends Environment {
     }
 
     private boolean createLink(String agent, Structure action){
-/*         String to = action.getTerm(0).toString();
-        Edge link = new Edge(agent, to);
-        socialNetwork.add(link);
+        String to = action.getTerm(0).toString();
+        networkManager.addEdge(agent, to);
         addPercept(agent, createLiteral("follows", createString(to)));
-        addPercept(to, createLiteral("followedBy", createString(agent))); */
+        addPercept(to, createLiteral("followedBy", createString(agent)));
         return true;
     }
 
     private boolean removeLink(String agent, Structure action){
-/*         String to = action.getTerm(0).toString();
-        Edge target = new Edge(agent, to);
-        synchronized (socialNetwork) {
-            if (socialNetwork.remove(target)) {
-                removePercept(agent, createLiteral("follows", createString(to)));
-                removePercept(to, createLiteral("followedBy", createString(agent)));
-            }
-        } */
+        String to = action.getTerm(0).toString();
+        networkManager.removeEdge(agent, to);
+        removePercept(agent, createLiteral("follows", createString(to)));
+        removePercept(to, createLiteral("followedBy", createString(agent)));
         return true;
     }
 }
