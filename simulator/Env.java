@@ -6,7 +6,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ConcurrentHashMap;
 
-import lib.Translator;
+import lib.JasonToJavaTranslator;
 
 public class Env extends Environment {
 
@@ -77,14 +77,6 @@ public class Env extends Environment {
 
     @Override
     public void init(String[] args) {
-        addMessage(
-            new Message(
-                messageCounter.incrementAndGet(),
-                "Joe Biden", 
-                "If we don't take urgent action to address the climate emergency, our planet may never recover. We must get the climate change denier out of the White House and tackle this crisis head-on."
-            ), 
-            new MessageCreationParams(new ArrayList<>(), new HashMap<>())
-        );
     }
 
     @Override
@@ -166,8 +158,8 @@ public class Env extends Environment {
     }
 
     private boolean createPost(String agent, Structure action){
-        List<String> topics = Translator.translateTopics(action.getTerm(0));
-        Map<String, Object> variables = Translator.translateVariables(action.getTerm(1));
+        List<String> topics = JasonToJavaTranslator.translateTopics(action.getTerm(0));
+        Map<String, Object> variables = JasonToJavaTranslator.translateVariables(action.getTerm(1));
         String messageContent = action.getTerm(2).toString();
         Message message = new Message(
             messageCounter.incrementAndGet(),
@@ -196,8 +188,8 @@ public class Env extends Environment {
 
     private boolean comment(String agent, Structure action){
         int originalId = Integer.parseInt(action.getTerm(0).toString());
-        List<String> topics = Translator.translateTopics(action.getTerm(1));
-        Map<String, Object> variables = Translator.translateVariables(action.getTerm(2));
+        List<String> topics = JasonToJavaTranslator.translateTopics(action.getTerm(1));
+        Map<String, Object> variables = JasonToJavaTranslator.translateVariables(action.getTerm(2));
         String messageContent = action.getTerm(3).toString();
         Message message = new Message(
             messageCounter.incrementAndGet(),

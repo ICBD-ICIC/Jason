@@ -13,7 +13,7 @@ import java.util.*;
  *
  * <p>This class is not instantiable.
  */
-public final class Translator {
+public final class JasonToJavaTranslator {
 
     /**
      * Translates a Jason list term into a {@link List} of topic strings.
@@ -32,7 +32,7 @@ public final class Translator {
      */
     public static List<String> translateTopics(Term t) {
         if (!(t instanceof ListTerm list)) {
-            throw new IllegalArgumentException("Expected a Jason list term");
+            throw new IllegalArgumentException("Expected a Jason list term but got " + t.getClass().getSimpleName());
         }
 
         List<String> topics = new ArrayList<>();
@@ -76,7 +76,7 @@ public final class Translator {
      *                                  element cannot be parsed as a key-value structure
      */
     public static Map<String, Object> translateVariables(Term t) {
-        Map<String, Object> result = new HashMap<>();
+        Map<String, Object> result = new LinkedHashMap<>();
 
         if (t instanceof ListTerm list) {
             for (Term item : list) {
@@ -104,7 +104,7 @@ public final class Translator {
      */
     private static void parseStructure(Term t, Map<String, Object> map) {
         if (!(t instanceof Structure s)) {
-            throw new IllegalArgumentException("Expected structure like key(value)");
+            throw new IllegalArgumentException("Expected structure like key(value) but got " + t.getClass().getSimpleName());
         }
 
         if (s.getArity() == 0) {
@@ -116,7 +116,7 @@ public final class Translator {
         if (s.getArity() == 1) {
             map.put(key, parseValue(s.getTerm(0)));
         } else {
-            Map<String, Object> nested = new HashMap<>();
+            Map<String, Object> nested = new LinkedHashMap<>();
             for (int i = 0; i < s.getArity(); i++) {
                 parseStructure(s.getTerm(i), nested);
             }
@@ -168,14 +168,14 @@ public final class Translator {
             return values;
         }
         if (t instanceof Structure s && s.getArity() > 1) {
-            Map<String, Object> nested = new HashMap<>();
+            Map<String, Object> nested = new LinkedHashMap<>();
             for (int i = 0; i < s.getArity(); i++) {
                 parseStructure(s.getTerm(i), nested);
             }
             return nested;
         }
         if (t instanceof Structure s && s.getArity() == 1) {
-            Map<String, Object> nested = new HashMap<>();
+            Map<String, Object> nested = new LinkedHashMap<>();
             nested.put(s.getFunctor(), parseValue(s.getTerm(0)));
             return nested;
         }
