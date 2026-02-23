@@ -12,12 +12,14 @@ public class Env extends Environment {
 
     /* -------- Social Network -------- */
     private static class Edge {
+        private static final double DEFAULT_WEIGHT = 1.0;
+
         private final String from;
         private final String to;
         private double weight;
 
         public Edge(String from, String to) {
-            this(from, to, 1.0); // default weight
+            this(from, to, DEFAULT_WEIGHT);
         }
 
         public Edge(String from, String to, double weight) {
@@ -39,21 +41,23 @@ public class Env extends Environment {
         }
     }
 
-    private final List<Edge> socialNetwork = Collections.synchronizedList(new ArrayList<>());
+    private final Set<Edge> socialNetwork = Collections.synchronizedSet(new HashSet<>());
 
     /* -------- Messages -------- */
     private static record Reaction(String author, String reaction){}
 
     private static class Message {
+        private static final int EMPTY_REFERENCE = 0;
+
         private final int id;
         private final String author;
         private final String content;
         private List<Reaction> reactions = Collections.synchronizedList(new ArrayList<>());
-        private final int original; // 0 = empty_reference
+        private final int original;
         private final long timestamp;
 
         public Message(int id, String author, String content) {
-            this(id, author, content, 0);
+            this(id, author, content, EMPTY_REFERENCE);
         }
 
         public Message(int id, String author, String content, int original) {
@@ -89,8 +93,10 @@ public class Env extends Environment {
             case "repost" -> repost(agent, action);
             case "comment" -> comment(agent, action);
             case "react" -> react(agent, action);
+            case "ask" -> ask(agent, action);
             case "createLink" -> createLink(agent, action);
             case "removeLink" -> removeLink(agent, action);
+            case "readPublicProfile" -> readPublicProfile(agent, action);
             default -> System.out.println("Unknown action: "+action);
         }
         return true;
@@ -234,15 +240,9 @@ public class Env extends Environment {
         String to = action.getTerm(0).toString();
         Edge target = new Edge(agent, to);
         synchronized (socialNetwork) {
-            Iterator<Edge> it = socialNetwork.iterator();
-            while (it.hasNext()) {
-                Edge e = it.next();
-                if (e.equals(target)) {
-                    it.remove();
-                    removePercept(agent, createLiteral("follows", createString(to)));
-                    removePercept(to, createLiteral("followedBy", createString(agent)));
-                    break;
-                }
+            if (socialNetwork.remove(target)) {
+                removePercept(agent, createLiteral("follows", createString(to)));
+                removePercept(to, createLiteral("followedBy", createString(agent)));
             }
         }
         return true;
