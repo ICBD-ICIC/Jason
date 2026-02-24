@@ -9,14 +9,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ConcurrentHashMap;
 
 import lib.JasonToJavaTranslator;
-import env.Message;
-import env.ContentManager;
-import env.NetworkManager;
 
 public class Env extends Environment {
     
     private final NetworkManager networkManager = new NetworkManager();
-    private final ContentManager contentManager = new DefaultContentManager();
+    private final ContentManager contentManager = new DefaultContentManager(networkManager);
+    private final KnowledgeManager knowledgeManager = new DefaultKnowledgeManager();
 
     @Override
     public void init(String[] args) {
@@ -32,10 +30,10 @@ public class Env extends Environment {
             case "repost" -> repost(agent, action);
             case "comment" -> comment(agent, action);
             case "react" -> react(agent, action);
-            //case "ask" -> ask(agent, action);
+            case "ask" -> ask(agent, action);
             case "createLink" -> createLink(agent, action);
             case "removeLink" -> removeLink(agent, action);
-            //case "readPublicProfile" -> readPublicProfile(agent, action);
+            case "readPublicProfile" -> readPublicProfile(agent, action);
             default -> System.out.println("Unknown action: "+action);
         }
         return true;
@@ -64,30 +62,25 @@ public class Env extends Environment {
     private void updatePercepts(String agent, List<Message> messages){
         clearPercepts(agent);
 
-        List<Term> ids = new ArrayList<>();
-
-        for (Message m : messages) {
-            ids.add(createNumber(m.id));
-
-            Literal literal = createLiteral("message",
+        messages.forEach(m -> {
+            addPercept(agent, createLiteral("message",
                 createNumber(m.id),
                 createString(m.author),
                 createString(m.content),
                 createNumber(m.original),
                 createNumber(m.timestamp)
-            );
-            addPercept(agent, literal);
-            for (Message.Reaction r : m.reactions) { 
-                Literal reactionLiteral = createLiteral("reaction",
-                    createNumber(m.id),
-                    createString(r.author()), 
-                    createString(r.reaction())
-                );
-                addPercept(agent, reactionLiteral);
-            }
-        }
-        Literal feedOrder = createLiteral("feed_order", createList(ids));
-        addPercept(agent, feedOrder);
+            ));
+            m.reactions.forEach(r -> addPercept(agent, createLiteral("reaction",
+                createNumber(m.id),
+                createString(r.author()),
+                createString(r.reaction())
+            )));
+        });
+
+        List<Term> ids = messages.stream()
+            .map(m -> (Term) createNumber(m.id))
+            .toList();
+        addPercept(agent, createLiteral("feed_order", createList(ids)));
     }
 
     private boolean createPost(String agent, Structure action){
@@ -133,6 +126,19 @@ public class Env extends Environment {
         networkManager.removeEdge(agent, to);
         removePercept(agent, createLiteral("follows", createString(to)));
         removePercept(to, createLiteral("followedBy", createString(agent)));
+        return true;
+    }
+
+    private boolean ask(String agent, Structure action){
+        String query = action.getTerm(0).toString();
+        Object result = knowledgeManager.query(agent, query);
+        // TODO: convert result to percepts
+        return true;
+    }
+
+    private boolean readPublicProfile(String agent, Structure action){
+        String requestedAgent = action.getTerm(0).toString();
+        // TODO
         return true;
     }
 }

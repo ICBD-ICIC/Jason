@@ -13,7 +13,12 @@ public abstract class ContentManager{
     protected final Map<Integer, MessageCreationParams> content = new ConcurrentHashMap<>();
     protected final Map<Integer, Message> filteredContent = new ConcurrentHashMap<>();
     protected final AtomicInteger messageCounter = new AtomicInteger(0);
+    protected final NetworkManager networkManager;
 
+    public ContentManager(NetworkManager networkManager) {
+        this.networkManager = networkManager;
+    }
+    
     protected abstract boolean passFilter(Message message, MessageCreationParams params);
     public abstract List<Message> feedFilter(String agent);
     public abstract List<Message> topicFilter(String agent, String concept);

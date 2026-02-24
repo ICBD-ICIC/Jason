@@ -44,4 +44,8 @@ public class NetworkManager {
         Edge link = new Edge(from, to);
         socialNetwork.remove(link);
     }
+
+    public Set<Edge> getSocialNetwork() {
+        return Collections.unmodifiableSet(socialNetwork);
+    }
 }

@@ -3,6 +3,10 @@ package env;
 import java.util.*;
 
 public class DefaultContentManager extends ContentManager {
+    public DefaultContentManager(NetworkManager networkManager) {
+        super(networkManager);
+    }
+
     @Override
     protected boolean passFilter(Message message, MessageCreationParams params) {
         return true;
