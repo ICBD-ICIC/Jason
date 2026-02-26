@@ -8,7 +8,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import env.Message;
 
 public abstract class ContentManager{
-    static record MessageCreationParams(List<String> topics, Map<String, Object> variables) {}
+    static record MessageCreationParams(List<String> topics, Map<String, Object> variables) {
+        public MessageCreationParams {
+            topics = topics == null ? List.of() : topics;
+            variables = variables == null ? Map.of() : variables;
+        }
+    }
 
     protected final Map<Integer, MessageCreationParams> content = new ConcurrentHashMap<>();
     protected final Map<Integer, Message> filteredContent = new ConcurrentHashMap<>();
@@ -24,11 +29,11 @@ public abstract class ContentManager{
     public abstract List<Message> topicFilter(String agent, String concept);
     public abstract List<Message> authorFilter(String agent, String author);
 
-    public void addMessage(String agent, String messageContent, List<String> topics, Map<String, Object> variables){
-        addMessage(agent, messageContent, topics, variables, Message.EMPTY_REFERENCE);
+    public int addMessage(String agent, String messageContent, List<String> topics, Map<String, Object> variables){
+        return addMessage(agent, messageContent, topics, variables, Message.EMPTY_REFERENCE);
     }
 
-    public void addMessage(String agent, String messageContent, List<String> topics, Map<String, Object> variables, int originalId){
+    public int addMessage(String agent, String messageContent, List<String> topics, Map<String, Object> variables, int originalId){
         Message message = new Message(
             messageCounter.incrementAndGet(),
             agent,
@@ -40,20 +45,26 @@ public abstract class ContentManager{
         if (passFilter(message, params)) {
             filteredContent.put(message.id, message);
         }
+        return message.id;
     }
 
-    public void repost(String agent, int originalId){
+    public int repost(String agent, int originalId) throws IllegalArgumentException {
         Message original = filteredContent.get(originalId);
         MessageCreationParams originalParams = content.get(originalId);
         if (original != null && originalParams != null) {
-            addMessage(agent, original.content, originalParams.topics(), originalParams.variables(), originalId);
+            return addMessage(agent, original.content, originalParams.topics(), originalParams.variables(), originalId);
+        } else {
+            throw new IllegalArgumentException("Original message with ID " + originalId + " does not exist.");
         }
     }
 
-    public void addReaction(int messageId, String author, String reaction){
+    public void addReaction(int messageId, String author, String reaction) throws IllegalArgumentException {
         Message message = filteredContent.get(messageId);
         if (message != null) {
             message.addReaction(author, reaction);
+        }
+        else {
+            throw new IllegalArgumentException("Message with ID " + messageId + " does not exist.");
         }
     }
 }

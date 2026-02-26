@@ -29,6 +29,8 @@ dependencies {
     implementation 'io.github.jason-lang:jason-interpreter:3.3.0'
     implementation fileTree(dir: 'lib', include: '*.jar')
     implementation 'com.google.genai:google-genai:1.4.1'
+    implementation 'tech.tablesaw:tablesaw-core:0.44.4'
+    implementation 'org.slf4j:slf4j-simple:2.0.12'
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.0'

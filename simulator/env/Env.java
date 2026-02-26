@@ -9,6 +9,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ConcurrentHashMap;
 
 import lib.JasonToJavaTranslator;
+import initializer.MessageLoader;
 
 public class Env extends Environment {
     
@@ -18,6 +19,11 @@ public class Env extends Environment {
 
     @Override
     public void init(String[] args) {
+        try {
+            MessageLoader.load(contentManager);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to load messages: " + e.getMessage(), e);
+        }
     }
 
     @Override

@@ -4,7 +4,7 @@ import java.util.*;
 
 public class Message {
 
-    static record Reaction(String author, String reaction) {}
+    public static record Reaction(String author, String reaction) {}
 
     public static final int EMPTY_REFERENCE = 0;
 

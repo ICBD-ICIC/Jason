@@ -1,0 +1,90 @@
+@startuml
+abstract class ContentManager {
+    #Map<Integer, MessageCreationParams> content
+    #Map<Integer, Message> filteredContent
+    #AtomicInteger messageCounter
+    #NetworkManager networkManager
+
+    +addMessage(agent : String, messageContent : String, topics : List<String>, variables : Map<String,Object>) : void
+    +addMessage(agent : String, messageContent : String, topics : List<String>, variables : Map<String,Object>, originalId : int) : void
+    +repost(agent : String, originalId : int) : void
+    +addReaction(messageId : int, author : String, reaction : String) : void
+
+    #passFilter(message : Message, params : MessageCreationParams) : boolean
+    +feedFilter(agent : String) : List<Message>
+    +topicFilter(agent : String, concept : String) : List<Message>
+    +authorFilter(agent : String, author : String) : List<Message>
+}
+
+class MessageCreationParams {
+    +List<String> topics
+    +Map<String, Object> variables
+}
+
+class DefaultContentManager {
+    +DefaultContentManager(networkManager : NetworkManager)
+    #passFilter(message : Message, params : MessageCreationParams) : boolean
+    +feedFilter(agent : String) : List<Message>
+    +topicFilter(agent : String, concept : String) : List<Message>
+    +authorFilter(agent : String, author : String) : List<Message>
+}
+
+ContentManager <|-- DefaultContentManager
+ContentManager ..> NetworkManager
+ContentManager *-- Message
+ContentManager *-- MessageCreationParams
+
+abstract class KnowledgeManager
+KnowledgeManager <|-- DefaultKnowledgeManager
+
+class NetworkManager {
+    -Set<Edge> socialNetwork
+    +addEdge(from : String, to : String) : void
+    +removeEdge(from : String, to : String) : void
+    +getSocialNetwork() : Set<Edge>
+}
+
+class Env {
+    -NetworkManager networkManager
+    -ContentManager contentManager
+    -KnowledgeManager knowledgeManager
+
+    +init(args : String[]) : void
+    +executeAction(agent : String, action : Structure) : boolean
+    -updateFeed(agent : String) : boolean
+    -searchContent(agent : String, action : Structure) : boolean
+    -searchAuthor(agent : String, action : Structure) : boolean
+    -updatePercepts(agent : String, messages : List<Message>) : void
+    -createPost(agent : String, action : Structure) : boolean
+    -repost(agent : String, action : Structure) : boolean
+    -comment(agent : String, action : Structure) : boolean
+    -react(agent : String, action : Structure) : boolean
+    -createLink(agent : String, action : Structure) : boolean
+    -removeLink(agent : String, action : Structure) : boolean
+    -ask(agent : String, action : Structure) : boolean
+    -readPublicProfile(agent : String, action : Structure) : boolean
+}
+
+Environment <|-- Env
+Env *-- ContentManager
+Env *-- KnowledgeManager
+Env *-- NetworkManager
+Env ..> Message
+
+class Message {
+    +int id
+    +String author
+    +String content
+    +List<Reaction> reactions
+    +int original
+    +long timestamp
+    +addReaction(author : String, reaction : String) : void
+}
+
+class Reaction {
+    +String author
+    +String reaction
+}
+
+Message *-- Reaction
+@enduml
