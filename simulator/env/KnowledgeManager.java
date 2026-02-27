@@ -1,5 +1,11 @@
 package env;
 
+import jason.asSyntax.Literal;
+import java.util.List;
+
 public interface KnowledgeManager {
-    public Object query(String agent, String query);
+    /**
+     * Returns all facts from the KB that unify with the given query literal.
+     */
+    List<Literal> query(Literal queryLiteral);
 }

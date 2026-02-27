@@ -11,17 +11,20 @@ import java.util.concurrent.ConcurrentHashMap;
 import lib.JasonToJavaTranslator;
 import initializer.MessageLoader;
 import initializer.NetworkLoader;
+import initializer.PublicProfileLoader;
 
 public class Env extends Environment {
     
     private final NetworkManager networkManager = new NetworkManager();
     private final ContentManager contentManager = new DefaultContentManager(networkManager);
     private final KnowledgeManager knowledgeManager = new DefaultKnowledgeManager();
+    private final Map<String, Map<String, String>> publicProfiles = new HashMap<>();
 
     @Override
     public void init(String[] args) {
         try {
             MessageLoader.load(contentManager);
+            PublicProfileLoader.load(publicProfiles);
             NetworkLoader.load(networkManager);
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize: " + e.getMessage(), e);
@@ -138,15 +141,29 @@ public class Env extends Environment {
     }
 
     private boolean ask(String agent, Structure action){
-        String query = action.getTerm(0).toString();
-        Object result = knowledgeManager.query(agent, query);
-        // TODO: convert result to percepts
+        try {
+            Literal queryLiteral = (Literal) action.getTerm(0);
+            List<Literal> results = knowledgeManager.query(queryLiteral);
+            results.forEach(fact -> addPercept(agent, fact));
+        } catch (Exception e) {
+            System.out.println("Knowledge query failed for agent " + agent + ": " + e.getMessage());
+        }
         return true;
     }
 
     private boolean readPublicProfile(String agent, Structure action){
         String requestedAgent = action.getTerm(0).toString();
-        // TODO
+        Map<String, String> profile = publicProfiles.get(requestedAgent);
+
+        if (profile != null) {
+            profile.forEach((attribute, value) ->
+                addPercept(agent, createLiteral("public_profile",
+                    createString(requestedAgent),
+                    createString(attribute),
+                    createString(value.toString())
+                ))
+            );
+        }
         return true;
     }
 }
