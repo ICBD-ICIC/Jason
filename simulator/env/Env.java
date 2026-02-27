@@ -10,6 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import lib.JasonToJavaTranslator;
 import initializer.MessageLoader;
+import initializer.NetworkLoader;
 
 public class Env extends Environment {
     
@@ -21,8 +22,9 @@ public class Env extends Environment {
     public void init(String[] args) {
         try {
             MessageLoader.load(contentManager);
+            NetworkLoader.load(networkManager);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to load messages: " + e.getMessage(), e);
+            throw new RuntimeException("Failed to initialize: " + e.getMessage(), e);
         }
     }
 

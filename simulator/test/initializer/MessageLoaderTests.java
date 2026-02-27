@@ -18,9 +18,10 @@ public class MessageLoaderTests {
     Path tempDir;
 
     private ContentManager contentManager;
+    private static final String csvFileName = "messages.csv";
 
     private void writeCsv(String csvContent) throws IOException {
-        Path csv = Path.of("messages.csv");
+        Path csv = Path.of(csvFileName);
         Files.writeString(csv, csvContent);
     }
 
@@ -40,7 +41,7 @@ public class MessageLoaderTests {
 
     @AfterEach
     void cleanUp() throws IOException {
-        Files.deleteIfExists(Path.of("messages.csv"));
+        Files.deleteIfExists(Path.of(csvFileName));
     }
 
     @Test
@@ -133,30 +134,6 @@ public class MessageLoaderTests {
         assertReaction(reactions, "Carol", "love");
     }
 
-    /* @Test
-    void load_topics_parsedAndTrimmed() throws Exception {
-        writeCsv("id,author,content,reactions,original,topics\n" +
-                 "1,Alice,Hello,,, news , sports \n");
-
-        MessageLoader.load(contentManager);
-
-        var topics = contentManager.getMessages().get(0).getTopics();
-        assertEquals(2, topics.size());
-        assertTrue(topics.contains("news"));
-        assertTrue(topics.contains("sports"));
-    }
-
-    @Test
-    void load_emptyTopics_treatedAsNull() throws Exception {
-        writeCsv("id,author,content,reactions,original,topics\n" +
-                 "1,Alice,Hello,,,\n");
-
-        MessageLoader.load(contentManager);
-
-        var topics = contentManager.getMessages().get(0).getTopics();
-        assertTrue(topics == null || topics.isEmpty());
-    }*/
-
     @Test
     void load_comment() throws Exception {
         writeCsv("id,author,content,reactions,original,topics\n" +
@@ -168,15 +145,6 @@ public class MessageLoaderTests {
         List<Message> messages = contentManager.feedFilter("test");
         assertEquals(2, messages.size());
         assertEquals(messages.get(0).id, messages.get(1).original);
-    }
-
-    @Test
-    void load_missingCsvColumn_throwsIOException() {
-        assertThrows(IOException.class, () -> {
-            writeCsv("id,author,content,reactions,original\n" +
-                     "1,Alice,Hello,,\n");
-            MessageLoader.load(contentManager);
-        });
     }
 
     @Test

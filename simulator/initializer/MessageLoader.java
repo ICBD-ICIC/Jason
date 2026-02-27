@@ -5,7 +5,6 @@ import tech.tablesaw.io.csv.CsvReadOptions;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import env.ContentManager;
 import env.Message;
@@ -31,32 +30,24 @@ public class MessageLoader {
      * - variables not included in the CSV.
      */
     public static void load(ContentManager contentManager) throws IOException {
-        Table table = Table.read().usingOptions(
-            CsvReadOptions.builder(csvPath)
-                .missingValueIndicator("")
-                .columnTypesToDetect(List.of(ColumnType.STRING))
-                .build()
-        );
-
-        for (String col : List.of("id", "author", "content", "reactions", "original", "topics")) {
-            if (!table.columnNames().contains(col))
-                throw new IOException("CSV header missing required column: '" + col + "'.");
-        }
-
+        Optional<Table> result = CsvLoader.load(csvPath, List.of("id", "author", "content", "reactions", "original", "topics"));
+        if (result.isEmpty()) return;
+        Table table = result.get();
+        
         Map<String, Integer> idMap = new LinkedHashMap<>();
 
         for (int rowIdx = 0; rowIdx < table.rowCount(); rowIdx++) {
             Row row = table.row(rowIdx);
 
-            String csvId   = row.isMissing("id")  ? null : row.getString("id");
-            String author  = row.isMissing("author")  ? null : row.getString("author");
+            String csvId   = row.getString("id");
+            String author  = row.getString("author");
             String content = row.getString("content");
-            String reactionsRaw = row.isMissing("reactions") ? null : row.getString("reactions");
-            String originalCsvId = row.isMissing("original") ? null : row.getString("original");
-            List<String> topics = row.isMissing("topics") ? null : Arrays.stream(row.getString("topics").split(";"))
-                                                                                            .map(String::trim)
-                                                                                            .filter(s -> !s.isBlank())
-                                                                                            .toList();
+            String reactionsRaw = row.getString("reactions");
+            String originalCsvId = row.getString("original");
+            List<String> topics = Arrays.stream(row.getString("topics").split(";"))
+                                                                        .map(String::trim)
+                                                                        .filter(s -> !s.isBlank())
+                                                                        .toList();
             if (author == null || author.isBlank())
                 throw new IOException("Row " + rowIdx + " is missing an author.");
 

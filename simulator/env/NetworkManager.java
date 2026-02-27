@@ -3,12 +3,12 @@ package env;
 import java.util.*;
 
 public class NetworkManager {
-    private static class Edge {
-        private static final double DEFAULT_WEIGHT = 1.0;
+    public static class Edge {
+        public final String from;
+        public final String to;
+        public final double weight;
 
-        private final String from;
-        private final String to;
-        private double weight;
+        private static final double DEFAULT_WEIGHT = 0;
 
         private Edge(String from, String to) {
             this(from, to, DEFAULT_WEIGHT);
@@ -20,10 +20,6 @@ public class NetworkManager {
             this.weight = weight;
         }
 
-        private void updateWeight(double weight) {
-            this.weight = weight;
-        }
-
         @Override
         public boolean equals(Object obj) { 
             if (this == obj) return true;
@@ -31,13 +27,25 @@ public class NetworkManager {
             Edge edge = (Edge) obj;
             return from.equals(edge.from) && to.equals(edge.to);
         }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(from, to);
+        }
     }
+
+    private static final double DEFAULT_WEIGHT = 1;
 
     private final Set<Edge> socialNetwork = Collections.synchronizedSet(new HashSet<>());
 
-    public void addEdge(String from, String to) {
-        Edge link = new Edge(from, to);
+    //If already exists, it will be ignored.
+    public void addEdge(String from, String to, double weight) {
+        Edge link = new Edge(from, to, weight);
         socialNetwork.add(link);
+    }
+
+    public void addEdge(String from, String to) {
+        addEdge(from, to, DEFAULT_WEIGHT);
     }
 
     public void removeEdge(String from, String to) {
