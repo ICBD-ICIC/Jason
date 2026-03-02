@@ -55,3 +55,12 @@
         Agent: string/atom 
         Percepts added: public_profile(Agent, Attribute, Value)
     ========================================================== */
+
+!start.
+
++!start: true <- 
+    .print("entra");
+    ia.createContent([floods], [sentiment(negative)], Content);
+    .print("entra 2");
+    createPost([floods], [sentiment(negative)], Content);
+    .print(Content). 
