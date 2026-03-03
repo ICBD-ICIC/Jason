@@ -6,8 +6,6 @@ import java.util.*;
 
 public class PublicProfileLoader {
 
-    private static final String CSV_PATH = "public_profiles.csv";
-
     /**
      * Loads public profiles from CSV into a Map<String, Map<String, Object>>.
      *
@@ -16,9 +14,13 @@ public class PublicProfileLoader {
      * Rules:
      * - agent, attribute: non-empty strings.
      * - value: stored as String; may be empty.
+     * 
+     * @param publicProfiles the map used to save the pairs atribute-value for each agent
+     * @param csvPath path to the CSV file to load, following the specified rules
+     * @throws IOException if the file cannot be read, a row is malformed, or a referential constraint is violated
      */
-    public static void load(Map<String, Map<String, String>> publicProfiles) throws IOException {
-        Optional<Table> result = CsvLoader.load(CSV_PATH, List.of("agent", "attribute", "value"));
+    public static void load(Map<String, Map<String, String>> publicProfiles, String csvPath) throws IOException {
+        Optional<Table> result = CsvLoader.load(csvPath, List.of("agent", "attribute", "value"));
         if (result.isEmpty()) return;
         Table table = result.get();
 

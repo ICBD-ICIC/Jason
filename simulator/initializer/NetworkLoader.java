@@ -10,8 +10,6 @@ import env.NetworkManager;
 
 public class NetworkLoader {
 
-    private static final String csvPath = "network.csv";
-
     /**
      * Loads edges from CSV into NetworkManager.
      *
@@ -20,8 +18,12 @@ public class NetworkLoader {
      * Rules:
      * - from, to: non-empty strings representing agent names.
      * - weight optional, defaults to NetworkManager.DEFAULT_WEIGHT if missing or empty. Must be a valid number if present.
+     *
+     * @param networkManager the network used to register links/edges
+     * @param csvPath path to the CSV file to load, following the specified rules
+     * @throws IOException if the file cannot be read, a row is malformed, or a referential constraint is violated
      */
-    public static void load(NetworkManager networkManager) throws IOException {
+    public static void load(NetworkManager networkManager, String csvPath) throws IOException {
         Optional<Table> result = CsvLoader.load(csvPath, List.of("from", "to", "weight"));
         if (result.isEmpty()) return;
         Table table = result.get();

@@ -54,13 +54,49 @@
     readPublicProfile(+Agent)
         Agent: string/atom 
         Percepts added: public_profile(Agent, Attribute, Value)
-    ========================================================== */
+========================================================== */
+
+/* ==========================================================
+   Available Internal Actions
+
+    ia.createContent(+Topic, +Variables, -Content)
+        Topic: string/atom
+        Variables: map of key(value) pairs, e.g. [sentiment(negative), ...]
+        Content: string
+
+    ia.interpretContent(+Content, -Interpretation)
+        Content: string
+        Interpretation: map of key(value) pairs, e.g. [sentiment(negative), ...]
+========================================================== */
+cycle(0).
 
 !start.
 
 +!start: true <- 
-    .print("entra");
-    ia.createContent([floods], [sentiment(negative)], Content);
-    .print("entra 2");
-    createPost([floods], [sentiment(negative)], Content);
-    .print(Content). 
+    updateFeed. 
+
++feed_order([Id|Ids]): cycle(0) <- 
+    .wait(message(Id, Author, Content, Original, Timestamp));
+    .print("New message from ", Author, ": ", Content, " (Original: ", Original, ", Timestamp: ", Timestamp, ")");
+    ia.interpretContent(Content, Interpretation);
+    .print("Interpreted content: ", Interpretation);
+    Topics = [floods, "climate change awareness"];
+    Variables = [sentiment(positive), emotion("worry")];
+    ia.createContent(Topics, Variables, CommentContent);
+    createPost(Topics, Variables, CommentContent);
+    comment(Id, Topics, Variables, CommentContent);
+    -+cycle(1);
+    searchAuthor(social_agent).
+
++feed_order(FeedList): cycle(1) <- 
+    !collect_messages(FeedList, "", Conversation);
+    .print(Conversation).
+
+
++!collect_messages([] , Conversation, Conversation) : true <- true.
+
++!collect_messages([ID|Tail], Conversation, Result) : true <-
+    .wait(message(ID, Author, Content, _, _));
+    .concat("\n@", Author, ": ", Content, Post);
+    .concat(Post, Conversation, UpdatedConversation);
+    !collect_messages(Tail, UpdatedConversation, Result).

@@ -18,10 +18,10 @@ public class MessageLoaderTests {
     Path tempDir;
 
     private ContentManager contentManager;
-    private static final String csvFileName = "messages.csv";
+    private static final String csvPath = "test/initializer/messages.csv";
 
     private void writeCsv(String csvContent) throws IOException {
-        Path csv = Path.of(csvFileName);
+        Path csv = Path.of(csvPath);
         Files.writeString(csv, csvContent);
     }
 
@@ -41,7 +41,7 @@ public class MessageLoaderTests {
 
     @AfterEach
     void cleanUp() throws IOException {
-        Files.deleteIfExists(Path.of(csvFileName));
+        Files.deleteIfExists(Path.of(csvPath));
     }
 
     @Test
@@ -49,7 +49,7 @@ public class MessageLoaderTests {
         writeCsv("id,author,content,reactions,original,topics\n" +
                  "1,Alice,Hello world,,,news\n");
 
-        MessageLoader.load(contentManager);
+        MessageLoader.load(contentManager, csvPath);
 
         List<Message> messages = contentManager.feedFilter("test");
         assertEquals(1, messages.size());
@@ -66,7 +66,7 @@ public class MessageLoaderTests {
         writeCsv("id,author,content,reactions,original,topics\n" +
                  ",Alice,Hello world,,,news\n");
 
-        MessageLoader.load(contentManager);
+        MessageLoader.load(contentManager, csvPath);
 
         List<Message> messages = contentManager.feedFilter("test");
         assertEquals(1, messages.size());
@@ -85,7 +85,7 @@ public class MessageLoaderTests {
                  "2,Bob,Second,,,\n" +
                  "3,Carol,Third,,,\n");
 
-        MessageLoader.load(contentManager);
+        MessageLoader.load(contentManager, csvPath);
 
         List<Message> messages = contentManager.feedFilter("test");
         assertEquals(3, messages.size());
@@ -100,7 +100,7 @@ public class MessageLoaderTests {
                  "1,Alice,Original message,,,news\n" +
                  "2,Bob,,,1,\n");
 
-        MessageLoader.load(contentManager);
+        MessageLoader.load(contentManager, csvPath);
 
         List<Message> messages = contentManager.feedFilter("test");
         assertEquals(2, messages.size());
@@ -114,7 +114,7 @@ public class MessageLoaderTests {
         writeCsv("id,author,content,reactions,original,topics\n" +
                  "1,Alice,Hello,Bob: like,,news\n");
 
-        MessageLoader.load(contentManager);
+        MessageLoader.load(contentManager, csvPath);
 
         List<Reaction> reactions = contentManager.feedFilter("test").get(0).reactions;
         assertFalse(reactions.isEmpty());
@@ -126,7 +126,7 @@ public class MessageLoaderTests {
         writeCsv("id,author,content,reactions,original,topics\n" +
                  "1,Alice,Hello,\"Bob: like; Carol: love\",,news\n");
 
-        MessageLoader.load(contentManager);
+        MessageLoader.load(contentManager, csvPath);
 
         List<Reaction> reactions = contentManager.feedFilter("test").get(0).reactions;
         assertEquals(2, reactions.size());
@@ -140,7 +140,7 @@ public class MessageLoaderTests {
                  "908,Alice,Parent post,,,\n" +
                  "78,Bob,My comment,,908,\n");
 
-        MessageLoader.load(contentManager);
+        MessageLoader.load(contentManager, csvPath);
 
         List<Message> messages = contentManager.feedFilter("test");
         assertEquals(2, messages.size());
@@ -152,7 +152,7 @@ public class MessageLoaderTests {
         assertThrows(IOException.class, () -> {
             writeCsv("id,author,content,reactions,original,topics\n" +
                      "1,,Hello,,,\n");
-            MessageLoader.load(contentManager);
+            MessageLoader.load(contentManager, csvPath);
         });
     }
 
@@ -161,7 +161,7 @@ public class MessageLoaderTests {
         assertThrows(IOException.class, () -> {
             writeCsv("id,author,content,reactions,original,topics\n" +
                      "1,Alice,,,,\n");
-            MessageLoader.load(contentManager);
+            MessageLoader.load(contentManager, csvPath);
         });
     }
 
@@ -170,7 +170,7 @@ public class MessageLoaderTests {
         assertThrows(IOException.class, () -> {
             writeCsv("id,author,content,reactions,original,topics\n" +
                      "1,Alice,Hello,,99,\n");
-            MessageLoader.load(contentManager);
+            MessageLoader.load(contentManager, csvPath);
         });
     }
 
@@ -180,7 +180,7 @@ public class MessageLoaderTests {
             writeCsv("id,author,content,reactions,original,topics\n" +
                      "1,Alice,Hello,,2,\n" +
                      "2,Bob,World,,,\n");
-            MessageLoader.load(contentManager);
+            MessageLoader.load(contentManager, csvPath);
         });
     }
 
@@ -189,7 +189,7 @@ public class MessageLoaderTests {
         assertThrows(IOException.class, () -> {
             writeCsv("id,author,content,reactions,original,topics\n" +
                      "1,Alice,Hello,BadReaction,,\n");
-            MessageLoader.load(contentManager);
+            MessageLoader.load(contentManager, csvPath);
         });
     }
 }

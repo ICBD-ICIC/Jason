@@ -23,9 +23,9 @@ public class Env extends Environment {
     @Override
     public void init(String[] args) {
         try {
-            MessageLoader.load(contentManager);
-            PublicProfileLoader.load(publicProfiles);
-            NetworkLoader.load(networkManager);
+            MessageLoader.load(contentManager, "initializer/messages.csv");
+            PublicProfileLoader.load(publicProfiles, "initializer/public_profiles.csv");
+            NetworkLoader.load(networkManager, "initializer/network.csv");
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize: " + e.getMessage(), e);
         }

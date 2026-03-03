@@ -13,10 +13,10 @@ public class NetworkLoaderTests {
 
     private NetworkManager networkManager;
     private double defaultWeight = 1; // Should match NetworkManager.DEFAULT_WEIGHT
-    private static final String csvFileName = "network.csv";
+    private static final String csvPath = "test/initializer/network.csv";
 
     private void writeCsv(String content) throws IOException {
-        Files.writeString(Path.of(csvFileName), content);
+        Files.writeString(Path.of(csvPath), content);
     }
 
     private Optional<Edge> findEdge(String from, String to) {
@@ -32,7 +32,7 @@ public class NetworkLoaderTests {
 
     @AfterEach
     void cleanUp() throws IOException {
-        Files.deleteIfExists(Path.of(csvFileName));
+        Files.deleteIfExists(Path.of(csvPath));
     }
 
     @Test
@@ -40,7 +40,7 @@ public class NetworkLoaderTests {
         writeCsv("from,to,weight\n" +
                  "Alice,Bob,0.5\n");
 
-        NetworkLoader.load(networkManager);
+        NetworkLoader.load(networkManager, csvPath);
 
         Optional<Edge> edge = findEdge("Alice", "Bob");
         assertTrue(edge.isPresent());
@@ -56,7 +56,7 @@ public class NetworkLoaderTests {
                  "Bob,Carol,\n" +
                  "Carol,Alice,2.0\n");
 
-        NetworkLoader.load(networkManager);
+        NetworkLoader.load(networkManager, csvPath);
 
         assertEquals(3, networkManager.getSocialNetwork().size());
         assertEquals(0.5, findEdge("Alice", "Bob").get().weight);
@@ -70,7 +70,7 @@ public class NetworkLoaderTests {
                  "Alice,Bob,1.0\n" +
                  "Alice,Bob,2.0\n");
 
-        NetworkLoader.load(networkManager);
+        NetworkLoader.load(networkManager, csvPath);
 
         assertEquals(1, networkManager.getSocialNetwork().size());
         assertEquals(1.0, findEdge("Alice", "Bob").get().weight);
@@ -81,7 +81,7 @@ public class NetworkLoaderTests {
         writeCsv("from,to,weight\n" +
                  "Alice,Bob,-1.5\n");
 
-        NetworkLoader.load(networkManager);
+        NetworkLoader.load(networkManager, csvPath);
 
         assertEquals(-1.5, findEdge("Alice", "Bob").get().weight);
     }
@@ -91,7 +91,7 @@ public class NetworkLoaderTests {
         writeCsv("from,to,weight\n" +
                  "Alice Smith,Bob,0.0\n");
 
-        NetworkLoader.load(networkManager);
+        NetworkLoader.load(networkManager, csvPath);
 
         assertEquals(0.0, findEdge("Alice Smith", "Bob").get().weight);
     }
@@ -102,7 +102,7 @@ public class NetworkLoaderTests {
                  "Alice,Bob,1.0\n" +
                  "Bob,Alice,2.0\n");
 
-        NetworkLoader.load(networkManager);
+        NetworkLoader.load(networkManager, csvPath);
 
         assertEquals(2,   networkManager.getSocialNetwork().size());
         assertEquals(1.0, findEdge("Alice", "Bob").get().weight);
@@ -114,7 +114,7 @@ public class NetworkLoaderTests {
         assertThrows(IOException.class, () -> {
             writeCsv("from,to,weight\n" +
                      ",Bob,1.0\n");
-            NetworkLoader.load(networkManager);
+            NetworkLoader.load(networkManager, csvPath);
         });
     }
 
@@ -123,7 +123,7 @@ public class NetworkLoaderTests {
         assertThrows(IOException.class, () -> {
             writeCsv("from,to,weight\n" +
                      "Alice,,1.0\n");
-            NetworkLoader.load(networkManager);
+            NetworkLoader.load(networkManager, csvPath);
         });
     }
     
@@ -132,7 +132,7 @@ public class NetworkLoaderTests {
         assertThrows(IOException.class, () -> {
             writeCsv("from,to,weight\n" +
                      "Alice,Bob,notanumber\n");
-            NetworkLoader.load(networkManager);
+            NetworkLoader.load(networkManager, csvPath);
         });
     }
 
@@ -142,7 +142,7 @@ public class NetworkLoaderTests {
             writeCsv("from,to,weight\n" +
                      "Alice,Bob,1.0\n" +
                      "Carol,,2.0\n");
-            NetworkLoader.load(networkManager);
+            NetworkLoader.load(networkManager, csvPath);
         });
     }
 }

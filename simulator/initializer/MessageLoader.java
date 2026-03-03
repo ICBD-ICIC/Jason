@@ -11,9 +11,7 @@ import env.Message;
 
 public class MessageLoader {
 
-    private static final String csvPath = "messages.csv";
-
-    /**
+/**
      * Loads messages from a CSV file and returns them as an ordered list of Message objects.
      *
      * CSV columns: id, author, content, reactions, original, topics
@@ -28,8 +26,12 @@ public class MessageLoader {
      * - topics: semicolon-separated list of topics associated with the message.
      * - timestamps assigned in file order automatically.
      * - variables not included in the CSV.
+     *
+     * @param contentManager the content manager used to register messages, reposts, and reactions
+     * @param csvPath path to the CSV file to load, following the specified rules
+     * @throws IOException if the file cannot be read, a row is malformed, or a referential constraint is violated
      */
-    public static void load(ContentManager contentManager) throws IOException {
+    public static void load(ContentManager contentManager, String csvPath) throws IOException {
         Optional<Table> result = CsvLoader.load(csvPath, List.of("id", "author", "content", "reactions", "original", "topics"));
         if (result.isEmpty()) return;
         Table table = result.get();
