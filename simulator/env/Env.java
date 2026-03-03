@@ -57,14 +57,14 @@ public class Env extends Environment {
     }
 
     private boolean searchContent(String agent, Structure action){
-        String concept = action.getTerm(0).toString();
+        String concept = JasonToJavaTranslator.translateString(action.getTerm(0));
         List<Message> feed = contentManager.topicFilter(agent, concept);
         updatePercepts(agent, feed);
         return true;
     }
     
     private boolean searchAuthor(String agent, Structure action){
-        String author = action.getTerm(0).toString();
+        String author = JasonToJavaTranslator.translateString(action.getTerm(0));
         List<Message> feed = contentManager.authorFilter(agent, author);
         updatePercepts(agent, feed);
         return true;
@@ -97,35 +97,35 @@ public class Env extends Environment {
     private boolean createPost(String agent, Structure action){
         List<String> topics = JasonToJavaTranslator.translateTopics(action.getTerm(0));
         Map<String, Object> variables = JasonToJavaTranslator.translateVariables(action.getTerm(1));
-        String messageContent = action.getTerm(2).toString();
+        String messageContent = JasonToJavaTranslator.translateString(action.getTerm(2));
         contentManager.addMessage(agent, messageContent, topics, variables);
         return true;
     }
 
     private boolean repost(String agent, Structure action){
-        int originalId = Integer.parseInt(action.getTerm(0).toString());
+        int originalId = JasonToJavaTranslator.translateInt(action.getTerm(0));
         contentManager.repost(agent, originalId);
         return true;
     }
 
     private boolean comment(String agent, Structure action){
-        int originalId = Integer.parseInt(action.getTerm(0).toString());
+        int originalId = JasonToJavaTranslator.translateInt(action.getTerm(0));
         List<String> topics = JasonToJavaTranslator.translateTopics(action.getTerm(1));
         Map<String, Object> variables = JasonToJavaTranslator.translateVariables(action.getTerm(2));
-        String messageContent = action.getTerm(3).toString();
+        String messageContent = JasonToJavaTranslator.translateString(action.getTerm(3));
         contentManager.addMessage(agent, messageContent, topics, variables, originalId);
         return true;
     }
 
     private boolean react(String agent, Structure action){
-        int originalId = Integer.parseInt(action.getTerm(0).toString());
-        String reaction = action.getTerm(1).toString();
+        int originalId = JasonToJavaTranslator.translateInt(action.getTerm(0));
+        String reaction = JasonToJavaTranslator.translateString(action.getTerm(1));
         contentManager.addReaction(originalId, agent, reaction);
         return true;
     }
 
     private boolean createLink(String agent, Structure action){
-        String to = action.getTerm(0).toString();
+        String to = JasonToJavaTranslator.translateString(action.getTerm(0));
         networkManager.addEdge(agent, to);
         addPercept(agent, createLiteral("follows", createString(to)));
         addPercept(to, createLiteral("followedBy", createString(agent)));
@@ -133,7 +133,7 @@ public class Env extends Environment {
     }
 
     private boolean removeLink(String agent, Structure action){
-        String to = action.getTerm(0).toString();
+        String to = JasonToJavaTranslator.translateString(action.getTerm(0));
         networkManager.removeEdge(agent, to);
         removePercept(agent, createLiteral("follows", createString(to)));
         removePercept(to, createLiteral("followedBy", createString(agent)));
@@ -151,10 +151,10 @@ public class Env extends Environment {
         return true;
     }
 
+    //TODO: revisar los strings de todos lados a ver si los mapeo bien. agregar un metodo al translator?
     private boolean readPublicProfile(String agent, Structure action){
-        String requestedAgent = action.getTerm(0).toString();
+        String requestedAgent = JasonToJavaTranslator.translateString(action.getTerm(0));
         Map<String, String> profile = publicProfiles.get(requestedAgent);
-
         if (profile != null) {
             profile.forEach((attribute, value) ->
                 addPercept(agent, createLiteral("public_profile",

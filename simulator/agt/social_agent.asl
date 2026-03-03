@@ -73,9 +73,25 @@ cycle(0).
 !start.
 
 +!start: true <- 
-    updateFeed. 
+    ask(some_fact(A, B));
+    readPublicProfile("Alice");
+    createLink("dummy");
+    updateFeed.
+
++some_fact(A, B): true <- 
+    .print("Received some_fact with A=", A, " and B=", B).
+
++follows(Agent): true <- 
+    .print("Now following ", Agent).
+
++followedBy(Agent): true <- 
+    .print("Now followed by ", Agent).
+
++public_profile(Agent, Key, Value): true <- 
+    .print("Public profile of ", Agent, ": ", Key, " = ", Value).
 
 +feed_order([Id|Ids]): cycle(0) <- 
+    -+cycle(1);
     .wait(message(Id, Author, Content, Original, Timestamp));
     .print("New message from ", Author, ": ", Content, " (Original: ", Original, ", Timestamp: ", Timestamp, ")");
     ia.interpretContent(Content, Interpretation);
@@ -85,13 +101,19 @@ cycle(0).
     ia.createContent(Topics, Variables, CommentContent);
     createPost(Topics, Variables, CommentContent);
     comment(Id, Topics, Variables, CommentContent);
-    -+cycle(1);
+    repost(Id);
+    react(Id, like);
+    searchAuthor(Author);
+    searchContent(example);
+    .wait(10000);
     searchAuthor(social_agent).
+
++reaction(Id, Author, Reaction): true <- 
+    .print("New reaction from ", Author, ": ", Reaction, " on message ", Id).
 
 +feed_order(FeedList): cycle(1) <- 
     !collect_messages(FeedList, "", Conversation);
     .print(Conversation).
-
 
 +!collect_messages([] , Conversation, Conversation) : true <- true.
 

@@ -125,6 +125,41 @@ public final class JasonToJavaTranslator {
     }
 
     /**
+     * Translates a Jason term into a Java string.
+     *              
+     * @param t the Jason term to translate
+     * @return the corresponding Java string
+     * @throws IllegalArgumentException if the term is not a string, variable, or zero-arity atom
+     */
+    public static String translateString(Term t) {
+        if (t instanceof StringTerm s) {
+            return s.getString();
+        }
+        if (t instanceof Atom a && a.getArity() == 0) {
+            return a.getFunctor();
+        }
+        throw new IllegalArgumentException("Expected a Jason string term but got " + t.getClass().getSimpleName());
+    }
+
+    /**
+     * Translates a Jason term into a Java int.
+     *              
+     * @param t the Jason term to translate
+     * @return the corresponding Java int
+     * @throws IllegalArgumentException if the term is not a number term
+     */
+    public static int translateInt(Term t) {
+        if (t instanceof NumberTerm n) {
+            try {
+                return (int) n.solve();
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Expected a numeric term but got " + t);
+            }
+        }
+        throw new IllegalArgumentException("Expected a Jason number term but got " + t.getClass().getSimpleName());
+    }
+
+    /**
      * Recursively parses a Jason {@link Term} into an equivalent Java value.
      *
      * <p>The following conversions are applied:

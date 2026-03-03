@@ -13,7 +13,8 @@ MAS simulating_social_media_non_partisan {
     environment: env.Env
 
     agents: social_agent 
-            agentArchClass arch.GeminiAgArch;    
+                agentArchClass arch.GeminiAgArch;    
+            dummy;
 
     aslSourcePath: "./agt";
 }
