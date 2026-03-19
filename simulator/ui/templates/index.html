@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulation Configurator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:#0d0f14; --surface:#151820; --card:#1c2030; --border:#2a3045;
+  --accent:#5b8df6; --accent2:#3dffd0; --warn:#ff6b6b;
+  --text:#e8ecf5; --muted:#7a82a0;
+  --mono:'Space Mono',monospace; --sans:'DM Sans',sans-serif;
+  --r:8px; --t:160ms ease;
+}
+html { font-size:15px; }
+body { background:var(--bg); color:var(--text); font-family:var(--sans); min-height:100vh; line-height:1.6; }
+
+/* Shell */
+.shell { display:grid; grid-template-columns:270px 1fr; grid-template-rows:56px 1fr; grid-template-areas:"hd hd" "sb mn"; min-height:100vh; }
+
+/* Header */
+header { grid-area:hd; background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 24px; gap:14px; position:sticky; top:0; z-index:100; }
+.logo { font-family:var(--mono); font-size:.82rem; color:var(--accent2); letter-spacing:.06em; }
+.logo span { color:var(--muted); }
+header .spacer { flex:1; }
+.btn-gen { background:var(--accent); color:#fff; border:none; border-radius:var(--r); padding:8px 22px; font-family:var(--sans); font-size:.85rem; font-weight:600; cursor:pointer; transition:opacity var(--t),transform var(--t); }
+.btn-gen:hover { opacity:.85; transform:translateY(-1px); }
+.btn-gen:active { transform:none; }
+.btn-gen:disabled { opacity:.4; cursor:default; transform:none; }
+
+/* Sidebar */
+aside { grid-area:sb; background:var(--surface); border-right:1px solid var(--border); padding:20px 16px; overflow-y:auto; display:flex; flex-direction:column; gap:18px; }
+.sb-section h3 { font-size:.68rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin-bottom:10px; }
+.field { display:flex; flex-direction:column; gap:4px; margin-bottom:10px; }
+.field label { font-size:.76rem; color:var(--muted); font-weight:500; }
+input[type="text"], select { width:100%; background:var(--card); border:1px solid var(--border); border-radius:var(--r); color:var(--text); padding:7px 11px; font-family:var(--sans); font-size:.84rem; outline:none; transition:border-color var(--t); }
+input[type="text"]:focus, select:focus { border-color:var(--accent); }
+select option { background:var(--card); }
+.divider { height:1px; background:var(--border); margin:2px 0; }
+
+/* Nav tabs in sidebar */
+.sb-tabs { display:flex; gap:4px; margin-bottom:4px; }
+.sb-tab { flex:1; background:none; border:1px solid var(--border); border-radius:6px; color:var(--muted); padding:6px 4px; font-family:var(--sans); font-size:.75rem; font-weight:500; cursor:pointer; transition:all var(--t); text-align:center; }
+.sb-tab:hover { border-color:var(--accent); color:var(--accent); }
+.sb-tab.active { background:rgba(91,141,246,.12); border-color:var(--accent); color:var(--accent); }
+
+/* Agent pills */
+.agent-list { display:flex; flex-direction:column; gap:6px; }
+.agent-pill { display:flex; align-items:center; gap:8px; padding:8px 11px; border-radius:var(--r); border:1px solid var(--border); background:var(--card); cursor:pointer; transition:border-color var(--t),background var(--t); font-size:.81rem; }
+.agent-pill:hover { border-color:var(--accent); }
+.agent-pill.active { border-color:var(--accent); background:rgba(91,141,246,.1); }
+.pill-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:500; }
+.pill-count { font-family:var(--mono); font-size:.68rem; color:var(--accent2); background:rgba(61,255,208,.1); padding:1px 6px; border-radius:4px; white-space:nowrap; }
+.pill-del { background:none; border:none; color:var(--muted); cursor:pointer; padding:2px 4px; border-radius:4px; font-size:.85rem; line-height:1; transition:color var(--t),background var(--t); }
+.pill-del:hover { color:var(--warn); background:rgba(255,107,107,.1); }
+.btn-add { background:none; border:1px dashed var(--border); border-radius:var(--r); color:var(--muted); padding:8px 11px; font-family:var(--sans); font-size:.81rem; cursor:pointer; text-align:left; transition:border-color var(--t),color var(--t); display:flex; align-items:center; gap:7px; }
+.btn-add:hover { border-color:var(--accent); color:var(--accent); }
+
+/* Initializer nav pills */
+.init-nav { display:flex; flex-direction:column; gap:6px; }
+.init-pill { display:flex; align-items:center; gap:8px; padding:8px 11px; border-radius:var(--r); border:1px solid var(--border); background:var(--card); cursor:pointer; transition:border-color var(--t),background var(--t); font-size:.81rem; }
+.init-pill:hover { border-color:var(--accent2); }
+.init-pill.active { border-color:var(--accent2); background:rgba(61,255,208,.07); }
+.init-pill .pill-name { flex:1; font-family:var(--mono); font-size:.75rem; font-weight:400; }
+.init-pill .pill-count { font-family:var(--mono); font-size:.68rem; color:var(--accent2); background:rgba(61,255,208,.1); padding:1px 6px; border-radius:4px; }
+
+/* Main */
+main { grid-area:mn; overflow-y:auto; padding:28px 32px; }
+.empty-state { display:flex; flex-direction:column; align-items:center; justify-content:center; height:60vh; gap:14px; color:var(--muted); text-align:center; }
+.empty-state .icon { font-size:2.6rem; opacity:.25; }
+.empty-state p { font-size:.88rem; max-width:260px; }
+
+/* Editor */
+.editor { display:flex; flex-direction:column; gap:24px; }
+.ed-header { display:flex; align-items:flex-start; gap:14px; }
+.tag { font-family:var(--mono); font-size:.7rem; color:var(--accent2); background:rgba(61,255,208,.08); border:1px solid rgba(61,255,208,.2); border-radius:5px; padding:3px 9px; white-space:nowrap; margin-top:4px; }
+.tag.blue { color:var(--accent); background:rgba(91,141,246,.08); border-color:rgba(91,141,246,.2); }
+.ed-header h2 { font-size:1.15rem; font-weight:600; }
+.ed-header h2 small { display:block; font-size:.77rem; font-weight:400; color:var(--muted); margin-top:2px; }
+
+/* Cards */
+.card { background:var(--card); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+.card-head { padding:12px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:9px; }
+.dot { width:7px; height:7px; border-radius:50%; background:var(--accent); flex-shrink:0; }
+.card-head h4 { font-size:.76rem; font-weight:600; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
+.card-head-actions { margin-left:auto; display:flex; gap:8px; }
+.card-body { padding:18px; }
+.grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+
+/* ASL preview */
+.asl-wrap { margin-top:12px; border:1px solid var(--border); border-radius:var(--r); overflow:hidden; display:none; }
+.asl-bar { background:var(--surface); padding:5px 13px; font-family:var(--mono); font-size:.68rem; color:var(--muted); border-bottom:1px solid var(--border); }
+.asl-code { background:#0a0c10; padding:12px 14px; font-family:var(--mono); font-size:.7rem; color:#a0b0d0; max-height:180px; overflow-y:auto; white-space:pre; line-height:1.65; }
+
+/* Instances/initializer tables */
+.tbl-wrap { overflow-x:auto; }
+.data-table { width:100%; border-collapse:collapse; font-size:.82rem; min-width:400px; }
+.data-table th { text-align:left; font-size:.68rem; font-weight:600; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); padding:0 8px 10px; white-space:nowrap; }
+.data-table th.col-del { width:36px; }
+.data-table th.col-idx { width:44px; font-family:var(--mono); }
+.data-table td { padding:3px 6px; vertical-align:middle; }
+.data-table td.td-idx { font-family:var(--mono); font-size:.7rem; color:var(--muted); text-align:right; padding-right:10px; }
+.data-table input[type="text"] { background:var(--surface); border-color:transparent; font-family:var(--mono); font-size:.78rem; padding:5px 8px; }
+.data-table input[type="text"]:focus { border-color:var(--accent); }
+.btn-del-row { background:none; border:none; color:var(--muted); cursor:pointer; font-size:.9rem; padding:4px; border-radius:4px; transition:color var(--t); line-height:1; }
+.btn-del-row:hover { color:var(--warn); }
+
+/* Toolbar */
+.table-toolbar { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+.btn-sm { background:none; border:1px solid var(--border); border-radius:var(--r); color:var(--muted); padding:6px 13px; font-family:var(--sans); font-size:.78rem; cursor:pointer; transition:border-color var(--t),color var(--t); display:flex; align-items:center; gap:5px; }
+.btn-sm:hover { border-color:var(--accent2); color:var(--accent2); }
+.btn-sm.accent { border-color:var(--accent); color:var(--accent); }
+.btn-sm.accent:hover { background:rgba(91,141,246,.08); }
+
+/* CSV zone */
+.csv-zone { border:1px dashed var(--border); border-radius:var(--r); padding:14px; text-align:center; cursor:pointer; transition:border-color var(--t),background var(--t); font-size:.8rem; color:var(--muted); margin-bottom:14px; position:relative; }
+.csv-zone:hover { border-color:var(--accent2); background:rgba(61,255,208,.03); }
+.csv-zone input { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
+.csv-zone em { font-style:normal; font-family:var(--mono); font-size:.75rem; color:var(--accent2); }
+
+/* Load-from-disk row */
+.load-row { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+.load-row label { font-size:.77rem; color:var(--muted); white-space:nowrap; }
+.load-row select { flex:1; }
+.load-row .btn-sm { white-space:nowrap; }
+
+.no-rows { text-align:center; padding:20px; color:var(--muted); font-size:.82rem; }
+
+/* Modal */
+.modal-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,.65); backdrop-filter:blur(4px); z-index:200; align-items:center; justify-content:center; }
+.modal-bg.open { display:flex; }
+.modal { background:var(--card); border:1px solid var(--border); border-radius:12px; width:min(700px,92vw); max-height:86vh; display:flex; flex-direction:column; overflow:hidden; }
+.modal-hd { padding:16px 22px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+.modal-hd h3 { font-size:.95rem; font-weight:600; flex:1; }
+.modal-close { background:none; border:none; color:var(--muted); cursor:pointer; font-size:1.1rem; padding:4px 8px; border-radius:5px; transition:color var(--t); }
+.modal-close:hover { color:var(--text); }
+.modal-body { overflow-y:auto; padding:22px; display:flex; flex-direction:column; gap:18px; }
+.ok-banner { background:rgba(61,255,208,.07); border:1px solid rgba(61,255,208,.22); border-radius:var(--r); padding:13px 16px; display:flex; align-items:center; gap:11px; font-size:.84rem; }
+.file-list { display:flex; flex-direction:column; gap:5px; }
+.file-chip { background:var(--surface); border:1px solid var(--border); border-radius:5px; padding:5px 11px; font-family:var(--mono); font-size:.73rem; color:var(--accent2); }
+.mas2j-out { background:#0a0c10; border-radius:var(--r); padding:14px; font-family:var(--mono); font-size:.73rem; color:#a0b0d0; white-space:pre; overflow-x:auto; line-height:1.65; }
+.out-label { font-size:.72rem; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin-bottom:7px; }
+
+/* Add-column modal */
+.col-modal-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:300; align-items:center; justify-content:center; }
+.col-modal-bg.open { display:flex; }
+.col-modal { background:var(--card); border:1px solid var(--border); border-radius:10px; width:min(340px,90vw); padding:22px; display:flex; flex-direction:column; gap:14px; }
+.col-modal h4 { font-size:.92rem; font-weight:600; }
+.col-modal input { width:100%; }
+.col-modal-actions { display:flex; gap:8px; justify-content:flex-end; }
+.btn-primary { background:var(--accent); color:#fff; border:none; border-radius:var(--r); padding:7px 18px; font-family:var(--sans); font-size:.83rem; font-weight:600; cursor:pointer; transition:opacity var(--t); }
+.btn-primary:hover { opacity:.85; }
+.btn-ghost { background:none; border:1px solid var(--border); border-radius:var(--r); color:var(--muted); padding:7px 14px; font-family:var(--sans); font-size:.83rem; cursor:pointer; transition:border-color var(--t); }
+.btn-ghost:hover { border-color:var(--muted); }
+
+/* Toast */
+.toast { position:fixed; bottom:22px; right:22px; background:var(--warn); color:#fff; padding:11px 18px; border-radius:var(--r); font-size:.84rem; font-weight:500; z-index:400; box-shadow:0 8px 24px rgba(0,0,0,.3); transform:translateY(70px); opacity:0; transition:transform .28s ease,opacity .28s ease; max-width:340px; }
+.toast.show { transform:none; opacity:1; }
+
+::-webkit-scrollbar { width:5px; height:5px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- Header -->
+<header>
+  <div class="logo">sim<span>/</span>cfg</div>
+  <div class="spacer"></div>
+  <button class="btn-gen" id="btn-gen" onclick="generate()">Generate Files</button>
+</header>
+
+<!-- Sidebar -->
+<aside>
+  <div class="sb-section">
+    <h3>Simulation</h3>
+    <div class="field">
+      <label>MAS Name</label>
+      <input type="text" id="mas-name" value="simulation_configured">
+    </div>
+    <div class="field">
+      <label>Environment Class</label>
+      <input type="text" id="env-class" value="env.Env">
+    </div>
+  </div>
+  <div class="divider"></div>
+
+  <!-- Tab switcher -->
+  <div class="sb-tabs">
+    <button class="sb-tab active" id="tab-agents" onclick="switchTab('agents')">Agents</button>
+    <button class="sb-tab" id="tab-init" onclick="switchTab('init')">Initializers</button>
+  </div>
+
+  <!-- Agents panel -->
+  <div id="sb-agents" class="sb-section" style="flex:1;display:flex;flex-direction:column;gap:6px">
+    <div class="agent-list" id="agent-list"></div>
+    <button class="btn-add" onclick="addType()"><span>+</span> Add Agent Type</button>
+  </div>
+
+  <!-- Initializers panel -->
+  <div id="sb-init" class="sb-section" style="flex:1;display:none;flex-direction:column;gap:6px">
+    <div class="init-nav" id="init-nav"></div>
+  </div>
+</aside>
+
+<!-- Main -->
+<main id="main-panel">
+  <div class="empty-state">
+    <div class="icon">⚙</div>
+    <p>Add an agent type or select an initializer to begin</p>
+  </div>
+</main>
+
+</div>
+
+<!-- Output modal -->
+<div class="modal-bg" id="out-modal">
+  <div class="modal">
+    <div class="modal-hd">
+      <h3>Files Generated</h3>
+      <button class="modal-close" onclick="closeModal('out-modal')">✕</button>
+    </div>
+    <div class="modal-body" id="out-modal-body"></div>
+  </div>
+</div>
+
+<!-- Add-column modal (for agent instances) -->
+<div class="col-modal-bg" id="col-modal">
+  <div class="col-modal">
+    <h4>Add Attribute Column</h4>
+    <div class="field">
+      <label>Attribute name (belief functor)</label>
+      <input type="text" id="col-name-input" placeholder="e.g. prob_mal"
+        onkeydown="if(event.key==='Enter')confirmAddCol()">
+    </div>
+    <div class="col-modal-actions">
+      <button class="btn-ghost" onclick="closeModal('col-modal')">Cancel</button>
+      <button class="btn-primary" onclick="confirmAddCol()">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+let options = { asl_files:[], arch_classes:[], bb_classes:[], initializer_csvs:[], initializer_schemas:{} };
+
+// Agent types
+let types    = [];   // [{id, asl, arch_class, bb_class, columns:[], instances:[{col:val}]}]
+let activeTypeId = null;
+let uid = 0;
+let pendingColTypeId = null;
+
+// Initializers — keyed by csv name
+// Each: { rows: [{col:val}], schema: [col,...], dirty: bool }
+const INIT_NAMES = ["messages.csv", "network.csv", "public_profiles.csv"];
+let initializers = {};   // populated after options load
+let activeInit   = null; // currently viewed init name
+
+// Current "view" — 'agents' or 'init'
+let currentTab = 'agents';
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+(async () => {
+  try {
+    const r = await fetch('/api/options');
+    options = await r.json();
+    // Set up initializer state
+    for (const name of INIT_NAMES) {
+      initializers[name] = {
+        rows:   [],
+        schema: options.initializer_schemas[name] || [],
+        dirty:  false,
+      };
+    }
+    renderInitNav();
+  } catch { showToast('Cannot reach server. Is Flask running?'); }
+})();
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('tab-agents').classList.toggle('active', tab==='agents');
+  document.getElementById('tab-init').classList.toggle('active', tab==='init');
+  document.getElementById('sb-agents').style.display = tab==='agents' ? 'flex' : 'none';
+  document.getElementById('sb-init').style.display   = tab==='init'   ? 'flex' : 'none';
+  if (tab === 'agents') {
+    activeInit = null;
+    renderMain();
+  } else {
+    activeTypeId = null;
+    if (!activeInit) activeInit = INIT_NAMES[0];
+    renderInitNav();
+    renderMain();
+  }
+}
+
+// ── Agent type CRUD ───────────────────────────────────────────────────────────
+function addType() {
+  const t = { id:++uid, asl:options.asl_files[0]||'', arch_class:options.arch_classes[0]||'', bb_class:'', columns:[], instances:[] };
+  types.push(t);
+  renderSidebar();
+  selectType(t.id);
+}
+
+function deleteType(id, e) {
+  e.stopPropagation();
+  types = types.filter(t=>t.id!==id);
+  if (activeTypeId===id) activeTypeId = types.length ? types[types.length-1].id : null;
+  renderSidebar();
+  renderMain();
+}
+
+function selectType(id) {
+  activeTypeId = id;
+  activeInit   = null;
+  renderSidebar();
+  renderMain();
+}
+
+// ── Sidebar ───────────────────────────────────────────────────────────────────
+function renderSidebar() {
+  document.getElementById('agent-list').innerHTML = types.map(t=>`
+    <div class="agent-pill ${t.id===activeTypeId?'active':''}" onclick="selectType(${t.id})">
+      <span class="pill-name">${t.asl||'(no file)'}</span>
+      <span class="pill-count">${t.instances.length} inst</span>
+      <button class="pill-del" onclick="deleteType(${t.id},event)">✕</button>
+    </div>`).join('');
+}
+
+function renderInitNav() {
+  document.getElementById('init-nav').innerHTML = INIT_NAMES.map(name=>{
+    const st = initializers[name];
+    const active = name===activeInit;
+    return `<div class="init-pill ${active?'active':''}" onclick="selectInit('${name}')">
+      <span class="pill-name">${name}</span>
+      <span class="pill-count">${st?.rows.length||0} rows</span>
+    </div>`;
+  }).join('');
+}
+
+function selectInit(name) {
+  activeInit   = name;
+  activeTypeId = null;
+  renderInitNav();
+  renderMain();
+}
+
+// ── Main panel ────────────────────────────────────────────────────────────────
+function renderMain() {
+  const panel = document.getElementById('main-panel');
+
+  if (activeTypeId !== null) {
+    const t = types.find(t=>t.id===activeTypeId);
+    if (t) { panel.innerHTML = buildAgentEditor(t); return; }
+  }
+
+  if (activeInit) {
+    panel.innerHTML = buildInitEditor(activeInit);
+    return;
+  }
+
+  panel.innerHTML = `<div class="empty-state"><div class="icon">⚙</div><p>Add an agent type or select an initializer to begin</p></div>`;
+}
+
+// ── Agent editor ──────────────────────────────────────────────────────────────
+function buildAgentEditor(t) {
+  const aslOpts  = options.asl_files.map(f=>`<option value="${f}"${f===t.asl?' selected':''}>${f}</option>`).join('');
+  const archOpts = `<option value=""${!t.arch_class?' selected':''}>(none)</option>`
+    + options.arch_classes.map(c=>`<option value="${c}"${c===t.arch_class?' selected':''}>${c}</option>`).join('');
+  const bbOpts   = `<option value=""${!t.bb_class?' selected':''}>(none)</option>`
+    + options.bb_classes.map(c=>`<option value="${c}"${c===t.bb_class?' selected':''}>${c}</option>`).join('');
+
+  return `<div class="editor">
+    <div class="ed-header">
+      <div class="tag">type #${t.id}</div>
+      <div><h2>${t.asl||'New Agent Type'}<small>Configure .asl, architecture, and per-instance facts</small></h2></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="dot"></div><h4>Identity</h4></div>
+      <div class="card-body">
+        <div class="grid-2">
+          <div class="field">
+            <label>Base .asl File</label>
+            <select onchange="setTypeField(${t.id},'asl',this.value);refreshPreview(${t.id})">${aslOpts}</select>
+          </div>
+        </div>
+        <div class="asl-wrap" id="asl-wrap-${t.id}">
+          <div class="asl-bar" id="asl-bar-${t.id}">preview — ${t.asl}</div>
+          <pre class="asl-code" id="asl-code-${t.id}"></pre>
+        </div>
+        <div style="margin-top:10px">
+          <button class="btn-sm" onclick="togglePreview(${t.id})">👁 Toggle .asl preview</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="dot" style="background:var(--accent2)"></div><h4>Architecture</h4></div>
+      <div class="card-body grid-2">
+        <div class="field"><label>agentArchClass</label>
+          <select onchange="setTypeField(${t.id},'arch_class',this.value)">${archOpts}</select></div>
+        <div class="field"><label>beliefBaseClass</label>
+          <select onchange="setTypeField(${t.id},'bb_class',this.value)">${bbOpts}</select></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="dot" style="background:#f0a500"></div>
+        <h4>Instances — ${t.instances.length} agent${t.instances.length!==1?'s':''}</h4>
+        <div class="card-head-actions">
+          <button class="btn-sm" onclick="openAddCol(${t.id})">+ Column</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="csv-zone">
+          <input type="file" accept=".csv" onchange="loadAgentCsv(${t.id},this)">
+          Drop wide CSV or click — <em>columns = attributes, rows = agents</em>
+        </div>
+        ${buildInstancesTable(t)}
+        <div class="table-toolbar">
+          <button class="btn-sm accent" onclick="addRow(${t.id})">+ Add Instance</button>
+          ${t.instances.length>0?`<button class="btn-sm" onclick="clearRows(${t.id})">Clear All</button>`:''}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function buildInstancesTable(t) {
+  if (!t.columns.length && !t.instances.length)
+    return `<div class="no-rows">Upload a CSV or add columns, then add instances</div>`;
+
+  const colHeaders = t.columns.map((c,ci)=>`
+    <th>${c}
+      <button class="btn-del-row" style="margin-left:3px;font-size:.6rem"
+        onclick="deleteCol(${t.id},${ci})" title="Remove column">✕</button>
+    </th>`).join('');
+
+  const rows = t.instances.map((inst,ri)=>{
+    const cells = t.columns.map(c=>`
+      <td><input type="text" value="${esc(inst[c]??'')}" placeholder="—"
+        oninput="setCellVal(${t.id},${ri},'${c}',this.value)"></td>`).join('');
+    return `<tr><td class="td-idx">${ri+1}</td>${cells}
+      <td><button class="btn-del-row" onclick="deleteRow(${t.id},${ri})">✕</button></td></tr>`;
+  }).join('') || (t.columns.length?`<tr><td colspan="${t.columns.length+2}" class="no-rows">No instances yet</td></tr>`:'');
+
+  return `<div class="tbl-wrap"><table class="data-table">
+    <thead><tr><th class="col-idx">#</th>${colHeaders}<th class="col-del"></th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+// ── Initializer editor ────────────────────────────────────────────────────────
+function buildInitEditor(name) {
+  const st = initializers[name];
+  if (!st) return '';
+  const schema = st.schema;
+
+  const existingOpts = options.initializer_csvs.includes(name)
+    ? `<option value="${name}">${name} (current)</option>`
+    : options.initializer_csvs.map(f=>`<option value="${f}">${f}</option>`).join('');
+
+  const colHeaders = schema.map(c=>`<th>${c}</th>`).join('');
+
+  const rows = st.rows.map((row,ri)=>{
+    const cells = schema.map(c=>`
+      <td><input type="text" value="${esc(row[c]??'')}" placeholder=""
+        oninput="setInitCell('${name}',${ri},'${c}',this.value)"></td>`).join('');
+    return `<tr><td class="td-idx">${ri+1}</td>${cells}
+      <td><button class="btn-del-row" onclick="deleteInitRow('${name}',${ri})">✕</button></td></tr>`;
+  }).join('') || `<tr><td colspan="${schema.length+2}" class="no-rows">No rows yet — load a file or add manually</td></tr>`;
+
+  return `<div class="editor">
+    <div class="ed-header">
+      <div class="tag blue">initializer</div>
+      <div><h2>${name}<small>Edit rows to write to initializer/${name} on generate</small></h2></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="dot" style="background:var(--accent2)"></div><h4>Load from disk</h4></div>
+      <div class="card-body">
+        <div class="load-row">
+          <label>Existing file:</label>
+          <select id="init-file-sel-${cssId(name)}">${existingOpts||'<option value="">(none found)</option>'}</select>
+          <button class="btn-sm accent" onclick="loadInitFromDisk('${name}')">Load</button>
+        </div>
+        <div class="csv-zone">
+          <input type="file" accept=".csv" onchange="loadInitCsvUpload('${name}',this)">
+          Or upload a CSV file to replace current rows
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <div class="dot" style="background:#f0a500"></div>
+        <h4>Rows — ${st.rows.length} entr${st.rows.length!==1?'ies':'y'}</h4>
+      </div>
+      <div class="card-body">
+        <div class="tbl-wrap"><table class="data-table">
+          <thead><tr><th class="col-idx">#</th>${colHeaders}<th class="col-del"></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>
+        <div class="table-toolbar">
+          <button class="btn-sm accent" onclick="addInitRow('${name}')">+ Add Row</button>
+          ${st.rows.length?`<button class="btn-sm" onclick="clearInitRows('${name}')">Clear All</button>`:''}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── Agent field helpers ───────────────────────────────────────────────────────
+function setTypeField(id, key, val) {
+  const t = types.find(t=>t.id===id);
+  if (t) { t[key]=val; renderSidebar(); }
+}
+function setCellVal(typeId, ri, col, val) {
+  const t = types.find(t=>t.id===typeId);
+  if (t?.instances[ri]) t.instances[ri][col]=val;
+}
+function addRow(typeId) {
+  const t = types.find(t=>t.id===typeId);
+  if (!t) return;
+  const row = {};
+  t.columns.forEach(c=>row[c]='');
+  t.instances.push(row);
+  renderMain(); renderSidebar();
+}
+function deleteRow(typeId, ri) {
+  const t = types.find(t=>t.id===typeId);
+  if (t) { t.instances.splice(ri,1); renderMain(); renderSidebar(); }
+}
+function clearRows(typeId) {
+  const t = types.find(t=>t.id===typeId);
+  if (t) { t.instances=[]; renderMain(); renderSidebar(); }
+}
+function openAddCol(typeId) {
+  pendingColTypeId = typeId;
+  document.getElementById('col-name-input').value='';
+  document.getElementById('col-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('col-name-input').focus(), 60);
+}
+function confirmAddCol() {
+  const name = document.getElementById('col-name-input').value.trim();
+  if (!name) return;
+  const t = types.find(t=>t.id===pendingColTypeId);
+  if (t && !t.columns.includes(name)) {
+    t.columns.push(name);
+    t.instances.forEach(inst=>{ if(!(name in inst)) inst[name]=''; });
+    renderMain();
+  }
+  closeModal('col-modal');
+}
+function deleteCol(typeId, ci) {
+  const t = types.find(t=>t.id===typeId);
+  if (!t) return;
+  const col = t.columns[ci];
+  t.columns.splice(ci,1);
+  t.instances.forEach(inst=>delete inst[col]);
+  renderMain();
+}
+async function loadAgentCsv(typeId, input) {
+  const file = input.files[0]; if (!file) return;
+  const fd = new FormData(); fd.append('file', file);
+  try {
+    const r = await fetch('/api/parse_csv', {method:'POST', body:fd});
+    const data = await r.json();
+    if (data.error) { showToast(data.error); return; }
+    const t = types.find(t=>t.id===typeId); if (!t) return;
+    data.columns.forEach(c=>{ if(!t.columns.includes(c)) t.columns.push(c); });
+    data.rows.forEach(row=>{
+      const inst={};
+      t.columns.forEach(c=>inst[c]=(row[c]??''));
+      t.instances.push(inst);
+    });
+    renderMain(); renderSidebar();
+  } catch(e) { showToast('Failed to parse CSV: '+e.message); }
+  input.value='';
+}
+
+// ── Initializer helpers ───────────────────────────────────────────────────────
+function setInitCell(name, ri, col, val) {
+  if (initializers[name]?.rows[ri]) initializers[name].rows[ri][col]=val;
+}
+function addInitRow(name) {
+  const st = initializers[name]; if (!st) return;
+  const row={}; st.schema.forEach(c=>row[c]='');
+  st.rows.push(row);
+  renderMain(); renderInitNav();
+}
+function deleteInitRow(name, ri) {
+  const st = initializers[name]; if (!st) return;
+  st.rows.splice(ri,1);
+  renderMain(); renderInitNav();
+}
+function clearInitRows(name) {
+  const st = initializers[name]; if (!st) return;
+  st.rows=[]; renderMain(); renderInitNav();
+}
+
+async function loadInitFromDisk(name) {
+  const sel = document.getElementById('init-file-sel-'+cssId(name));
+  const fname = sel?.value; if (!fname) return;
+  try {
+    const r = await fetch('/api/load_initializer_csv?name='+encodeURIComponent(fname));
+    const data = await r.json();
+    if (data.error) { showToast(data.error); return; }
+    const st = initializers[name];
+    // Merge loaded rows, filling missing columns with ""
+    st.rows = data.rows.map(row=>{
+      const out={}; st.schema.forEach(c=>out[c]=(row[c]??''));
+      return out;
+    });
+    renderMain(); renderInitNav();
+  } catch(e) { showToast('Failed to load: '+e.message); }
+}
+
+async function loadInitCsvUpload(name, input) {
+  const file = input.files[0]; if (!file) return;
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('name', name);
+  try {
+    const r = await fetch('/api/parse_initializer_csv', {method:'POST', body:fd});
+    const data = await r.json();
+    if (data.error) { showToast(data.error); return; }
+    initializers[name].rows = data.rows;
+    renderMain(); renderInitNav();
+  } catch(e) { showToast('Failed to parse CSV: '+e.message); }
+  input.value='';
+}
+
+// ── ASL preview ───────────────────────────────────────────────────────────────
+async function togglePreview(typeId) {
+  const wrap = document.getElementById(`asl-wrap-${typeId}`);
+  if (!wrap) return;
+  if (wrap.style.display==='block') { wrap.style.display='none'; return; }
+  await refreshPreview(typeId);
+  wrap.style.display='block';
+}
+async function refreshPreview(typeId) {
+  const t = types.find(t=>t.id===typeId);
+  if (!t?.asl) return;
+  try {
+    const r = await fetch('/api/asl_preview?name='+encodeURIComponent(t.asl));
+    const data = await r.json();
+    const code = document.getElementById(`asl-code-${typeId}`);
+    const bar  = document.getElementById(`asl-bar-${typeId}`);
+    if (code) code.textContent = data.content||data.error||'';
+    if (bar)  bar.textContent  = `preview — ${t.asl}`;
+  } catch {}
+}
+
+// ── Generate ──────────────────────────────────────────────────────────────────
+async function generate() {
+  const btn = document.getElementById('btn-gen');
+  btn.disabled=true; btn.textContent='Generating…';
+
+  // Only include initializers that have rows
+  const initPayload = {};
+  for (const name of INIT_NAMES) {
+    const st = initializers[name];
+    if (st?.rows.length) initPayload[name] = st.rows;
+  }
+
+  const payload = {
+    mas_name:    document.getElementById('mas-name').value.trim(),
+    env_class:   document.getElementById('env-class').value.trim(),
+    agent_types: types.map(t=>({ asl:t.asl, arch_class:t.arch_class, bb_class:t.bb_class, instances:t.instances })),
+    initializers: initPayload,
+  };
+
+  try {
+    const r    = await fetch('/api/generate', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+    const data = await r.json();
+    if (!data.ok) { showToast((data.errors||['Unknown error']).join(' | ')); return; }
+    showOutputModal(data);
+  } catch(e) { showToast('Request failed: '+e.message); }
+  finally { btn.disabled=false; btn.textContent='Generate Files'; }
+}
+
+// ── Output modal ──────────────────────────────────────────────────────────────
+function showOutputModal(data) {
+  const files = (data.generated_files||[]).map(f=>`<div class="file-chip">✓  ${f}</div>`).join('');
+  document.getElementById('out-modal-body').innerHTML = `
+    <div class="ok-banner">✅&nbsp;
+      <div><strong>${data.generated_files?.length||0} file(s) written</strong><br>
+      <span style="color:var(--muted);font-size:.8rem">Run: <code>./gradlew run -PmasFile=simulation_configured.mas2j</code></span></div>
+    </div>
+    <div><div class="out-label">Generated Files</div><div class="file-list">${files}</div></div>
+    <div><div class="out-label">simulation_configured.mas2j</div><pre class="mas2j-out">${esc(data.mas2j||'')}</pre></div>`;
+  document.getElementById('out-modal').classList.add('open');
+}
+
+// ── Modals & toast ────────────────────────────────────────────────────────────
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.addEventListener('click', e => {
+  ['out-modal','col-modal'].forEach(id=>{ const el=document.getElementById(id); if(e.target===el) closeModal(id); });
+});
+let _tt;
+function showToast(msg) {
+  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(_tt); _tt=setTimeout(()=>t.classList.remove('show'), 4200);
+}
+
+// ── Utils ─────────────────────────────────────────────────────────────────────
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function cssId(s) { return s.replace(/[^a-zA-Z0-9]/g,'_'); }
+</script>
+</body>
+</html>
