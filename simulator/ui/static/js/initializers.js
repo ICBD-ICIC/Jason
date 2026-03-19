@@ -4,7 +4,7 @@
 
 // ── Router ────────────────────────────────────────────────────────────────────
 function buildInitEditor(name) {
-  if (name === 'network.csv') return buildNetworkEditor();
+  if (name === 'network.csv') return buildNetworkEditor(name);
   return buildGenericInitEditor(name);
 }
 

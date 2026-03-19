@@ -31,7 +31,16 @@ INITIALIZER_SCHEMAS = {
 def discover_java_classes(directory: Path, package: str) -> list[str]:
     if not directory.exists():
         return []
-    return [f"{package}.{f.stem}" for f in sorted(directory.glob("*.java"))]
+    results = []
+    for f in sorted(directory.glob("*.java")):
+        source = f.read_text(errors="ignore")
+        # Skip interfaces — look for the pattern "interface ClassName"
+        # Uses a simple heuristic: the word "interface" followed by the filename stem
+        import re
+        if re.search(rf'\binterface\s+{re.escape(f.stem)}\b', source):
+            continue
+        results.append(f"{package}.{f.stem}")
+    return results
 
 def discover_asl_files() -> list[str]:
     if not AGT_DIR.exists():

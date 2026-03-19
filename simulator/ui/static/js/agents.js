@@ -146,7 +146,7 @@ function buildAgentEditor(t) {
   return `
     <div class="editor">
       <div class="ed-header">
-        <div class="tag">type #${t.id}</div>
+        <div class="tag">type #${types.indexOf(t) + 1}</div>
         <div>
           <h2>${t.asl || 'New Agent Type'}
             <small>Configure .asl, architecture, and per-instance facts</small>

@@ -48,8 +48,8 @@ function switchTab(tab) {
   currentTab = tab;
   document.getElementById('tab-agents').classList.toggle('active', tab === 'agents');
   document.getElementById('tab-init').classList.toggle('active',   tab === 'init');
-  document.getElementById('sb-agents').style.display = tab === 'agents' ? 'flex' : 'none';
-  document.getElementById('sb-init').style.display   = tab === 'init'   ? 'flex' : 'none';
+  document.getElementById('sb-agents').classList.toggle('sb-panel--active', tab === 'agents');
+  document.getElementById('sb-init').classList.toggle('sb-panel--active',   tab === 'init');
 
   if (tab === 'agents') {
     activeInit = null;
@@ -70,9 +70,8 @@ function getAllAgentNames() {
       const name = inst['name'] || inst['agent'] || inst['id'] || inst['agent_name'];
       if (name && name.trim()) names.add(name.trim());
     }
-    if (t.asl) {
+    if (t.asl && t.instances.length > 0) {
       const stem = t.asl.replace(/\.asl$/, '');
-      if (t.instances.length === 0) names.add(stem);
       for (let i = 1; i <= t.instances.length; i++) names.add(`${stem}_${i}`);
     }
   }

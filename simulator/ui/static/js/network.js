@@ -153,7 +153,7 @@ let selectedTopo = 'random';
 let topoParams   = { k: 4, p: 0.3, m: 2, directed: false, self_loops: false, weight_min: 1, weight_max: 1 };
 
 // ── HTML builder ──────────────────────────────────────────────────────────────
-function buildNetworkEditor() {
+function buildNetworkEditor(name) {
   const st         = initializers['network.csv'];
   const agentNames = getAllAgentNames();
   const hasAgents  = agentNames.length > 0;
@@ -206,7 +206,7 @@ function buildNetworkEditor() {
         <div class="tag blue">initializer</div>
         <div>
           <h2>network.csv
-            <small>Define the social network graph between agents</small>
+            <small>Define the connections between agents. Writes to initializer/${name} on generate</small>
           </h2>
         </div>
       </div>
