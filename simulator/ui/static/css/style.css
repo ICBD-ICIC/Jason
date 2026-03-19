@@ -180,6 +180,7 @@ select option { background: var(--card); }
 .asl-wrap { margin-top: 12px; border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; display: none; }
 .asl-bar  { background: var(--surface); padding: 5px 13px; font-family: var(--mono); font-size: .68rem; color: var(--muted); border-bottom: 1px solid var(--border); }
 .asl-code { background: #0a0c10; padding: 12px 14px; font-family: var(--mono); font-size: .7rem; color: #a0b0d0; max-height: 180px; overflow-y: auto; white-space: pre; line-height: 1.65; }
+.asl-toggle-btn { margin-top: 10px; }
 
 /* ── Data tables ────────────────────────────────────────────────────────────── */
 .tbl-wrap   { overflow-x: auto; }
@@ -192,7 +193,7 @@ select option { background: var(--card); }
 .data-table th.col-del { width: 36px; }
 .data-table th.col-idx { width: 44px; font-family: var(--mono); }
 .data-table td          { padding: 3px 6px; vertical-align: middle; }
-.data-table td.td-idx   { font-family: var(--mono); font-size: .7rem; color: var(--muted); text-align: right; padding-right: 10px; }
+.data-table td.td-idx   { font-family: var(--mono); font-size: .7rem; color: var(--muted); text-align: left; padding-right: 10px; }
 
 .data-table input[type="text"] {
   background: var(--surface); border-color: transparent;
@@ -207,8 +208,16 @@ select option { background: var(--card); }
 }
 .btn-del-row:hover { color: var(--warn); }
 
+/* Delete button inside a column header */
+.btn-del-col {
+  background: none; border: none; color: var(--muted); cursor: pointer;
+  font-size: .6rem; padding: 1px 3px; border-radius: 3px; margin-left: 3px;
+  transition: color var(--t); line-height: 1; vertical-align: middle;
+}
+.btn-del-col:hover { color: var(--warn); }
+
 /* ── Toolbar & buttons ──────────────────────────────────────────────────────── */
-.table-toolbar { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.table-toolbar { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; padding-left: 10px; }
 
 .btn-sm {
   background: none; border: 1px solid var(--border); border-radius: var(--r);

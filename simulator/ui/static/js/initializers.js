@@ -64,16 +64,16 @@ function buildGenericInitEditor(name) {
           <div class="dot" style="background:#f0a500"></div>
           <h4>Rows — ${st.rows.length} entr${st.rows.length !== 1 ? 'ies' : 'y'}</h4>
         </div>
+        <div class="table-toolbar">
+          <button class="btn-sm accent" onclick="addInitRow('${name}')">+ Add Row</button>
+          ${st.rows.length ? `<button class="btn-sm" onclick="clearInitRows('${name}')">Clear All</button>` : ''}
+        </div>
         <div class="card-body">
           <div class="tbl-wrap">
             <table class="data-table">
               <thead><tr><th class="col-idx">#</th>${colHeaders}<th class="col-del"></th></tr></thead>
               <tbody>${rows}</tbody>
             </table>
-          </div>
-          <div class="table-toolbar">
-            <button class="btn-sm accent" onclick="addInitRow('${name}')">+ Add Row</button>
-            ${st.rows.length ? `<button class="btn-sm" onclick="clearInitRows('${name}')">Clear All</button>` : ''}
           </div>
         </div>
       </div>

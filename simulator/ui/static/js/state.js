@@ -64,16 +64,11 @@ function switchTab(tab) {
 
 // ── Shared helper: collect all agent names from defined types ─────────────────
 function getAllAgentNames() {
-  const names = new Set();
+  const names = [];
   for (const t of types) {
-    for (const inst of t.instances) {
-      const name = inst['name'] || inst['agent'] || inst['id'] || inst['agent_name'];
-      if (name && name.trim()) names.add(name.trim());
-    }
-    if (t.asl && t.instances.length > 0) {
-      const stem = t.asl.replace(/\.asl$/, '');
-      for (let i = 1; i <= t.instances.length; i++) names.add(`${stem}_${i}`);
-    }
+    if (!t.asl || t.instances.length === 0) continue;
+    const stem = t.asl.replace(/\.asl$/, '');
+    for (let i = 1; i <= t.instances.length; i++) names.push(`${stem}_${i}`);
   }
-  return [...names];
+  return names;
 }

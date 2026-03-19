@@ -168,7 +168,7 @@ function buildAgentEditor(t) {
             <div class="asl-bar" id="asl-bar-${t.id}">preview — ${t.asl}</div>
             <pre class="asl-code" id="asl-code-${t.id}"></pre>
           </div>
-          <div style="margin-top:10px">
+          <div class="asl-toggle-btn">
             <button class="btn-sm" onclick="togglePreview(${t.id})">👁 Toggle .asl preview</button>
           </div>
         </div>
@@ -198,18 +198,18 @@ function buildAgentEditor(t) {
             <button class="btn-sm" onclick="openAddCol(${t.id})">+ Column</button>
           </div>
         </div>
-        <div class="card-body">
-          <div class="csv-zone">
-            <input type="file" accept=".csv" onchange="loadAgentCsv(${t.id},this)">
-            Drop wide CSV or click — <em>columns = attributes, rows = agents</em>
-          </div>
-          ${buildInstancesTable(t)}
-          <div class="table-toolbar">
+        <div class="table-toolbar">
             <button class="btn-sm accent" onclick="addRow(${t.id})">+ Add Instance</button>
             ${t.instances.length > 0
               ? `<button class="btn-sm" onclick="clearRows(${t.id})">Clear All</button>`
               : ''}
+        </div>
+        <div class="card-body">
+          <div class="csv-zone">
+            <input type="file" accept=".csv" onchange="loadAgentCsv(${t.id},this)">
+            Drop CSV or click — <em>columns = attributes, rows = agents</em>
           </div>
+          ${buildInstancesTable(t)}
         </div>
       </div>
     </div>`;
@@ -217,12 +217,11 @@ function buildAgentEditor(t) {
 
 function buildInstancesTable(t) {
   if (!t.columns.length && !t.instances.length)
-    return `<div class="no-rows">Upload a CSV or add columns, then add instances</div>`;
+    return `<div class="no-rows">No instances yet — click <strong>+ Add Instance</strong> or upload a CSV</div>`;
 
   const colHeaders = t.columns.map((c, ci) => `
     <th>${c}
-      <button class="btn-del-row" style="margin-left:3px;font-size:.6rem"
-        onclick="deleteCol(${t.id},${ci})" title="Remove column">✕</button>
+      <button class="btn-del-col" onclick="deleteCol(${t.id},${ci})" title="Remove column">✕</button>
     </th>`).join('');
 
   const rows = t.instances.map((inst, ri) => {
