@@ -480,3 +480,219 @@ canvas#net-canvas {
   height: 260px;
   cursor: grab;
 }
+
+/* ── Network editor — redesign additions ─────────────────────────────────────
+   Append these rules to style.css
+   ──────────────────────────────────────────────────────────────────────────── */
+
+/* Mode tabs */
+.net-mode-tabs {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.net-mode-tab {
+  flex: 1;
+  background: var(--surface);
+  border: none;
+  color: var(--muted);
+  padding: 10px 14px;
+  font-family: var(--sans);
+  font-size: .82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--t), color var(--t);
+  border-right: 1px solid var(--border);
+}
+.net-mode-tab:last-child { border-right: none; }
+.net-mode-tab:hover  { background: var(--card); color: var(--text); }
+.net-mode-tab.active { background: rgba(91,141,246,.12); color: var(--accent); font-weight: 600; }
+
+/* Generator actions row */
+.net-gen-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.net-gen-btn {
+  font-weight: 600;
+}
+
+.net-gen-warning {
+  font-size: .75rem;
+  color: #f0a500;
+  font-family: var(--mono);
+}
+
+/* Preview card */
+.net-preview-card {
+  overflow: visible; /* needed so the resize handle isn't clipped */
+}
+
+.net-preview-card .card-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+/* Preview body — resizable via JS, no canvas height set in CSS */
+.net-preview-body {
+  background: #0a0c10;
+  overflow: hidden;
+  position: relative;
+}
+
+.net-preview-body canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+
+/* Resize handle — sits below the preview body */
+.net-resize-handle {
+  height: 8px;
+  background: var(--border);
+  cursor: ns-resize;
+  border-radius: 0 0 10px 10px;
+  transition: background var(--t);
+  position: relative;
+}
+
+.net-resize-handle::after {
+  content: '';
+  display: block;
+  width: 32px;
+  height: 3px;
+  background: var(--muted);
+  border-radius: 2px;
+  margin: 2px auto 0;
+  opacity: .5;
+}
+
+.net-resize-handle:hover,
+.net-resize-handle:active {
+  background: rgba(91,141,246,.35);
+}
+.net-resize-handle:hover::after {
+  opacity: 1;
+  background: var(--accent);
+}
+
+/* ── Network editor — redesign additions ─────────────────────────────────────
+   Append these rules to style.css
+   ──────────────────────────────────────────────────────────────────────────── */
+
+/* Mode tabs */
+.net-mode-tabs {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.net-mode-tab {
+  flex: 1;
+  background: var(--surface);
+  border: none;
+  color: var(--muted);
+  padding: 10px 14px;
+  font-family: var(--sans);
+  font-size: .82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--t), color var(--t);
+  border-right: 1px solid var(--border);
+}
+.net-mode-tab:last-child { border-right: none; }
+.net-mode-tab:hover  { background: var(--card); color: var(--text); }
+.net-mode-tab.active { background: rgba(91,141,246,.12); color: var(--accent); font-weight: 600; }
+
+/* Generator actions row */
+.net-gen-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.net-gen-btn {
+  font-weight: 600;
+}
+
+/* Agent banner — cap height when there are many agents */
+.agent-source-info .agent-chips {
+  max-height: 72px;
+  overflow-y: auto;
+}
+
+.net-gen-warning {
+  font-size: .75rem;
+  color: #f0a500;
+  font-family: var(--mono);
+}
+
+/* Preview card */
+.net-preview-card {
+  overflow: visible; /* needed so the resize handle isn't clipped */
+}
+
+.net-preview-card .card-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+/* Preview body — resizable via JS, no canvas height set in CSS */
+.net-preview-body {
+  background: #0a0c10;
+  overflow: hidden;
+  position: relative;
+}
+
+.net-preview-body canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+
+/* Resize handle — sits below the preview body */
+.net-resize-handle {
+  height: 8px;
+  background: var(--border);
+  cursor: ns-resize;
+  border-radius: 0 0 10px 10px;
+  transition: background var(--t);
+  position: relative;
+}
+
+.net-resize-handle::after {
+  content: '';
+  display: block;
+  width: 32px;
+  height: 3px;
+  background: var(--muted);
+  border-radius: 2px;
+  margin: 2px auto 0;
+  opacity: .5;
+}
+
+.net-resize-handle:hover,
+.net-resize-handle:active {
+  background: rgba(91,141,246,.35);
+}
+.net-resize-handle:hover::after {
+  opacity: 1;
+  background: var(--accent);
+}
