@@ -217,7 +217,7 @@ select option { background: var(--card); }
 .btn-del-col:hover { color: var(--warn); }
 
 /* ── Toolbar & buttons ──────────────────────────────────────────────────────── */
-.table-toolbar { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; padding-left: 10px; }
+.table-toolbar { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; padding-left: 18px; padding-right: 18px;}
 
 .btn-sm {
   background: none; border: 1px solid var(--border); border-radius: var(--r);
@@ -382,3 +382,57 @@ canvas#net-canvas { display: block; width: 100%; height: 200px; }
 ::-webkit-scrollbar       { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── Add-instance count input (append to style.css) ─────────────────────────── */
+.add-count-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: default;
+}
+
+.add-count-prefix {
+  font-family: var(--mono);
+  font-size: .78rem;
+  color: var(--muted);
+}
+
+.add-count-input {
+  width: 52px !important;
+  padding: 6px 8px !important;
+  background: var(--card) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--r) !important;
+  color: var(--text) !important;
+  font-family: var(--mono) !important;
+  font-size: .78rem !important;
+  text-align: center;
+  -moz-appearance: textfield;
+}
+
+.add-count-input::-webkit-outer-spin-button,
+.add-count-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.add-count-input:focus {
+  outline: none;
+  border-color: var(--accent) !important;
+}
+
+/* ── No-attribute row message ────────────────────────────────────────────────── */
+.no-attr-msg {
+  font-size: .78rem;
+  color: var(--muted);
+  font-style: italic;
+}
+ 
+.no-attr-msg strong {
+  font-style: normal;
+  color: var(--accent2);
+}
+
+.btn-clear {
+  margin-left: auto;
+}

@@ -35,12 +35,15 @@ function setCellVal(typeId, ri, col, val) {
   if (t?.instances[ri]) t.instances[ri][col] = val;
 }
 
-function addRow(typeId) {
+function addRow(typeId, count) {
   const t = types.find(t => t.id === typeId);
   if (!t) return;
-  const row = {};
-  t.columns.forEach(c => row[c] = '');
-  t.instances.push(row);
+  const n = Math.max(1, parseInt(count) || 1);
+  for (let i = 0; i < n; i++) {
+    const row = {};
+    t.columns.forEach(c => row[c] = '');
+    t.instances.push(row);
+  }
   renderMain();
   renderSidebar();
 }
@@ -199,10 +202,22 @@ function buildAgentEditor(t) {
           </div>
         </div>
         <div class="table-toolbar">
-            <button class="btn-sm accent" onclick="addRow(${t.id})">+ Add Instance</button>
-            ${t.instances.length > 0
-              ? `<button class="btn-sm" onclick="clearRows(${t.id})">Clear All</button>`
-              : ''}
+          <button class="btn-sm accent" onclick="addRow(${t.id}, document.getElementById('add-count-${t.id}').value)">+ Add Instance</button>
+          <label class="add-count-label" title="Number of instances to add">
+            <span class="add-count-prefix">×</span>
+            <input
+              type="number"
+              id="add-count-${t.id}"
+              class="add-count-input"
+              value="1"
+              min="1"
+              max="1000"
+              onkeydown="if(event.key==='Enter') addRow(${t.id}, this.value)"
+            >
+          </label>
+          ${t.instances.length > 0
+            ? `<button class="btn-sm btn-clear" onclick="clearRows(${t.id})">Clear All</button>`
+            : ''}
         </div>
         <div class="card-body">
           <div class="csv-zone">
@@ -218,12 +233,28 @@ function buildAgentEditor(t) {
 function buildInstancesTable(t) {
   if (!t.columns.length && !t.instances.length)
     return `<div class="no-rows">No instances yet — click <strong>+ Add Instance</strong> or upload a CSV</div>`;
-
+ 
+  if (!t.columns.length && t.instances.length) {
+    const rows = t.instances.map((_, ri) => `
+      <tr>
+        <td class="td-idx">${ri + 1}</td>
+        <td><span class="no-attr-msg">No attributes — this instance will be added with no initial facts. Use <strong>+ Column</strong> to define attributes.</span></td>
+        <td><button class="btn-del-row" onclick="deleteRow(${t.id},${ri})">✕</button></td>
+      </tr>`).join('');
+    return `
+      <div class="tbl-wrap">
+        <table class="data-table">
+          <thead><tr><th class="col-idx">#</th><th></th><th class="col-del"></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  }
+ 
   const colHeaders = t.columns.map((c, ci) => `
     <th>${c}
       <button class="btn-del-col" onclick="deleteCol(${t.id},${ci})" title="Remove column">✕</button>
     </th>`).join('');
-
+ 
   const rows = t.instances.map((inst, ri) => {
     const cells = t.columns.map(c => `
       <td><input type="text" value="${esc(inst[c] ?? '')}" placeholder="—"
@@ -233,10 +264,8 @@ function buildInstancesTable(t) {
       ${cells}
       <td><button class="btn-del-row" onclick="deleteRow(${t.id},${ri})">✕</button></td>
     </tr>`;
-  }).join('') || (t.columns.length
-    ? `<tr><td colspan="${t.columns.length + 2}" class="no-rows">No instances yet</td></tr>`
-    : '');
-
+  }).join('') || `<tr><td colspan="${t.columns.length + 2}" class="no-rows">No instances yet</td></tr>`;
+ 
   return `
     <div class="tbl-wrap">
       <table class="data-table">

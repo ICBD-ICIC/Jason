@@ -66,7 +66,7 @@ function buildGenericInitEditor(name) {
         </div>
         <div class="table-toolbar">
           <button class="btn-sm accent" onclick="addInitRow('${name}')">+ Add Row</button>
-          ${st.rows.length ? `<button class="btn-sm" onclick="clearInitRows('${name}')">Clear All</button>` : ''}
+          ${st.rows.length ? `<button class="btn-sm btn-clear" onclick="clearInitRows('${name}')">Clear All</button>` : ''}
         </div>
         <div class="card-body">
           <div class="tbl-wrap">

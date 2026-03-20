@@ -16,7 +16,6 @@ AGT_DIR   = BASE_DIR / "agt"
 ARCH_DIR  = BASE_DIR / "arch"
 BB_DIR    = BASE_DIR / "bb"
 INIT_DIR  = BASE_DIR / "initializer"
-MAS2J_OUT = BASE_DIR / "simulation_configured.mas2j"
 
 # Fixed column schemas for each initializer CSV
 INITIALIZER_SCHEMAS = {
@@ -24,7 +23,6 @@ INITIALIZER_SCHEMAS = {
     "network.csv":         ["from", "to", "weight"],
     "public_profiles.csv": ["agent", "attribute", "value"],
 }
-
 
 # ── Discovery ────────────────────────────────────────────────────────────────
 
@@ -206,8 +204,9 @@ def generate():
 
     # ── .mas2j ────────────────────────────────────────────────────────────────
     mas2j = _build_mas2j(mas_name, env_class, agent_lines)
-    MAS2J_OUT.write_text(mas2j)
-    gen_files.append(str(MAS2J_OUT.relative_to(BASE_DIR)))
+    mas2j_out = BASE_DIR / f"{mas_name}.mas2j"
+    mas2j_out.write_text(mas2j)
+    gen_files.append(str(mas2j_out.relative_to(BASE_DIR)))
 
     return jsonify({"ok": True, "generated_files": gen_files, "mas2j": mas2j})
 
