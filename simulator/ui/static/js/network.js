@@ -152,6 +152,17 @@ const TOPOLOGIES = [
 let selectedTopo = 'random';
 let topoParams   = { k: 4, p: 0.3, m: 2, directed: false, self_loops: false, weight_min: 1, weight_max: 1 };
 
+// ── Canvas interaction state ──────────────────────────────────────────────────
+const netView = {
+  scale:     1,
+  offsetX:   0,
+  offsetY:   0,
+  dragging:  false,
+  lastX:     0,
+  lastY:     0,
+  positions: null,   // cached node positions in world space
+};
+
 // ── HTML builder ──────────────────────────────────────────────────────────────
 function buildNetworkEditor(name) {
   const st         = initializers['network.csv'];
@@ -220,19 +231,28 @@ function buildNetworkEditor(name) {
           <div class="topo-grid">${topoCards}</div>
           <div id="topo-params-area">${paramsHTML}</div>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-            <button class="btn-sm accent" onclick="generateTopology()"
-              ${!hasAgents && selectedTopo !== 'custom' ? 'disabled title="Add agent instances first"' : ''}>
-              ⚡ Generate Network
-            </button>
-            <button class="btn-sm" onclick="appendTopology()"
-              ${!hasAgents && selectedTopo !== 'custom' ? 'disabled' : ''}>
-              + Append to existing
-            </button>
+            ${selectedTopo !== 'custom' ? `
+              <button class="btn-sm accent" onclick="generateTopology()"
+                ${!hasAgents ? 'disabled title="Add agent instances first"' : ''}>
+                Generate Network
+              </button>
+              <button class="btn-sm" onclick="appendTopology()"
+                ${!hasAgents ? 'disabled' : ''}>
+                + Append to existing
+              </button>
+            ` : ''}
             ${st.rows.length ? `<span class="info-badge">📊 ${st.rows.length} edges</span>` : ''}
           </div>
           <div class="net-preview-wrap" style="margin-top:14px">
-            <div class="net-preview-bar">network preview <span id="net-preview-stats"></span></div>
-            <canvas id="net-canvas" height="200"></canvas>
+            <div class="net-preview-bar">
+              network preview <span id="net-preview-stats"></span>
+              <div class="net-preview-controls">
+                <button class="net-ctrl-btn" onclick="netZoom(0.2)"  title="Zoom in">+</button>
+                <button class="net-ctrl-btn" onclick="netZoom(-0.2)" title="Zoom out">−</button>
+                <button class="net-ctrl-btn" onclick="netResetView()" title="Reset view">⊡</button>
+              </div>
+            </div>
+            <canvas id="net-canvas" height="260"></canvas>
           </div>
         </div>
       </div>
@@ -262,16 +282,16 @@ function buildNetworkEditor(name) {
             ${hasAgents ? `<button class="btn-sm" onclick="sortEdgesAlpha()">Sort</button>` : ''}
           </div>
         </div>
+        <div class="table-toolbar">
+          <button class="btn-sm accent" onclick="addNetworkRow()">+ Add Edge</button>
+          ${st.rows.length ? `<button class="btn-sm btn-clear" onclick="clearInitRows('network.csv')">Clear All</button>` : ''}
+        </div>
         <div class="card-body">
           <div class="tbl-wrap">
             <table class="data-table">
               <thead><tr><th class="col-idx">#</th><th>from</th><th>to</th><th>weight</th><th class="col-del"></th></tr></thead>
               <tbody id="net-edge-tbody">${edgeRows}</tbody>
             </table>
-          </div>
-          <div class="table-toolbar">
-            <button class="btn-sm accent" onclick="addNetworkRow()">+ Add Edge</button>
-            ${st.rows.length ? `<button class="btn-sm" onclick="clearInitRows('network.csv')">Clear All</button>` : ''}
           </div>
         </div>
       </div>
@@ -360,125 +380,183 @@ function makeEdge(from, to) {
 
 function generateEdges(agents) {
   const edges = [];
-  const n     = agents.length;
+  const n = agents.length;
   if (n === 0) return edges;
+
+  const seen = new Set();
+  const addEdge = (a, b) => {
+    const key = topoParams.directed ? `${a}|${b}` : [a, b].sort().join('|');
+    if (!seen.has(key)) {
+      seen.add(key);
+      edges.push(makeEdge(agents[a], agents[b]));
+    }
+  };
 
   switch (selectedTopo) {
 
+    // ── RANDOM ─────────────────────────────────────────
     case 'random': {
-      for (let i = 0; i < n; i++)
-        for (let j = topoParams.directed ? 0 : i + 1; j < n; j++) {
+      for (let i = 0; i < n; i++) {
+        for (let j = (topoParams.directed ? 0 : i + 1); j < n; j++) {
           if (i === j && !topoParams.self_loops) continue;
-          if (Math.random() < topoParams.p) edges.push(makeEdge(agents[i], agents[j]));
-          if (topoParams.directed && i !== j && Math.random() < topoParams.p)
-            edges.push(makeEdge(agents[j], agents[i]));
+          if (Math.random() < topoParams.p) addEdge(i, j);
+          if (topoParams.directed && i !== j && Math.random() < topoParams.p) {
+            addEdge(j, i);
+          }
         }
+      }
       break;
     }
 
+    // ── SMALL WORLD (Watts–Strogatz simplificado) ──────
     case 'small_world': {
-      const k   = Math.max(1, Math.floor(topoParams.k / 2));
-      const adj = new Set();
-      for (let i = 0; i < n; i++)
+      const k = Math.max(1, Math.floor(topoParams.k / 2));
+
+      // base ring
+      for (let i = 0; i < n; i++) {
         for (let d = 1; d <= k; d++) {
           const j = (i + d) % n;
-          adj.add(`${i},${j}`);
-          if (!topoParams.directed) adj.add(`${j},${i}`);
+          addEdge(i, j);
+          if (topoParams.directed) addEdge(j, i);
         }
-      const finalEdges = [];
-      for (const key of [...adj]) {
-        const [a, b] = key.split(',').map(Number);
+      }
+
+      // rewiring
+      const currentEdges = [...edges];
+      edges.length = 0;
+      seen.clear();
+
+      for (const e of currentEdges) {
+        const a = agents.indexOf(e.from);
+        let b = agents.indexOf(e.to);
+
         if (Math.random() < topoParams.p) {
           let newB, tries = 0;
-          do { newB = Math.floor(Math.random() * n); tries++; }
-          while ((newB === a || adj.has(`${a},${newB}`)) && tries < 20);
-          finalEdges.push(makeEdge(agents[a], tries < 20 ? agents[newB] : agents[b]));
-        } else {
-          finalEdges.push(makeEdge(agents[a], agents[b]));
+          do {
+            newB = Math.floor(Math.random() * n);
+            tries++;
+          } while ((newB === a || seen.has(`${a}|${newB}`)) && tries < 50);
+
+          if (tries < 50) b = newB;
         }
+
+        addEdge(a, b);
       }
-      const seen = new Set();
-      for (const e of finalEdges) {
-        const key = `${e.from}|${e.to}`;
-        if (!seen.has(key)) { seen.add(key); edges.push(e); }
-      }
+
       break;
     }
 
+    // ── SCALE FREE (Barabási–Albert) ──────────────────
     case 'scale_free': {
-      const m      = Math.min(topoParams.m, n - 1);
+      const m = Math.max(1, Math.min(topoParams.m, n - 1));
       const degree = new Array(n).fill(0);
-      const edgeSet = new Set();
-      for (let i = 0; i <= m && i < n; i++)
-        for (let j = i + 1; j <= m && j < n; j++) {
-          edgeSet.add(`${i},${j}`); degree[i]++; degree[j]++;
+
+      // fully connected seed
+      for (let i = 0; i < m; i++) {
+        for (let j = i + 1; j < m; j++) {
+          addEdge(i, j);
+          degree[i]++;
+          degree[j]++;
         }
-      for (let i = m + 1; i < n; i++) {
-        const targets  = new Set();
-        const totalDeg = degree.slice(0, i).reduce((a, b) => a + b, 0) || 1;
-        let tries = 0;
-        while (targets.size < Math.min(m, i) && tries < 500) {
-          tries++;
-          let r = Math.random() * totalDeg, cum = 0, picked = 0;
-          for (let j = 0; j < i; j++) { cum += degree[j]; if (cum >= r) { picked = j; break; } }
-          targets.add(picked);
+      }
+
+      // growth
+      for (let i = m; i < n; i++) {
+        const targets = new Set();
+
+        while (targets.size < m) {
+          const totalDeg = degree.reduce((a, b) => a + b, 0) || 1;
+          let r = Math.random() * totalDeg;
+          let acc = 0;
+
+          for (let j = 0; j < i; j++) {
+            acc += degree[j];
+            if (acc >= r) {
+              targets.add(j);
+              break;
+            }
+          }
         }
-        for (const t of targets) { edgeSet.add(`${t},${i}`); degree[t]++; degree[i]++; }
+
+        for (const t of targets) {
+          addEdge(t, i);
+          degree[t]++;
+          degree[i]++;
+        }
       }
-      for (const key of edgeSet) {
-        const [a, b] = key.split(',').map(Number);
-        edges.push(makeEdge(agents[a], agents[b]));
-        if (topoParams.directed) edges.push(makeEdge(agents[b], agents[a]));
+
+      if (topoParams.directed) {
+        const extra = [];
+        for (const e of edges) {
+          const a = agents.indexOf(e.from);
+          const b = agents.indexOf(e.to);
+          extra.push([b, a]);
+        }
+        for (const [a, b] of extra) addEdge(a, b);
       }
+
       break;
     }
 
+    // ── RING ──────────────────────────────────────────
     case 'ring': {
-      const k    = Math.max(1, Math.floor(topoParams.k / 2));
-      const seen = new Set();
-      for (let i = 0; i < n; i++)
+      const k = Math.max(1, Math.floor(topoParams.k / 2));
+
+      for (let i = 0; i < n; i++) {
         for (let d = 1; d <= k; d++) {
-          const j   = (i + d) % n;
-          const key = topoParams.directed ? `${i}|${j}` : [i, j].sort().join('|');
-          if (!seen.has(key)) { seen.add(key); edges.push(makeEdge(agents[i], agents[j])); }
-          if (topoParams.directed) {
-            const rkey = `${j}|${i}`;
-            if (!seen.has(rkey)) { seen.add(rkey); edges.push(makeEdge(agents[j], agents[i])); }
-          }
+          const j = (i + d) % n;
+          addEdge(i, j);
+          if (topoParams.directed) addEdge(j, i);
         }
-      break;
-    }
-
-    case 'complete': {
-      for (let i = 0; i < n; i++)
-        for (let j = topoParams.directed ? 0 : i + 1; j < n; j++) {
-          if (i === j) { if (topoParams.self_loops) edges.push(makeEdge(agents[i], agents[j])); continue; }
-          edges.push(makeEdge(agents[i], agents[j]));
-        }
-      break;
-    }
-
-    case 'star': {
-      const hub = agents[0];
-      for (let i = 1; i < n; i++) {
-        edges.push(makeEdge(hub, agents[i]));
-        if (topoParams.directed) edges.push(makeEdge(agents[i], hub));
       }
       break;
     }
 
-    case 'bipartite': {
-      const half   = Math.floor(n / 2);
-      const groupA = agents.slice(0, half);
-      const groupB = agents.slice(half);
-      for (const a of groupA)
-        for (const b of groupB)
-          if (Math.random() < topoParams.p) {
-            edges.push(makeEdge(a, b));
-            if (topoParams.directed) edges.push(makeEdge(b, a));
-          }
+    // ── COMPLETE ──────────────────────────────────────
+    case 'complete': {
+      for (let i = 0; i < n; i++) {
+        for (let j = (topoParams.directed ? 0 : i + 1); j < n; j++) {
+          if (i === j && !topoParams.self_loops) continue;
+          addEdge(i, j);
+        }
+      }
       break;
     }
+
+    // ── STAR ──────────────────────────────────────────
+    case 'star': {
+      const hub = Math.floor(Math.random() * n);
+
+      for (let i = 0; i < n; i++) {
+        if (i === hub) continue;
+        addEdge(hub, i);
+        if (topoParams.directed) addEdge(i, hub);
+      }
+      break;
+    }
+
+    // ── BIPARTITE ─────────────────────────────────────
+    case 'bipartite': {
+      const half = Math.floor(n / 2);
+
+      for (let i = 0; i < half; i++) {
+        for (let j = half; j < n; j++) {
+          if (Math.random() < topoParams.p) {
+            addEdge(i, j);
+            if (topoParams.directed) addEdge(j, i);
+          }
+        }
+      }
+      break;
+    }
+  }
+
+  if (!topoParams.directed) {
+    const existing = new Set(edges.map(e => `${e.from}|${e.to}`));
+    const reversed = edges
+      .filter(e => !existing.has(`${e.to}|${e.from}`))
+      .map(e => makeEdge(e.to, e.from));
+    edges.push(...reversed);
   }
   return edges;
 }
@@ -488,18 +566,20 @@ function generateTopology() {
   const agents = getAllAgentNames();
   if (agents.length === 0) { showToast('No agent instances found. Add agent types with instances first.'); return; }
   initializers['network.csv'].rows = generateEdges(agents);
+  netView.positions = null; // force recompute layout
   renderInitNav();
   renderMain();
-  setTimeout(() => drawNetPreview(), 80);
+  setTimeout(() => { netResetView(); drawNetPreview(); }, 80);
 }
 
 function appendTopology() {
   const agents = getAllAgentNames();
   if (agents.length === 0) { showToast('No agent instances found.'); return; }
   initializers['network.csv'].rows.push(...generateEdges(agents));
+  netView.positions = null;
   renderInitNav();
   renderMain();
-  setTimeout(() => drawNetPreview(), 80);
+  setTimeout(() => { netResetView(); drawNetPreview(); }, 80);
 }
 
 function addNetworkRow() {
@@ -515,14 +595,119 @@ function sortEdgesAlpha() {
   setTimeout(() => drawNetPreview(), 80);
 }
 
+// ── View controls ─────────────────────────────────────────────────────────────
+function netZoom(delta) {
+  netView.scale = Math.min(8, Math.max(0.1, netView.scale + delta));
+  drawNetPreview();
+}
+
+function netResetView() {
+  netView.scale   = 1;
+  netView.offsetX = 0;
+  netView.offsetY = 0;
+  drawNetPreview();
+}
+
+function _setupCanvasInteraction(canvas) {
+  // Avoid attaching duplicate listeners by tagging the canvas
+  if (canvas._netInteractive) return;
+  canvas._netInteractive = true;
+
+  // Wheel zoom — zoom toward cursor position
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const rect  = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const delta  = e.deltaY < 0 ? 0.15 : -0.15;
+    const oldScale = netView.scale;
+    netView.scale  = Math.min(8, Math.max(0.1, oldScale + delta));
+    // Adjust offset so zoom is centered on cursor
+    const scaleDiff = netView.scale - oldScale;
+    netView.offsetX -= mouseX * scaleDiff;
+    netView.offsetY -= mouseY * scaleDiff;
+    drawNetPreview();
+  }, { passive: false });
+
+  // Pan — click and drag
+  canvas.addEventListener('mousedown', e => {
+    netView.dragging = true;
+    netView.lastX    = e.clientX;
+    netView.lastY    = e.clientY;
+    canvas.style.cursor = 'grabbing';
+  });
+
+  window.addEventListener('mousemove', e => {
+    if (!netView.dragging) return;
+    netView.offsetX += e.clientX - netView.lastX;
+    netView.offsetY += e.clientY - netView.lastY;
+    netView.lastX    = e.clientX;
+    netView.lastY    = e.clientY;
+    drawNetPreview();
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (netView.dragging) {
+      netView.dragging = false;
+      const canvas = document.getElementById('net-canvas');
+      if (canvas) canvas.style.cursor = 'grab';
+    }
+  });
+
+  // Touch pan + pinch zoom
+  let lastTouchDist = null;
+  canvas.addEventListener('touchstart', e => {
+    if (e.touches.length === 1) {
+      netView.dragging = true;
+      netView.lastX    = e.touches[0].clientX;
+      netView.lastY    = e.touches[0].clientY;
+    }
+    if (e.touches.length === 2) {
+      netView.dragging = false;
+      lastTouchDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+    }
+  }, { passive: true });
+
+  canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (e.touches.length === 1 && netView.dragging) {
+      netView.offsetX += e.touches[0].clientX - netView.lastX;
+      netView.offsetY += e.touches[0].clientY - netView.lastY;
+      netView.lastX    = e.touches[0].clientX;
+      netView.lastY    = e.touches[0].clientY;
+      drawNetPreview();
+    }
+    if (e.touches.length === 2 && lastTouchDist !== null) {
+      const dist  = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      netView.scale = Math.min(8, Math.max(0.1, netView.scale * (dist / lastTouchDist)));
+      lastTouchDist = dist;
+      drawNetPreview();
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', () => {
+    netView.dragging  = false;
+    lastTouchDist     = null;
+  });
+}
+
 // ── Canvas preview ────────────────────────────────────────────────────────────
 function drawNetPreview() {
   const canvas = document.getElementById('net-canvas');
   if (!canvas) return;
 
+  _setupCanvasInteraction(canvas);
+  canvas.style.cursor = netView.dragging ? 'grabbing' : 'grab';
+
   const dpr = window.devicePixelRatio || 1;
   const W   = canvas.offsetWidth;
-  const H   = canvas.offsetHeight || 200;
+  const H   = canvas.offsetHeight || 260;
   canvas.width  = W * dpr;
   canvas.height = H * dpr;
 
@@ -534,7 +719,7 @@ function drawNetPreview() {
   const st         = initializers['network.csv'];
   const agentNames = getAllAgentNames();
 
-  // Collect nodes from edges + known agents
+  // Collect nodes
   const nodeSet = new Set(agentNames);
   for (const r of st.rows) {
     if (r.from) nodeSet.add(r.from);
@@ -544,34 +729,49 @@ function drawNetPreview() {
 
   if (nodes.length === 0) {
     ctx.fillStyle = '#7a82a0';
-    ctx.font = '12px DM Sans, sans-serif';
+    ctx.font      = '12px DM Sans, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('No nodes yet', W / 2, H / 2);
+    const statsEl = document.getElementById('net-preview-stats');
+    if (statsEl) statsEl.textContent = '';
     return;
   }
 
-  // Circular layout
-  const margin    = 28;
-  const angleStep = (2 * Math.PI) / nodes.length;
-  const rx        = W / 2 - margin;
-  const ry        = H / 2 - margin;
-  const pos       = {};
-  nodes.forEach((n, i) => {
-    const angle = -Math.PI / 2 + i * angleStep;
-    pos[n] = { x: W / 2 + rx * Math.cos(angle), y: H / 2 + ry * Math.sin(angle) };
-  });
+  // Compute world-space positions once (or when nodes change)
+  const nodeKey = nodes.join('|');
+  if (!netView.positions || netView.positions._key !== nodeKey) {
+    const margin    = 40;
+    const angleStep = (2 * Math.PI) / nodes.length;
+    const rx        = (W / 2 - margin);
+    const ry        = (H / 2 - margin);
+    const pos       = { _key: nodeKey };
+    nodes.forEach((n, i) => {
+      const angle = -Math.PI / 2 + i * angleStep;
+      pos[n] = { x: W / 2 + rx * Math.cos(angle), y: H / 2 + ry * Math.sin(angle) };
+    });
+    netView.positions = pos;
+  }
+
+  const pos = netView.positions;
+
+  // Apply pan + zoom transform
+  ctx.save();
+  ctx.translate(netView.offsetX, netView.offsetY);
+  ctx.scale(netView.scale, netView.scale);
 
   // Draw edges
   for (const r of st.rows) {
     if (!r.from || !r.to || !pos[r.from] || !pos[r.to]) continue;
     const { x: x1, y: y1 } = pos[r.from];
     const { x: x2, y: y2 } = pos[r.to];
+
     ctx.beginPath();
     ctx.moveTo(x1, y1);
     ctx.lineTo(x2, y2);
     ctx.strokeStyle = 'rgba(91,141,246,0.35)';
-    ctx.lineWidth   = 1.2;
+    ctx.lineWidth   = 1.2 / netView.scale;
     ctx.stroke();
+
     // Arrowhead
     const dx = x2 - x1, dy = y2 - y1, len = Math.sqrt(dx * dx + dy * dy);
     if (len > 0) {
@@ -590,22 +790,22 @@ function drawNetPreview() {
   // Draw nodes
   const nodeRadius = Math.max(4, Math.min(9, 140 / nodes.length));
   nodes.forEach(n => {
-    const { x, y } = pos[n];
-    const isKnown  = agentNames.includes(n);
+    const { x, y }  = pos[n];
+    const isKnown   = agentNames.includes(n);
     ctx.beginPath();
     ctx.arc(x, y, nodeRadius, 0, Math.PI * 2);
     ctx.fillStyle   = isKnown ? 'rgba(61,255,208,0.85)' : 'rgba(91,141,246,0.6)';
     ctx.strokeStyle = isKnown ? 'rgba(61,255,208,0.4)'  : 'rgba(91,141,246,0.3)';
-    ctx.lineWidth   = 1;
+    ctx.lineWidth   = 1 / netView.scale;
     ctx.fill();
     ctx.stroke();
 
-    if (nodes.length <= 20) {
+    if (nodes.length <= 40) {
       ctx.fillStyle    = '#e8ecf5';
-      ctx.font         = `${Math.max(8, Math.min(11, 100 / nodes.length))}px Space Mono, monospace`;
+      ctx.font         = `${Math.max(8, Math.min(11, 100 / nodes.length)) / netView.scale}px Space Mono, monospace`;
       ctx.textAlign    = 'center';
       ctx.textBaseline = 'middle';
-      const labelR = nodeRadius + 8;
+      const labelR = nodeRadius + 8 / netView.scale;
       const angle  = Math.atan2(y - H / 2, x - W / 2);
       ctx.fillText(
         n.length > 10 ? n.slice(0, 9) + '…' : n,
@@ -615,7 +815,9 @@ function drawNetPreview() {
     }
   });
 
-  // Stats bar
+  ctx.restore();
+
+  // Stats bar (outside transform)
   const statsEl = document.getElementById('net-preview-stats');
-  if (statsEl) statsEl.textContent = `— ${nodes.length} nodes · ${st.rows.length} edges`;
+  if (statsEl) statsEl.textContent = `— ${nodes.length} nodes · ${st.rows.length} edges · ${Math.round(netView.scale * 100)}%`;
 }
