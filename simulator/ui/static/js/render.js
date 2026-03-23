@@ -47,8 +47,13 @@ function renderMain() {
 
   if (activeInit) {
     panel.innerHTML = buildInitEditor(activeInit);
-    // Network editor needs post-render setup (canvas draw)
-    if (activeInit === 'network.csv') setTimeout(() => drawNetPreview(), 50);
+    if (activeInit === 'network.csv') {
+      setTimeout(() => {
+        drawNetPreview();
+        _setupResizeHandle();
+        initNetVirtScroll();
+      }, 50);
+    }
     return;
   }
 

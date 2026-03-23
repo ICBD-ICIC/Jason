@@ -104,7 +104,7 @@ function deleteInitRow(name, ri) {
   st.rows.splice(ri, 1);
   renderMain();
   renderInitNav();
-  if (name === 'network.csv') setTimeout(() => drawNetPreview(), 80);
+  if (name === 'network.csv') setTimeout(() => { drawNetPreview(); initNetVirtScroll(); }, 80);
 }
 
 function clearInitRows(name) {
@@ -113,7 +113,7 @@ function clearInitRows(name) {
   st.rows = [];
   renderMain();
   renderInitNav();
-  if (name === 'network.csv') setTimeout(() => drawNetPreview(), 80);
+  if (name === 'network.csv') setTimeout(() => { drawNetPreview(); initNetVirtScroll(); }, 80);
 }
 
 // ── Disk / upload loaders ────────────────────────────────────────────────────
@@ -133,7 +133,7 @@ async function loadInitFromDisk(name) {
     });
     renderMain();
     renderInitNav();
-    if (name === 'network.csv') setTimeout(() => drawNetPreview(), 80);
+    if (name === 'network.csv') setTimeout(() => { drawNetPreview(); initNetVirtScroll(); }, 80);
   } catch (e) { showToast('Failed to load: ' + e.message); }
 }
 
@@ -150,7 +150,7 @@ async function loadInitCsvUpload(name, input) {
     initializers[name].rows = data.rows;
     renderMain();
     renderInitNav();
-    if (name === 'network.csv') setTimeout(() => drawNetPreview(), 80);
+    if (name === 'network.csv') setTimeout(() => { drawNetPreview(); initNetVirtScroll(); }, 80);
   } catch (e) { showToast('Failed to parse CSV: ' + e.message); }
   input.value = '';
 }
