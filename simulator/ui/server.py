@@ -32,8 +32,6 @@ def discover_java_classes(directory: Path, package: str) -> list[str]:
     results = []
     for f in sorted(directory.glob("*.java")):
         source = f.read_text(errors="ignore")
-        # Skip interfaces — look for the pattern "interface ClassName"
-        # Uses a simple heuristic: the word "interface" followed by the filename stem
         import re
         if re.search(rf'\binterface\s+{re.escape(f.stem)}\b', source):
             continue
@@ -103,7 +101,7 @@ def parse_csv():
 @app.route("/api/parse_initializer_csv", methods=["POST"])
 def parse_initializer_csv():
     """Parse an uploaded initializer CSV (fixed schema, returned as row dicts)."""
-    name = request.form.get("name", "")          # which initializer (e.g. "messages.csv")
+    name = request.form.get("name", "")
     f    = request.files.get("file")
     if not f:
         return jsonify({"error": "No file uploaded"}), 400
@@ -113,7 +111,6 @@ def parse_initializer_csv():
     rows   = []
     for row in reader:
         clean = {k.strip(): (v or "").strip() for k, v in row.items()}
-        # Ensure all schema columns are present (fill missing with "")
         rows.append({col: clean.get(col, "") for col in schema})
     return jsonify({"rows": rows})
 
@@ -143,6 +140,19 @@ def generate():
     agent_types  = data.get("agent_types",  [])
     initializers = data.get("initializers", {})
 
+    # ── Build network relationship maps from network.csv edges ────────────────
+    # Maps agent_name -> set of agents it follows / is followed by
+    network_edges = initializers.get("network.csv", [])
+    follows_map: dict[str, set] = {}      # agent -> agents it follows
+    followed_by_map: dict[str, set] = {}  # agent -> agents that follow it
+
+    for edge in network_edges:
+        frm = (edge.get("from") or "").strip()
+        to  = (edge.get("to")   or "").strip()
+        if frm and to:
+            follows_map.setdefault(frm, set()).add(to)
+            followed_by_map.setdefault(to, set()).add(frm)
+
     # ── Agent .asl files ──────────────────────────────────────────────────────
     for tidx, atype in enumerate(agent_types):
         asl_src   = atype.get("asl", "")
@@ -167,13 +177,22 @@ def generate():
             out_stem = f"{stem}_{stem_counter[stem]}"
             out_path = AGT_DIR / f"{out_stem}.asl"
 
-            fact_block  = _build_fact_block(inst)
+            # Build attribute facts from instance columns
+            fact_block = _build_fact_block(inst)
+
+            # Build network facts for this specific agent
+            network_block = _build_network_fact_block(
+                out_stem, follows_map, followed_by_map
+            )
+
+            combined_block = fact_block + network_block
+
             new_content = (
                 "/* === Auto-generated initial facts === */\n"
-                + fact_block
+                + combined_block
                 + "/* === End auto-generated facts === */\n\n"
                 + original_content
-            ) if fact_block else original_content
+            ) if combined_block else original_content
 
             out_path.write_text(new_content)
             gen_files.append(str(out_path.relative_to(BASE_DIR)))
@@ -192,9 +211,9 @@ def generate():
     for csv_name, rows in initializers.items():
         schema = INITIALIZER_SCHEMAS.get(csv_name)
         if not schema:
-            continue   # unknown file, skip silently
+            continue
         if not rows:
-            continue   # nothing to write
+            continue
         out_path = INIT_DIR / csv_name
         with out_path.open("w", newline="", encoding="utf-8") as fh:
             writer = csv_mod.DictWriter(fh, fieldnames=schema, extrasaction="ignore")
@@ -226,6 +245,28 @@ def _build_fact_block(instance: dict) -> str:
             escaped = value.replace('"', '\\"')
             lines.append(f'{attr}("{escaped}").')
     return "\n".join(lines) + ("\n" if lines else "")
+
+
+def _build_network_fact_block(
+    agent_name: str,
+    follows_map: dict[str, set],
+    followed_by_map: dict[str, set],
+) -> str:
+    """
+    Returns AgentSpeak belief lines for the social network relationships
+    of the given agent:
+        follows("other_agent").
+        followedBy("other_agent").
+    """
+    lines = []
+    for target in sorted(follows_map.get(agent_name, [])):
+        escaped = target.replace('"', '\\"')
+        lines.append(f'follows("{escaped}").')
+    for source in sorted(followed_by_map.get(agent_name, [])):
+        escaped = source.replace('"', '\\"')
+        lines.append(f'followedBy("{escaped}").')
+    return "\n".join(lines) + ("\n" if lines else "")
+
 
 def _is_number(s: str) -> bool:
     try:
