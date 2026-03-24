@@ -1,13 +1,11 @@
 // ── state.js ─────────────────────────────────────────────────────────────────
 // Global application state and boot logic.
-// All other modules read/write these variables directly (single-page app pattern).
 
 // Server options fetched on boot
 let options = {
-  asl_files: [],
+  asl_files:    [],
   arch_classes: [],
-  bb_classes: [],
-  initializer_csvs: [],
+  bb_classes:   [],
   initializer_schemas: {},
 };
 

@@ -46,25 +46,10 @@ def discover_asl_files() -> list[str]:
         return []
     return sorted(f.name for f in AGT_DIR.glob("*.asl"))
 
-def discover_initializer_csvs() -> list[str]:
-    """Return CSV filenames present in initializer/."""
-    if not INIT_DIR.exists():
-        return []
-    return sorted(f.name for f in INIT_DIR.glob("*.csv"))
-
 def _safe_folder_name(name: str) -> str:
-    """
-    Sanitize a folder path provided by the user.
-    Allows letters, digits, underscores, hyphens, dots and forward slashes
-    (for sub-paths like 'runs/experiment_1'). Rejects absolute paths and
-    path-traversal attempts.
-    """
-    # Normalise separators, strip leading/trailing slashes
     clean = name.replace("\\", "/").strip("/")
-    # Reject empty or traversal attempts
     if not clean or ".." in clean.split("/"):
         return DEFAULT_OUTPUT_FOLDER
-    # Allow only safe characters
     if not re.match(r'^[\w\-./]+$', clean):
         return DEFAULT_OUTPUT_FOLDER
     return clean
@@ -79,10 +64,9 @@ def index():
 @app.route("/api/options")
 def options():
     return jsonify({
-        "asl_files":         discover_asl_files(),
-        "arch_classes":      discover_java_classes(ARCH_DIR, "arch"),
-        "bb_classes":        discover_java_classes(BB_DIR,   "bb"),
-        "initializer_csvs":  discover_initializer_csvs(),
+        "asl_files":           discover_asl_files(),
+        "arch_classes":        discover_java_classes(ARCH_DIR, "arch"),
+        "bb_classes":          discover_java_classes(BB_DIR,   "bb"),
         "initializer_schemas": INITIALIZER_SCHEMAS,
     })
 
@@ -94,35 +78,23 @@ def asl_preview():
         return jsonify({"error": "File not found"}), 404
     return jsonify({"content": path.read_text()})
 
-@app.route("/api/load_initializer_csv")
-def load_initializer_csv():
-    """Load an existing initializer CSV and return its rows."""
-    name = request.args.get("name", "")
-    path = INIT_DIR / name
-    if not path.exists() or path.suffix != ".csv":
-        return jsonify({"error": "File not found"}), 404
-    text = path.read_text(encoding="utf-8-sig")
-    reader = csv_mod.DictReader(io.StringIO(text))
-    rows = [{k.strip(): (v or "").strip() for k, v in row.items()} for row in reader]
-    return jsonify({"rows": rows})
-
 @app.route("/api/parse_csv", methods=["POST"])
 def parse_csv():
     """Parse an uploaded wide-format CSV (for agent instances)."""
     f = request.files.get("file")
     if not f:
         return jsonify({"error": "No file uploaded"}), 400
-    text = f.read().decode("utf-8-sig")
+    text   = f.read().decode("utf-8-sig")
     reader = csv_mod.DictReader(io.StringIO(text))
-    rows = [{k.strip(): (v or "").strip() for k, v in row.items()} for row in reader]
+    rows    = [{k.strip(): (v or "").strip() for k, v in row.items()} for row in reader]
     columns = [c.strip() for c in (reader.fieldnames or [])]
     return jsonify({"rows": rows, "columns": columns})
 
 @app.route("/api/parse_initializer_csv", methods=["POST"])
 def parse_initializer_csv():
     """Parse an uploaded initializer CSV (fixed schema, returned as row dicts)."""
-    name = request.form.get("name", "")
-    f    = request.files.get("file")
+    name   = request.form.get("name", "")
+    f      = request.files.get("file")
     if not f:
         return jsonify({"error": "No file uploaded"}), 400
     schema = INITIALIZER_SCHEMAS.get(name, [])
@@ -136,27 +108,6 @@ def parse_initializer_csv():
 
 @app.route("/api/generate", methods=["POST"])
 def generate():
-    """
-    Body (JSON):
-    {
-      "mas_name":      "my_simulation",
-      "env_class":     "env.Env",
-      "output_folder": "simulation_output",   ← NEW
-      "agent_types": [ { "asl", "arch_class", "bb_class", "instances": [{col:val}] } ],
-      "initializers": {
-        "messages.csv":        [ {id, author, content, reactions, original, topics}, ... ],
-        "network.csv":         [ {from, to, weight}, ... ],
-        "public_profiles.csv": [ {agent, attribute, value}, ... ]
-      }
-    }
-
-    All generated files are written inside BASE_DIR / output_folder/.
-    The layout inside that folder mirrors the original layout:
-        <output_folder>/
-            agt/          ← per-instance .asl files
-            initializer/  ← CSV data files
-            <mas_name>.mas2j
-    """
     data        = request.get_json(force=True)
     errors      = []
     gen_files   = []
@@ -178,8 +129,8 @@ def generate():
     out_init_dir.mkdir(parents=True, exist_ok=True)
 
     # ── Build network relationship maps from network.csv edges ────────────────
-    network_edges = initializers.get("network.csv", [])
-    follows_map: dict[str, set] = {}
+    network_edges   = initializers.get("network.csv", [])
+    follows_map:    dict[str, set] = {}
     followed_by_map: dict[str, set] = {}
 
     for edge in network_edges:
@@ -214,9 +165,7 @@ def generate():
             out_path = out_agt_dir / f"{out_stem}.asl"
 
             fact_block    = _build_fact_block(inst)
-            network_block = _build_network_fact_block(
-                out_stem, follows_map, followed_by_map
-            )
+            network_block = _build_network_fact_block(out_stem, follows_map, followed_by_map)
             combined_block = fact_block + network_block
 
             new_content = (
@@ -251,9 +200,7 @@ def generate():
         gen_files.append(str(out_path.relative_to(BASE_DIR)))
 
     # ── .mas2j ────────────────────────────────────────────────────────────────
-    # The aslSourcePath inside the .mas2j points to the agt/ sub-folder so the
-    # simulation can be launched from within the output folder directly.
-    mas2j = _build_mas2j(mas_name, ENV_CLASS, agent_lines, asl_source_path="./agt")
+    mas2j     = _build_mas2j(mas_name, ENV_CLASS, agent_lines, asl_source_path="./agt")
     mas2j_out = out_dir / f"{mas_name}.mas2j"
     mas2j_out.write_text(mas2j)
     gen_files.append(str(mas2j_out.relative_to(BASE_DIR)))
@@ -261,9 +208,9 @@ def generate():
     return jsonify({
         "ok": True,
         "generated_files": gen_files,
-        "output_folder": output_folder,
-        "mas_name": mas_name,
-        "mas2j": mas2j,
+        "output_folder":   output_folder,
+        "mas_name":        mas_name,
+        "mas2j":           mas2j,
     })
 
 
@@ -279,8 +226,7 @@ def _build_fact_block(instance: dict) -> str:
         if _is_number(value):
             lines.append(f"{attr}({value}).")
         else:
-            escaped = value.replace('"', '\\"')
-            lines.append(f'{attr}("{escaped}").')
+            lines.append(f'{attr}("{value.replace(chr(34), chr(92)+chr(34))}").')
     return "\n".join(lines) + ("\n" if lines else "")
 
 
@@ -291,11 +237,9 @@ def _build_network_fact_block(
 ) -> str:
     lines = []
     for target in sorted(follows_map.get(agent_name, [])):
-        escaped = target.replace('"', '\\"')
-        lines.append(f'follows("{escaped}").')
+        lines.append(f'follows("{target.replace(chr(34), chr(92)+chr(34))}").')
     for source in sorted(followed_by_map.get(agent_name, [])):
-        escaped = source.replace('"', '\\"')
-        lines.append(f'followedBy("{escaped}").')
+        lines.append(f'followedBy("{source.replace(chr(34), chr(92)+chr(34))}").')
     return "\n".join(lines) + ("\n" if lines else "")
 
 

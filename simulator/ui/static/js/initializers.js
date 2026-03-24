@@ -10,13 +10,29 @@ function buildInitEditor(name) {
 
 // ── Generic editor (any initializer with a fixed schema) ──────────────────────
 function buildGenericInitEditor(name) {
-  const st = initializers[name];
+  const st     = initializers[name];
   if (!st) return '';
   const schema = st.schema;
 
-  const existingOpts = options.initializer_csvs.includes(name)
-    ? `<option value="${name}">${name} (current)</option>`
-    : options.initializer_csvs.map(f => `<option value="${f}">${f}</option>`).join('');
+  const agentNames = getAllAgentNames();
+  const hasAgents  = agentNames.length > 0;
+
+  // Show agent banner only for public_profiles.csv
+  let agentBanner = '';
+  if (name === 'public_profiles.csv') {
+    agentBanner = hasAgents
+      ? `<div class="agent-source-info">
+          <div class="agent-source-box">
+            <div><strong>${agentNames.length}</strong> agent${agentNames.length !== 1 ? 's' : ''} detected from defined types</div>
+            <div class="agent-chips">${agentNames.map(n => `<span class="agent-chip">${esc(n)}</span>`).join('')}</div>
+          </div>
+        </div>`
+      : `<div class="agent-source-info">
+          <div>No agent instances yet —
+            <strong>add types with instances</strong> to see agent names here.
+          </div>
+        </div>`;
+  }
 
   const colHeaders = schema.map(c => `<th>${c}</th>`).join('');
 
@@ -29,7 +45,7 @@ function buildGenericInitEditor(name) {
       ${cells}
       <td><button class="btn-del-row" onclick="deleteInitRow('${name}',${ri})">✕</button></td>
     </tr>`;
-  }).join('') || `<tr><td colspan="${schema.length + 2}" class="no-rows">No rows yet — load a file or add manually</td></tr>`;
+  }).join('') || `<tr><td colspan="${schema.length + 2}" class="no-rows">No rows yet — upload a file or add manually</td></tr>`;
 
   return `
     <div class="editor">
@@ -42,18 +58,15 @@ function buildGenericInitEditor(name) {
         </div>
       </div>
 
-      <!-- Load from disk -->
+      ${agentBanner}
+
+      <!-- Upload -->
       <div class="card">
-        <div class="card-head"><div class="dot" style="background:var(--accent2)"></div><h4>Load from disk</h4></div>
+        <div class="card-head"><div class="dot" style="background:var(--accent2)"></div><h4>Load from file</h4></div>
         <div class="card-body">
-          <div class="load-row">
-            <label>Existing file:</label>
-            <select id="init-file-sel-${cssId(name)}">${existingOpts || '<option value="">(none found)</option>'}</select>
-            <button class="btn-sm accent" onclick="loadInitFromDisk('${name}')">Load</button>
-          </div>
           <div class="csv-zone">
             <input type="file" accept=".csv" onchange="loadInitCsvUpload('${name}',this)">
-            Or upload a CSV file to replace current rows
+            Upload a CSV file to replace current rows
           </div>
         </div>
       </div>
@@ -116,27 +129,7 @@ function clearInitRows(name) {
   if (name === 'network.csv') setTimeout(() => { drawNetPreview(); initNetVirtScroll(); }, 80);
 }
 
-// ── Disk / upload loaders ────────────────────────────────────────────────────
-async function loadInitFromDisk(name) {
-  const sel   = document.getElementById('init-file-sel-' + cssId(name));
-  const fname = sel?.value;
-  if (!fname) return;
-  try {
-    const r    = await fetch('/api/load_initializer_csv?name=' + encodeURIComponent(fname));
-    const data = await r.json();
-    if (data.error) { showToast(data.error); return; }
-    const st = initializers[name];
-    st.rows = data.rows.map(row => {
-      const out = {};
-      st.schema.forEach(c => out[c] = (row[c] ?? ''));
-      return out;
-    });
-    renderMain();
-    renderInitNav();
-    if (name === 'network.csv') setTimeout(() => { drawNetPreview(); initNetVirtScroll(); }, 80);
-  } catch (e) { showToast('Failed to load: ' + e.message); }
-}
-
+// ── CSV upload ────────────────────────────────────────────────────────────────
 async function loadInitCsvUpload(name, input) {
   const file = input.files[0];
   if (!file) return;

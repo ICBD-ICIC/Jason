@@ -158,7 +158,7 @@ let _resizeStartY = 0;
 let _resizeStartH = 0;
 
 // ── Virtual scroll state ──────────────────────────────────────────────────────
-const VIRT_ROW_H   = 34;   // px per row (must match CSS)
+const VIRT_ROW_H    = 34;  // px per row (must match CSS)
 const VIRT_OVERSCAN = 8;   // extra rows rendered above/below viewport
 
 // ── Main HTML builder ─────────────────────────────────────────────────────────
@@ -180,7 +180,6 @@ function buildNetworkEditor(name) {
         </div>
       </div>`;
 
-  // Mode tabs
   const modeTabs = `
     <div class="net-mode-tabs">
       <button class="net-mode-tab ${netMode === 'generator' ? 'active' : ''}" onclick="setNetMode('generator')">
@@ -192,13 +191,9 @@ function buildNetworkEditor(name) {
     </div>`;
 
   const generatorPanel = netMode === 'generator' ? buildGeneratorPanel(st, agentNames, hasAgents) : '';
-  const manualPanel    = netMode === 'manual'    ? buildManualPanel(st, name)                     : '';
-
-  // Edge table (always visible)
-  const edgeTable = buildEdgeTable(st, agentNames);
-
-  // Preview
-  const preview = buildPreview(st);
+  const manualPanel    = netMode === 'manual'    ? buildManualPanel()                              : '';
+  const edgeTable      = buildEdgeTable(st, agentNames);
+  const preview        = buildPreview(st);
 
   return `
     <div class="editor">
@@ -215,8 +210,6 @@ function buildNetworkEditor(name) {
       ${modeTabs}
       ${generatorPanel}
       ${manualPanel}
-
-      <!-- Preview -->
       ${preview}
 
       <!-- Edge table -->
@@ -241,15 +234,13 @@ function buildNetworkEditor(name) {
 
 // ── Generator panel ───────────────────────────────────────────────────────────
 function buildGeneratorPanel(st, agentNames, hasAgents) {
-  const topoCards = TOPOLOGIES.map(t => `
+  const topo       = TOPOLOGIES.find(t => t.id === selectedTopo);
+  const topoCards  = TOPOLOGIES.map(t => `
     <div class="topo-card ${selectedTopo === t.id ? 'selected' : ''}" onclick="selectTopo('${t.id}')">
       <div class="topo-icon">${t.icon}</div>
       <div class="topo-name">${t.name}</div>
       <div class="topo-desc">${t.desc}</div>
     </div>`).join('');
-
-  const topo       = TOPOLOGIES.find(t => t.id === selectedTopo);
-  const paramsHTML = buildTopoParamsForm(topo);
 
   const hasRows = st.rows.length > 0;
 
@@ -258,7 +249,7 @@ function buildGeneratorPanel(st, agentNames, hasAgents) {
       <div class="card-head"><div class="dot" style="background:var(--accent2)"></div><h4>Topology</h4></div>
       <div class="card-body">
         <div class="topo-grid">${topoCards}</div>
-        <div id="topo-params-area">${paramsHTML}</div>
+        <div id="topo-params-area">${buildTopoParamsForm(topo)}</div>
         <div class="net-gen-actions">
           <button class="btn-sm accent net-gen-btn" onclick="generateTopology()"
             ${!hasAgents ? 'disabled title="Add agent instances first"' : ''}>
@@ -272,23 +263,14 @@ function buildGeneratorPanel(st, agentNames, hasAgents) {
 }
 
 // ── Manual / load panel ───────────────────────────────────────────────────────
-function buildManualPanel(st, name) {
-  const netFileOpts = options.initializer_csvs.includes('network.csv')
-    ? '<option value="network.csv">network.csv (current)</option>'
-    : options.initializer_csvs.map(f => `<option value="${f}">${f}</option>`).join('') || '<option value="">(none found)</option>';
-
+function buildManualPanel() {
   return `
     <div class="card">
-      <div class="card-head"><div class="dot" style="background:var(--accent2)"></div><h4>Load from disk</h4></div>
+      <div class="card-head"><div class="dot" style="background:var(--accent2)"></div><h4>Load from file</h4></div>
       <div class="card-body">
-        <div class="load-row">
-          <label>Existing file:</label>
-          <select id="init-file-sel-network_csv">${netFileOpts}</select>
-          <button class="btn-sm accent" onclick="loadInitFromDisk('network.csv')">Load</button>
-        </div>
         <div class="csv-zone">
           <input type="file" accept=".csv" onchange="loadInitCsvUpload('network.csv',this)">
-          Or upload a CSV — columns: <em>from, to, weight</em>
+          Upload a CSV — columns: <em>from, to, weight</em>
         </div>
         <p style="font-size:.77rem;color:var(--muted);margin-top:4px;">
           You can also add edges manually in the table below.
@@ -298,9 +280,6 @@ function buildManualPanel(st, name) {
 }
 
 // ── Edge table — virtual scroll ───────────────────────────────────────────────
-// Instead of creating one DOM row per edge (freezes at 1500+), we render only
-// the rows visible in the scroll viewport plus a small overscan buffer.
-
 function buildEdgeTable(st, agentNames) {
   if (!st.rows.length)
     return `<div class="tbl-wrap"><table class="data-table">
@@ -332,7 +311,6 @@ function buildEdgeTable(st, agentNames) {
           </tr>
         </thead>
       </table>
-      <!-- Scrollable body in a separate container for virtual rows -->
       <div style="position:relative;height:${totalH}px;">
         <table class="data-table" id="net-virt-table"
                style="width:100%;table-layout:fixed;position:absolute;top:0;left:0;">
@@ -349,7 +327,6 @@ function buildEdgeTable(st, agentNames) {
     </div>`;
 }
 
-// Called after the edge table HTML is in the DOM
 function initNetVirtScroll() {
   renderNetVirtRows(0);
 }
@@ -377,14 +354,13 @@ function renderNetVirtRows(scrollTop) {
   const startIdx = Math.max(0, firstVisible - VIRT_OVERSCAN);
   const endIdx   = Math.min(total - 1, firstVisible + visibleCount + VIRT_OVERSCAN);
 
-  // Position the visible table slice
   table.style.top = (startIdx * VIRT_ROW_H) + 'px';
 
   const rows = [];
   for (let ri = startIdx; ri <= endIdx; ri++) {
-    const row        = st.rows[ri];
-    const fromInput  = buildAgentInput(`net-from-${ri}`, row['from'] ?? '', agentNames, `setInitCell('network.csv',${ri},'from',this.value)`);
-    const toInput    = buildAgentInput(`net-to-${ri}`,   row['to']   ?? '', agentNames, `setInitCell('network.csv',${ri},'to',this.value)`);
+    const row       = st.rows[ri];
+    const fromInput = buildAgentInput(`net-from-${ri}`, row['from'] ?? '', agentNames, `setInitCell('network.csv',${ri},'from',this.value)`);
+    const toInput   = buildAgentInput(`net-to-${ri}`,   row['to']   ?? '', agentNames, `setInitCell('network.csv',${ri},'to',this.value)`);
     rows.push(`<tr style="height:${VIRT_ROW_H}px">
       <td class="td-idx">${ri + 1}</td>
       <td>${fromInput}</td>
@@ -399,23 +375,17 @@ function renderNetVirtRows(scrollTop) {
   tbody.innerHTML = rows.join('');
 }
 
-// Dedicated delete that avoids a full re-render of the page
 function deleteNetRow(ri) {
   initializers['network.csv'].rows.splice(ri, 1);
-  // Refresh only the virtual table + header count, not the whole page
   _refreshNetCardHeader();
   const wrap = document.getElementById('net-virt-wrap');
   renderNetVirtRows(wrap ? wrap.scrollTop : 0);
-  // Update the preview
   setTimeout(() => drawNetPreview(), 60);
 }
 
 function _refreshNetCardHeader() {
-  // Re-render main to update the row count badge in the card header and sidebar
-  // For large tables we do a lightweight DOM update instead of full renderMain()
   renderInitNav();
-  // Update card header text cheaply
-  const st = initializers['network.csv'];
+  const st  = initializers['network.csv'];
   const hdr = document.querySelector('#net-edge-tbody')?.closest('.card')?.querySelector('h4');
   if (hdr) hdr.textContent = `Edges — ${st.rows.length} total`;
 }
@@ -522,11 +492,8 @@ function generateTopology() {
     showToast('No agent instances. Add types with instances first.');
     return;
   }
-
   const existing = initializers['network.csv'].rows.length;
-  if (existing > 0) {
-    if (!confirm(`This will replace the existing ${existing} edges. Continue?`)) return;
-  }
+  if (existing > 0 && !confirm(`This will replace the existing ${existing} edges. Continue?`)) return;
 
   initializers['network.csv'].rows = generateEdges(agents);
   netView.positions = null;
@@ -544,7 +511,7 @@ function addNetworkRow() {
 }
 
 function clearNetRows() {
-  if (initializers['network.csv'].rows.length === 0) return;
+  if (!initializers['network.csv'].rows.length) return;
   if (!confirm(`Delete all ${initializers['network.csv'].rows.length} edges?`)) return;
   initializers['network.csv'].rows = [];
   renderMain();
@@ -568,15 +535,14 @@ function _setupResizeHandle() {
     _resizing      = true;
     _resizeStartY  = e.clientY;
     _resizeStartH  = netPreviewHeight;
-    document.body.style.userSelect  = 'none';
-    document.body.style.cursor      = 'ns-resize';
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor     = 'ns-resize';
     e.preventDefault();
   });
 
   window.addEventListener('mousemove', e => {
     if (!_resizing) return;
-    const delta      = e.clientY - _resizeStartY;
-    netPreviewHeight = Math.max(120, _resizeStartH + delta);
+    netPreviewHeight = Math.max(120, _resizeStartH + (e.clientY - _resizeStartY));
     const body = document.getElementById('net-preview-body');
     if (body) body.style.height = netPreviewHeight + 'px';
     drawNetPreview();
@@ -590,7 +556,6 @@ function _setupResizeHandle() {
     }
   });
 
-  // Touch support
   handle.addEventListener('touchstart', e => {
     _resizing     = true;
     _resizeStartY = e.touches[0].clientY;
@@ -600,8 +565,7 @@ function _setupResizeHandle() {
 
   window.addEventListener('touchmove', e => {
     if (!_resizing) return;
-    const delta      = e.touches[0].clientY - _resizeStartY;
-    netPreviewHeight = Math.max(120, _resizeStartH + delta);
+    netPreviewHeight = Math.max(120, _resizeStartH + (e.touches[0].clientY - _resizeStartY));
     const body = document.getElementById('net-preview-body');
     if (body) body.style.height = netPreviewHeight + 'px';
     drawNetPreview();
@@ -630,10 +594,10 @@ function _setupCanvasInteraction(canvas) {
 
   canvas.addEventListener('wheel', e => {
     e.preventDefault();
-    const rect   = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    const delta  = e.deltaY < 0 ? 0.15 : -0.15;
+    const rect     = canvas.getBoundingClientRect();
+    const mouseX   = e.clientX - rect.left;
+    const mouseY   = e.clientY - rect.top;
+    const delta    = e.deltaY < 0 ? 0.15 : -0.15;
     const oldScale = netView.scale;
     netView.scale  = Math.min(8, Math.max(0.1, oldScale + delta));
     netView.offsetX -= mouseX * (netView.scale - oldScale);
@@ -642,9 +606,9 @@ function _setupCanvasInteraction(canvas) {
   }, { passive: false });
 
   canvas.addEventListener('mousedown', e => {
-    netView.dragging = true;
-    netView.lastX    = e.clientX;
-    netView.lastY    = e.clientY;
+    netView.dragging    = true;
+    netView.lastX       = e.clientX;
+    netView.lastY       = e.clientY;
     canvas.style.cursor = 'grabbing';
   });
 
@@ -673,8 +637,8 @@ function _setupCanvasInteraction(canvas) {
       netView.lastY    = e.touches[0].clientY;
     }
     if (e.touches.length === 2) {
-      netView.dragging  = false;
-      lastTouchDist = Math.hypot(
+      netView.dragging = false;
+      lastTouchDist    = Math.hypot(
         e.touches[0].clientX - e.touches[1].clientX,
         e.touches[0].clientY - e.touches[1].clientY
       );
@@ -707,7 +671,7 @@ function _setupCanvasInteraction(canvas) {
   });
 }
 
-// ── Draw — RAF-throttled, batched, sampled for large graphs ───────────────────
+// ── Draw — RAF-throttled, sampled for large graphs ────────────────────────────
 const MAX_DRAW_EDGES = 4000;
 const MAX_DRAW_NODES = 2000;
 
@@ -780,23 +744,18 @@ function _drawNetPreviewFrame() {
   ctx.scale(netView.scale, netView.scale);
 
   const allEdges  = st.rows;
-  const edgeStep  = allEdges.length > MAX_DRAW_EDGES
-    ? Math.ceil(allEdges.length / MAX_DRAW_EDGES)
-    : 1;
+  const edgeStep  = allEdges.length > MAX_DRAW_EDGES ? Math.ceil(allEdges.length / MAX_DRAW_EDGES) : 1;
   const sampled   = edgeStep > 1;
   const showArrows = nodes.length <= 80;
 
   ctx.beginPath();
   ctx.strokeStyle = 'rgba(91,141,246,0.30)';
   ctx.lineWidth   = 1 / netView.scale;
-
   for (let i = 0; i < allEdges.length; i += edgeStep) {
     const r = allEdges[i];
     if (!r.from || !r.to || !pos[r.from] || !pos[r.to]) continue;
-    const { x: x1, y: y1 } = pos[r.from];
-    const { x: x2, y: y2 } = pos[r.to];
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
+    ctx.moveTo(pos[r.from].x, pos[r.from].y);
+    ctx.lineTo(pos[r.to].x,   pos[r.to].y);
   }
   ctx.stroke();
 
@@ -820,14 +779,11 @@ function _drawNetPreviewFrame() {
     ctx.fill();
   }
 
-  const nodeRadius   = nodes.length > 500 ? 2 : Math.max(3, Math.min(9, 140 / nodes.length));
-  const showLabels   = nodes.length <= 40;
-  const showStroke   = nodes.length <= 300;
-  const nodeStep     = nodes.length > MAX_DRAW_NODES
-    ? Math.ceil(nodes.length / MAX_DRAW_NODES)
-    : 1;
-
-  const knownSet = new Set(agentNames);
+  const nodeRadius = nodes.length > 500 ? 2 : Math.max(3, Math.min(9, 140 / nodes.length));
+  const showLabels = nodes.length <= 40;
+  const showStroke = nodes.length <= 300;
+  const nodeStep   = nodes.length > MAX_DRAW_NODES ? Math.ceil(nodes.length / MAX_DRAW_NODES) : 1;
+  const knownSet   = new Set(agentNames);
 
   ctx.fillStyle = 'rgba(61,255,208,0.85)';
   ctx.beginPath();
@@ -900,28 +856,24 @@ function randWeight() {
 
 function makeEdge(from, to) {
   const w = randWeight();
-  const weightStr = (topoParams.weight_min === 1 && topoParams.weight_max === 1) ? '' : String(w);
-  return { from, to, weight: weightStr };
+  return { from, to, weight: (topoParams.weight_min === 1 && topoParams.weight_max === 1) ? '' : String(w) };
 }
 
 function generateEdges(agents) {
   const edges = [];
-  const n = agents.length;
+  const n     = agents.length;
   if (n === 0) return edges;
 
-  const seen = new Set();
+  const seen    = new Set();
   const addEdge = (a, b) => {
     const key = topoParams.directed ? `${a}|${b}` : [a, b].sort().join('|');
-    if (!seen.has(key)) {
-      seen.add(key);
-      edges.push(makeEdge(agents[a], agents[b]));
-    }
+    if (!seen.has(key)) { seen.add(key); edges.push(makeEdge(agents[a], agents[b])); }
   };
 
   switch (selectedTopo) {
     case 'random': {
       for (let i = 0; i < n; i++) {
-        for (let j = (topoParams.directed ? 0 : i + 1); j < n; j++) {
+        for (let j = topoParams.directed ? 0 : i + 1; j < n; j++) {
           if (i === j && !topoParams.self_loops) continue;
           if (Math.random() < topoParams.p) addEdge(i, j);
           if (topoParams.directed && i !== j && Math.random() < topoParams.p) addEdge(j, i);
@@ -933,17 +885,14 @@ function generateEdges(agents) {
       const k = Math.max(1, Math.floor(topoParams.k / 2));
       for (let i = 0; i < n; i++) {
         for (let d = 1; d <= k; d++) {
-          const j = (i + d) % n;
-          addEdge(i, j);
-          if (topoParams.directed) addEdge(j, i);
+          addEdge(i, (i + d) % n);
+          if (topoParams.directed) addEdge((i + d) % n, i);
         }
       }
-      const currentEdges = [...edges];
-      edges.length = 0;
-      seen.clear();
-      for (const e of currentEdges) {
-        const a = agents.indexOf(e.from);
-        let b = agents.indexOf(e.to);
+      const base = [...edges];
+      edges.length = 0; seen.clear();
+      for (const e of base) {
+        let a = agents.indexOf(e.from), b = agents.indexOf(e.to);
         if (Math.random() < topoParams.p) {
           let newB, tries = 0;
           do { newB = Math.floor(Math.random() * n); tries++; }
@@ -955,20 +904,16 @@ function generateEdges(agents) {
       break;
     }
     case 'scale_free': {
-      const m = Math.max(1, Math.min(topoParams.m, n - 1));
+      const m      = Math.max(1, Math.min(topoParams.m, n - 1));
       const degree = new Array(n).fill(0);
-      for (let i = 0; i < m; i++) {
+      for (let i = 0; i < m; i++)
         for (let j = i + 1; j < m; j++) { addEdge(i, j); degree[i]++; degree[j]++; }
-      }
       for (let i = m; i < n; i++) {
         const targets = new Set();
         while (targets.size < m) {
           const totalDeg = degree.reduce((a, b) => a + b, 0) || 1;
           let r = Math.random() * totalDeg, acc = 0;
-          for (let j = 0; j < i; j++) {
-            acc += degree[j];
-            if (acc >= r) { targets.add(j); break; }
-          }
+          for (let j = 0; j < i; j++) { acc += degree[j]; if (acc >= r) { targets.add(j); break; } }
         }
         for (const t of targets) { addEdge(t, i); degree[t]++; degree[i]++; }
       }
@@ -982,20 +927,18 @@ function generateEdges(agents) {
       const k = Math.max(1, Math.floor(topoParams.k / 2));
       for (let i = 0; i < n; i++) {
         for (let d = 1; d <= k; d++) {
-          const j = (i + d) % n;
-          addEdge(i, j);
-          if (topoParams.directed) addEdge(j, i);
+          addEdge(i, (i + d) % n);
+          if (topoParams.directed) addEdge((i + d) % n, i);
         }
       }
       break;
     }
     case 'complete': {
-      for (let i = 0; i < n; i++) {
-        for (let j = (topoParams.directed ? 0 : i + 1); j < n; j++) {
+      for (let i = 0; i < n; i++)
+        for (let j = topoParams.directed ? 0 : i + 1; j < n; j++) {
           if (i === j && !topoParams.self_loops) continue;
           addEdge(i, j);
         }
-      }
       break;
     }
     case 'star': {
@@ -1009,24 +952,22 @@ function generateEdges(agents) {
     }
     case 'bipartite': {
       const half = Math.floor(n / 2);
-      for (let i = 0; i < half; i++) {
-        for (let j = half; j < n; j++) {
+      for (let i = 0; i < half; i++)
+        for (let j = half; j < n; j++)
           if (Math.random() < topoParams.p) {
             addEdge(i, j);
             if (topoParams.directed) addEdge(j, i);
           }
-        }
-      }
       break;
     }
   }
 
   if (!topoParams.directed) {
     const existing = new Set(edges.map(e => `${e.from}|${e.to}`));
-    const reversed = edges
+    edges.push(...edges
       .filter(e => !existing.has(`${e.to}|${e.from}`))
-      .map(e => makeEdge(e.to, e.from));
-    edges.push(...reversed);
+      .map(e => makeEdge(e.to, e.from))
+    );
   }
 
   return edges;

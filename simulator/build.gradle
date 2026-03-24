@@ -10,7 +10,12 @@ plugins {
 }
 
 ext {
-    masFile = project.findProperty("masFile") ?: "simulation_example.mas2j"
+    generatedFolder = project.findProperty("generatedFolder") ?: ""
+    masFileName     = project.findProperty("masFile") ?: "simulation_example.mas2j"
+    masFile         = generatedFolder ? "${generatedFolder}/${masFileName}" : masFileName
+    workDir         = generatedFolder
+                        ? "${projectDir}/${generatedFolder}"
+                        : "${projectDir}"
 }
 
 defaultTasks 'run'
@@ -61,25 +66,14 @@ test {
     }
 }
 task run (type: JavaExec, dependsOn: 'classes') {
-    group = 'Jason'
+    group       = 'Jason'
     description = 'runs the application'
-    mainClass = 'jason.infra.local.RunLocalMAS'
-    args = [masFile]
-	// options:
-	//     args = [masFile, '--debug', '--no-net', '--empty-mas']
-	//     args = [masFile, '--log-conf', 'l.p'] // to use file l.p to configure logging
-    classpath sourceSets.main.runtimeClasspath
-}
-
-task runJade (type: JavaExec, dependsOn: 'classes') {
-    group = 'Jason'
-    description = 'runs the application with Jade infrastructure'
-    mainClass = 'jason.infra.jade.RunJadeMAS'
-    args = [ masFile, '-gui' ]
-    // options:
-    //     args = [masFile, '-gui', '-sniffer' ]
-    // and all usual JADE options for jade.Boot
-    classpath sourceSets.main.runtimeClasspath
+    mainClass   = 'jason.infra.local.RunLocalMAS'
+    args        = [masFileName]           // just the filename — workDir is now the CWD
+    workingDir  = workDir
+    jvmArgs     = ["-Djava.util.logging.config.file=${projectDir}/logging.properties",
+                   "-Dmas.log.dir=${workDir}"]
+    classpath   = sourceSets.main.runtimeClasspath
 }
 
 shadowJar {
@@ -118,4 +112,21 @@ shadowJar {
     doLast {
         println("You can run your application with: java -jar build/libs/jason-${project.name}-all.jar")
     }
+}
+
+task generateLoggingConfig {
+    def propsFile = file("${buildDir}/logging.properties")
+    outputs.file propsFile
+    doLast {
+        def logPath = workDir.replace('\\', '/')   // normalize for Windows
+        propsFile.text = file("${projectDir}/logging.properties")
+            .text
+            .replace('java.util.logging.FileHandler.pattern = ${mas.log.dir}/mas.log',
+                     "java.util.logging.FileHandler.pattern = ${logPath}/mas.log")
+    }
+}
+
+tasks.named('run').configure {
+    dependsOn generateLoggingConfig
+    jvmArgs = ["-Djava.util.logging.config.file=${buildDir}/logging.properties"]
 }
