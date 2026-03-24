@@ -38,8 +38,8 @@ async function generate() {
   }
 
   const payload = {
-    mas_name:     document.getElementById('mas-name').value.trim(),
-    env_class:    document.getElementById('env-class').value.trim(),
+    mas_name:       document.getElementById('mas-name').value.trim(),
+    output_folder:  document.getElementById('output-folder').value.trim() || 'simulation_output',
     agent_types:  types.map(t => ({
       asl:        t.asl,
       arch_class: t.arch_class,
@@ -77,7 +77,10 @@ function showOutputModal(data) {
       <div>
         <strong>${data.generated_files?.length || 0} file(s) written</strong><br>
         <span style="color:var(--muted);font-size:.8rem">
-          Run: <code>./gradlew run -PmasFile=simulation_configured.mas2j</code>
+          Output folder: <code>${esc(data.output_folder || '')}</code>
+        </span><br>
+        <span style="color:var(--muted);font-size:.8rem">
+          Run: <code>./gradlew run -PmasFile=${esc(data.output_folder || '')}/${esc(data.mas_name || 'simulation_configured')}.mas2j</code>
         </span>
       </div>
     </div>
@@ -86,7 +89,7 @@ function showOutputModal(data) {
       <div class="file-list">${files}</div>
     </div>
     <div>
-      <div class="out-label">simulation_configured.mas2j</div>
+      <div class="out-label">${esc(data.mas_name || 'simulation_configured')}.mas2j</div>
       <pre class="mas2j-out">${esc(data.mas2j || '')}</pre>
     </div>`;
 

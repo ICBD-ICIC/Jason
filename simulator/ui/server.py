@@ -5,6 +5,7 @@ Run from the simulator/ directory: python ui/server.py
 
 import csv as csv_mod
 import io
+import re
 from pathlib import Path
 from flask import Flask, request, jsonify, render_template
 
@@ -16,6 +17,9 @@ AGT_DIR   = BASE_DIR / "agt"
 ARCH_DIR  = BASE_DIR / "arch"
 BB_DIR    = BASE_DIR / "bb"
 INIT_DIR  = BASE_DIR / "initializer"
+ENV_CLASS = "env.Env"
+
+DEFAULT_OUTPUT_FOLDER = "simulation_output"
 
 # Fixed column schemas for each initializer CSV
 INITIALIZER_SCHEMAS = {
@@ -32,7 +36,6 @@ def discover_java_classes(directory: Path, package: str) -> list[str]:
     results = []
     for f in sorted(directory.glob("*.java")):
         source = f.read_text(errors="ignore")
-        import re
         if re.search(rf'\binterface\s+{re.escape(f.stem)}\b', source):
             continue
         results.append(f"{package}.{f.stem}")
@@ -48,6 +51,23 @@ def discover_initializer_csvs() -> list[str]:
     if not INIT_DIR.exists():
         return []
     return sorted(f.name for f in INIT_DIR.glob("*.csv"))
+
+def _safe_folder_name(name: str) -> str:
+    """
+    Sanitize a folder path provided by the user.
+    Allows letters, digits, underscores, hyphens, dots and forward slashes
+    (for sub-paths like 'runs/experiment_1'). Rejects absolute paths and
+    path-traversal attempts.
+    """
+    # Normalise separators, strip leading/trailing slashes
+    clean = name.replace("\\", "/").strip("/")
+    # Reject empty or traversal attempts
+    if not clean or ".." in clean.split("/"):
+        return DEFAULT_OUTPUT_FOLDER
+    # Allow only safe characters
+    if not re.match(r'^[\w\-./]+$', clean):
+        return DEFAULT_OUTPUT_FOLDER
+    return clean
 
 
 # ── Routes ───────────────────────────────────────────────────────────────────
@@ -119,8 +139,9 @@ def generate():
     """
     Body (JSON):
     {
-      "mas_name":  "my_simulation",
-      "env_class": "env.Env",
+      "mas_name":      "my_simulation",
+      "env_class":     "env.Env",
+      "output_folder": "simulation_output",   ← NEW
       "agent_types": [ { "asl", "arch_class", "bb_class", "instances": [{col:val}] } ],
       "initializers": {
         "messages.csv":        [ {id, author, content, reactions, original, topics}, ... ],
@@ -128,6 +149,13 @@ def generate():
         "public_profiles.csv": [ {agent, attribute, value}, ... ]
       }
     }
+
+    All generated files are written inside BASE_DIR / output_folder/.
+    The layout inside that folder mirrors the original layout:
+        <output_folder>/
+            agt/          ← per-instance .asl files
+            initializer/  ← CSV data files
+            <mas_name>.mas2j
     """
     data        = request.get_json(force=True)
     errors      = []
@@ -135,16 +163,24 @@ def generate():
     agent_lines = []
     stem_counter: dict[str, int] = {}
 
-    mas_name     = (data.get("mas_name")  or "simulation_configured").strip()
-    env_class    = (data.get("env_class") or "env.Env").strip()
+    mas_name      = (data.get("mas_name")      or "simulation_configured").strip()
+    raw_folder    = (data.get("output_folder") or DEFAULT_OUTPUT_FOLDER).strip()
+    output_folder = _safe_folder_name(raw_folder)
+
     agent_types  = data.get("agent_types",  [])
     initializers = data.get("initializers", {})
 
+    # ── Output directories ────────────────────────────────────────────────────
+    out_dir      = BASE_DIR / output_folder
+    out_agt_dir  = out_dir / "agt"
+    out_init_dir = out_dir / "initializer"
+    out_agt_dir.mkdir(parents=True, exist_ok=True)
+    out_init_dir.mkdir(parents=True, exist_ok=True)
+
     # ── Build network relationship maps from network.csv edges ────────────────
-    # Maps agent_name -> set of agents it follows / is followed by
     network_edges = initializers.get("network.csv", [])
-    follows_map: dict[str, set] = {}      # agent -> agents it follows
-    followed_by_map: dict[str, set] = {}  # agent -> agents that follow it
+    follows_map: dict[str, set] = {}
+    followed_by_map: dict[str, set] = {}
 
     for edge in network_edges:
         frm = (edge.get("from") or "").strip()
@@ -175,16 +211,12 @@ def generate():
         for inst in instances:
             stem_counter[stem] = stem_counter.get(stem, 0) + 1
             out_stem = f"{stem}_{stem_counter[stem]}"
-            out_path = AGT_DIR / f"{out_stem}.asl"
+            out_path = out_agt_dir / f"{out_stem}.asl"
 
-            # Build attribute facts from instance columns
-            fact_block = _build_fact_block(inst)
-
-            # Build network facts for this specific agent
+            fact_block    = _build_fact_block(inst)
             network_block = _build_network_fact_block(
                 out_stem, follows_map, followed_by_map
             )
-
             combined_block = fact_block + network_block
 
             new_content = (
@@ -207,14 +239,11 @@ def generate():
         return jsonify({"ok": False, "errors": errors}), 400
 
     # ── Initializer CSVs ──────────────────────────────────────────────────────
-    INIT_DIR.mkdir(exist_ok=True)
     for csv_name, rows in initializers.items():
         schema = INITIALIZER_SCHEMAS.get(csv_name)
-        if not schema:
+        if not schema or not rows:
             continue
-        if not rows:
-            continue
-        out_path = INIT_DIR / csv_name
+        out_path = out_init_dir / csv_name
         with out_path.open("w", newline="", encoding="utf-8") as fh:
             writer = csv_mod.DictWriter(fh, fieldnames=schema, extrasaction="ignore")
             writer.writeheader()
@@ -222,12 +251,20 @@ def generate():
         gen_files.append(str(out_path.relative_to(BASE_DIR)))
 
     # ── .mas2j ────────────────────────────────────────────────────────────────
-    mas2j = _build_mas2j(mas_name, env_class, agent_lines)
-    mas2j_out = BASE_DIR / f"{mas_name}.mas2j"
+    # The aslSourcePath inside the .mas2j points to the agt/ sub-folder so the
+    # simulation can be launched from within the output folder directly.
+    mas2j = _build_mas2j(mas_name, ENV_CLASS, agent_lines, asl_source_path="./agt")
+    mas2j_out = out_dir / f"{mas_name}.mas2j"
     mas2j_out.write_text(mas2j)
     gen_files.append(str(mas2j_out.relative_to(BASE_DIR)))
 
-    return jsonify({"ok": True, "generated_files": gen_files, "mas2j": mas2j})
+    return jsonify({
+        "ok": True,
+        "generated_files": gen_files,
+        "output_folder": output_folder,
+        "mas_name": mas_name,
+        "mas2j": mas2j,
+    })
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -252,12 +289,6 @@ def _build_network_fact_block(
     follows_map: dict[str, set],
     followed_by_map: dict[str, set],
 ) -> str:
-    """
-    Returns AgentSpeak belief lines for the social network relationships
-    of the given agent:
-        follows("other_agent").
-        followedBy("other_agent").
-    """
     lines = []
     for target in sorted(follows_map.get(agent_name, [])):
         escaped = target.replace('"', '\\"')
@@ -275,7 +306,12 @@ def _is_number(s: str) -> bool:
     except ValueError:
         return False
 
-def _build_mas2j(mas_name: str, env_class: str, agent_lines: list[str]) -> str:
+def _build_mas2j(
+    mas_name: str,
+    env_class: str,
+    agent_lines: list[str],
+    asl_source_path: str = "./agt",
+) -> str:
     block = "\n".join(agent_lines)
     return (
         f"/*\n    {mas_name}\n    ---------------------------\n"
@@ -284,7 +320,7 @@ def _build_mas2j(mas_name: str, env_class: str, agent_lines: list[str]) -> str:
         f"MAS {mas_name} {{\n"
         f"    environment: {env_class}\n\n"
         f"    agents:\n{block}\n\n"
-        f"    aslSourcePath: \"./agt\";\n}}\n"
+        f"    aslSourcePath: \"{asl_source_path}\";\n}}\n"
     )
 
 
