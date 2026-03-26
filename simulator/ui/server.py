@@ -175,7 +175,7 @@ def generate():
                 + original_content
             ) if combined_block else original_content
 
-            out_path.write_text(new_content)
+            out_path.write_text(new_content, encoding="utf-8")
             gen_files.append(str(out_path.relative_to(BASE_DIR)))
 
             clauses = []
@@ -202,7 +202,7 @@ def generate():
     # ── .mas2j ────────────────────────────────────────────────────────────────
     mas2j     = _build_mas2j(mas_name, ENV_CLASS, agent_lines, asl_source_path="./agt")
     mas2j_out = out_dir / f"{mas_name}.mas2j"
-    mas2j_out.write_text(mas2j)
+    mas2j_out.write_text(mas2j, encoding="utf-8")
     gen_files.append(str(mas2j_out.relative_to(BASE_DIR)))
 
     return jsonify({
@@ -223,12 +223,72 @@ def _build_fact_block(instance: dict) -> str:
         value = (value or "").strip()
         if not attr or not value:
             continue
-        if _is_number(value):
-            lines.append(f"{attr}({value}).")
-        else:
-            lines.append(f'{attr}("{value.replace(chr(34), chr(92)+chr(34))}").')
+        # Strip the ":label" suffix — allows multiple columns with the same functor
+        # e.g. "debate:1" and "debate:2" both emit debate(...).
+        functor = attr.split(":")[0].strip()
+        if not functor:
+            continue
+        args = _parse_fact_args(value)
+        rendered = ", ".join(_render_arg(a) for a in args)
+        lines.append(f"{functor}({rendered}).")
     return "\n".join(lines) + ("\n" if lines else "")
 
+
+def _parse_fact_args(value: str) -> list[str]:
+    """
+    Split a cell value into fact arguments, respecting quoted strings.
+    '0, kialo0, "some text, here", 65'  →  ['0', 'kialo0', '"some text, here"', '65']
+    A plain single value is returned as a one-element list.
+    """
+    args, current, in_quotes, quote_char = [], [], False, None
+    i = 0
+    while i < len(value):
+        ch = value[i]
+        if in_quotes:
+            current.append(ch)
+            if ch == '\\' and i + 1 < len(value):
+                i += 1
+                current.append(value[i])
+            elif ch == quote_char:
+                in_quotes = False
+        else:
+            if ch in ('"', "'"):
+                in_quotes, quote_char = True, ch
+                current.append(ch)
+            elif ch == ',':
+                args.append(''.join(current).strip())
+                current = []
+            else:
+                current.append(ch)
+        i += 1
+    last = ''.join(current).strip()
+    if last:
+        args.append(last)
+    return args if args else [value.strip()]
+
+
+def _render_arg(arg: str) -> str:
+    """
+    Render one parsed argument for a Jason belief literal.
+    - Quoted strings  → double-quoted, internal quotes escaped.
+    - Numbers         → as-is.
+    - Valid atoms/vars (letters/digits/underscore) → as-is.
+    - Anything else   → double-quoted.
+    """
+    arg = arg.strip()
+    if not arg:
+        return '""'
+    if arg.startswith('"') and arg.endswith('"') and len(arg) >= 2:
+        inner = arg[1:-1].replace('\\"', '"')
+        return '"' + inner.replace('"', '\\"') + '"'
+    if arg.startswith("'") and arg.endswith("'") and len(arg) >= 2:
+        inner = arg[1:-1].replace("\\'", "'")
+        return '"' + inner.replace('"', '\\"') + '"'
+    if _is_number(arg):
+        return arg
+    if re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', arg):
+        return arg
+    return '"' + arg.replace('"', '\\"') + '"'
 
 def _build_network_fact_block(
     agent_name: str,
