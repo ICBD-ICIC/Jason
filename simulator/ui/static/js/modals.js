@@ -72,6 +72,10 @@ function showOutputModal(data) {
     .map(f => `<div class="file-chip">✓  ${f}</div>`)
     .join('');
 
+  let gradleCmd = 'gradle clean run';
+  if (data.output_folder) gradleCmd += ` -PgeneratedFolder=${esc(data.output_folder)}`;
+  if (data.mas_name)    gradleCmd += ` -PmasFile=kialo/${esc(data.mas_name)}.mas2j`;
+
   document.getElementById('out-modal-body').innerHTML = `
     <div class="ok-banner">✅&nbsp;
       <div>
@@ -80,7 +84,7 @@ function showOutputModal(data) {
           Output folder: <code>${esc(data.output_folder || '')}</code>
         </span><br>
         <span style="color:var(--muted);font-size:.8rem">
-          Run: <code>./gradlew run -PmasFile=${esc(data.output_folder || '')}/${esc(data.mas_name || 'simulation_configured')}.mas2j</code>
+          Run: <code>${gradleCmd}</code>
         </span>
       </div>
     </div>

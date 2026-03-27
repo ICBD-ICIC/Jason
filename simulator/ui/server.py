@@ -129,6 +129,14 @@ def generate():
     out_agt_dir.mkdir(parents=True, exist_ok=True)
     out_init_dir.mkdir(parents=True, exist_ok=True)
 
+    # ── Copy logging.properties into the output folder ────────────────────────
+    logging_src = BASE_DIR / "logging.properties"
+    if logging_src.exists():
+        logging_dst = out_dir / "logging.properties"
+        logging_dst.write_text(logging_src.read_text(encoding="utf-8"), encoding="utf-8")
+        gen_files.append(str(logging_dst.relative_to(BASE_DIR)))
+
+
     # ── Build network relationship maps from network.csv edges ────────────────
     network_edges   = initializers.get("network.csv", [])
     follows_map:    dict[str, set] = {}
