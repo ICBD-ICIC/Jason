@@ -1,18 +1,18 @@
 //debate(id, author, text, parent_id, votes, relation).
 
-/* Initial goals */
+/* ===== Initial goal ===== */
 !start_debate.
 
-/* Plans */
-+!start_debate : true <-
-    +current_turn(0).
++!start_debate <-
+    !next_turn(1).
 
-+current_turn(ID) : 
-    debate(ID, Agent, Text, ParentID, Votes, Relation) 
-<-
-    .send(Agent, tell, your_turn(Text, ParentID, Votes, Relation)).
++!next_turn(ID) : debate(ID, Agent, Text, ParentID, Votes, Relation) <-
+    .print("TURN ", ID, " -> sending to ", Agent);
+    .send(Agent, tell, your_turn(ID, Text, ParentID, Votes, Relation)).
 
-+done(Agent) : 
-    current_turn(ID)
-<-                 
-    -+current_turn(ID+1).
++!next_turn(ID) : not debate(ID, _, _, _, _, _) <-
+    .print("Debate finished at turn ", ID).
+
++next(ID) <-
+    NewID = ID + 1;
+    !next_turn(NewID).

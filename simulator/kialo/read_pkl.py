@@ -25,7 +25,7 @@ raw_succ  = data.__dict__.get('succ', {})  # succ[node] = {parent_id: {weight:..
 sorted_nodes = sorted(raw_nodes.items(), key=lambda x: x[1].get('created', ''))
 
 # 3. Build node -> index map
-node_to_index = {node_id: i for i, (node_id, _) in enumerate(sorted_nodes)}
+node_to_index = {node_id: i for i, (node_id, _) in enumerate(sorted_nodes, start=1)}
 
 # 4. Build author -> kialo_N map
 author_map = {}
@@ -59,7 +59,7 @@ for node_id, attrs in sorted_nodes:
     else:
         parent_index = ''  # root node
 
-    rows[col_name] = f'{author},{text},{parent_index},"{votes}",{relation}'
+    rows[col_name] = f'{idx},{author},{text},{parent_index},"{votes}",{relation}'
 
 # 6. Determine output path with debate_ prefix and .csv extension
 output_path = os.path.join(

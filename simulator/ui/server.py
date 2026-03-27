@@ -3,11 +3,12 @@ Simulation Configurator - Flask Backend
 Run from the simulator/ directory: python ui/server.py
 """
 
-import csv as csv_mod
+import csv
 import io
 import re
 from pathlib import Path
 from flask import Flask, request, jsonify, render_template
+from io import StringIO
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 
@@ -85,7 +86,7 @@ def parse_csv():
     if not f:
         return jsonify({"error": "No file uploaded"}), 400
     text   = f.read().decode("utf-8-sig")
-    reader = csv_mod.DictReader(io.StringIO(text))
+    reader = csv.DictReader(io.StringIO(text))
     rows    = [{k.strip(): (v or "").strip() for k, v in row.items()} for row in reader]
     columns = [c.strip() for c in (reader.fieldnames or [])]
     return jsonify({"rows": rows, "columns": columns})
@@ -99,7 +100,7 @@ def parse_initializer_csv():
         return jsonify({"error": "No file uploaded"}), 400
     schema = INITIALIZER_SCHEMAS.get(name, [])
     text   = f.read().decode("utf-8-sig")
-    reader = csv_mod.DictReader(io.StringIO(text))
+    reader = csv.DictReader(io.StringIO(text))
     rows   = []
     for row in reader:
         clean = {k.strip(): (v or "").strip() for k, v in row.items()}
@@ -140,6 +141,15 @@ def generate():
             follows_map.setdefault(frm, set()).add(to)
             followed_by_map.setdefault(to, set()).add(frm)
 
+    # ── Pre-count instances per stem (to decide whether to suffix with _N) ────
+    stem_totals: dict[str, int] = {}
+    for atype in agent_types:
+        asl_src = atype.get("asl", "")
+        if not asl_src:
+            continue
+        stem = Path(asl_src).stem
+        stem_totals[stem] = stem_totals.get(stem, 0) + len(atype.get("instances", []))
+
     # ── Agent .asl files ──────────────────────────────────────────────────────
     for tidx, atype in enumerate(agent_types):
         asl_src   = atype.get("asl", "")
@@ -161,7 +171,12 @@ def generate():
 
         for inst in instances:
             stem_counter[stem] = stem_counter.get(stem, 0) + 1
-            out_stem = f"{stem}_{stem_counter[stem]}"
+            # Only append _N if there are multiple instances of this type
+            if stem_totals.get(stem, 1) == 1:
+                out_stem = stem
+            else:
+                out_stem = f"{stem}_{stem_counter[stem]}"
+
             out_path = out_agt_dir / f"{out_stem}.asl"
 
             fact_block    = _build_fact_block(inst)
@@ -194,7 +209,7 @@ def generate():
             continue
         out_path = out_init_dir / csv_name
         with out_path.open("w", newline="", encoding="utf-8") as fh:
-            writer = csv_mod.DictWriter(fh, fieldnames=schema, extrasaction="ignore")
+            writer = csv.DictWriter(fh, fieldnames=schema, extrasaction="ignore")
             writer.writeheader()
             writer.writerows(rows)
         gen_files.append(str(out_path.relative_to(BASE_DIR)))
@@ -236,59 +251,43 @@ def _build_fact_block(instance: dict) -> str:
 
 def _parse_fact_args(value: str) -> list[str]:
     """
-    Split a cell value into fact arguments, respecting quoted strings.
-    '0, kialo0, "some text, here", 65'  →  ['0', 'kialo0', '"some text, here"', '65']
-    A plain single value is returned as a one-element list.
+    Robust CSV-style parser that respects quoted strings.
     """
-    args, current, in_quotes, quote_char = [], [], False, None
-    i = 0
-    while i < len(value):
-        ch = value[i]
-        if in_quotes:
-            current.append(ch)
-            if ch == '\\' and i + 1 < len(value):
-                i += 1
-                current.append(value[i])
-            elif ch == quote_char:
-                in_quotes = False
-        else:
-            if ch in ('"', "'"):
-                in_quotes, quote_char = True, ch
-                current.append(ch)
-            elif ch == ',':
-                args.append(''.join(current).strip())
-                current = []
-            else:
-                current.append(ch)
-        i += 1
-    last = ''.join(current).strip()
-    if last:
-        args.append(last)
-    return args if args else [value.strip()]
+    reader = csv.reader(StringIO(value), skipinitialspace=True)
+    return next(reader)
 
 
 def _render_arg(arg: str) -> str:
     """
     Render one parsed argument for a Jason belief literal.
-    - Quoted strings  → double-quoted, internal quotes escaped.
-    - Numbers         → as-is.
-    - Valid atoms/vars (letters/digits/underscore) → as-is.
-    - Anything else   → double-quoted.
+    Rules:
+    - Numbers                 → as-is
+    - Valid atoms/vars        → as-is
+    - Strings (including CSV-quoted) → double-quoted, internal quotes escaped
+    - Lists / dict-like text  → double-quoted
     """
     arg = arg.strip()
     if not arg:
         return '""'
-    if arg.startswith('"') and arg.endswith('"') and len(arg) >= 2:
-        inner = arg[1:-1].replace('\\"', '"')
-        return '"' + inner.replace('"', '\\"') + '"'
-    if arg.startswith("'") and arg.endswith("'") and len(arg) >= 2:
-        inner = arg[1:-1].replace("\\'", "'")
-        return '"' + inner.replace('"', '\\"') + '"'
+    # Already quoted strings from CSV
+    if (arg.startswith('"') and arg.endswith('"')) or (arg.startswith("'") and arg.endswith("'")):
+        inner = arg[1:-1]
+        inner = inner.replace('"', '\\"')  # escape double quotes
+        return f'"{inner}"'
+    # Numbers
     if _is_number(arg):
         return arg
+    # Atoms / variable names (letters, digits, underscore)
     if re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', arg):
         return arg
-    return '"' + arg.replace('"', '\\"') + '"'
+    # Structured literals (arrays / dict-like strings)
+    if arg.startswith("[") and arg.endswith("]"):
+        return f'"{arg}"'
+    if arg.startswith("{") and arg.endswith("}"):
+        return f'"{arg}"'
+    # Fallback: quote anything else and escape internal quotes
+    inner_escaped = arg.replace('"', r'\"')
+    return f'"{inner_escaped}"'
 
 def _build_network_fact_block(
     agent_name: str,

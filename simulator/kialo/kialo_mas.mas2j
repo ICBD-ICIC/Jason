@@ -9,58 +9,11 @@ MAS kialo_mas {
     environment: env.Env
 
     agents:
-        kialo_1;
-        kialo_2;
-        kialo_3;
-        kialo_4;
-        kialo_5;
-        kialo_6;
-        kialo_7;
-        kialo_8;
-        kialo_9;
-        kialo_10;
-        kialo_11;
-        kialo_12;
-        kialo_13;
-        kialo_14;
-        kialo_15;
-        kialo_16;
-        kialo_17;
-        kialo_18;
-        kialo_19;
-        kialo_20;
-        kialo_21;
-        kialo_22;
-        kialo_23;
-        kialo_24;
-        kialo_25;
-        kialo_26;
-        kialo_27;
-        kialo_28;
-        kialo_29;
-        kialo_30;
-        kialo_31;
-        kialo_32;
-        kialo_33;
-        kialo_34;
-        kialo_35;
-        kialo_36;
-        kialo_37;
-        kialo_38;
-        kialo_39;
-        kialo_40;
-        kialo_41;
-        kialo_42;
-        kialo_43;
-        kialo_44;
-        kialo_45;
-        kialo_46;
-        kialo_47;
-        kialo_48;
-        kialo_49;
-        kialo_50;
-        kialo_51;
-        kialo_orchestrator_1;
+        kialo_orchestrator;
+        kialo_1
+            agentArchClass arch.GeminiAgArch;
+        kialo_2
+            agentArchClass arch.GeminiAgArch;
 
     aslSourcePath: "./agt";
 }
