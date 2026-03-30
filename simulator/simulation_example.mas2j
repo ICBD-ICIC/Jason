@@ -12,6 +12,8 @@
 MAS simulation_example {
     environment: env.Env
 
+    executionControl: jason.control.ExecutionControlGUI
+
     agents: social_agent 
                 agentArchClass arch.GeminiAgArch;    
             dummy;

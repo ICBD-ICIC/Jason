@@ -62,7 +62,7 @@ task run (type: JavaExec, dependsOn: 'classes') {
     args        = [masFileName]           // just the filename — workDir is now the CWD
     
     // MAS expects workingDir to be the folder containing .mas2j
-    workingDir  = file("${projectDir}/kialo")  
+    workingDir  = file(workDir)
 
     classpath   = sourceSets.main.runtimeClasspath
 
