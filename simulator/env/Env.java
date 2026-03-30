@@ -10,21 +10,13 @@ import lib.JasonToJavaTranslator;
 import initializer.MessageLoader;
 import initializer.NetworkLoader;
 import initializer.PublicProfileLoader;
-import visualization.Visualizer;
-import visualization.NoOpVisualizer;
-import visualization.KialoTreeVisualizer; 
+
 public class Env extends Environment {
 
     private final NetworkManager networkManager = new NetworkManager();
     private final ContentManager contentManager = new DefaultContentManager(networkManager);
     private final KnowledgeManager knowledgeManager = new DefaultKnowledgeManager();
     private final Map<String, Map<String, String>> publicProfiles = new HashMap<>();
-
-    // TODO: setup this on the generator
-    // ── Swap this line to change the active visualizer ──────────────────
-    //private final Visualizer visualizer = new NoOpVisualizer();
-    private final Visualizer visualizer = new KialoTreeVisualizer(contentManager);
-    // ────────────────────────────────────────────────────────────────────
 
     @Override
     public void init(String[] args) {
@@ -35,13 +27,6 @@ public class Env extends Environment {
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize: " + e.getMessage(), e);
         }
-        visualizer.start();
-    }
-
-    @Override
-    public void stop() {
-        visualizer.stop();
-        super.stop();
     }
 
     @Override
@@ -60,12 +45,6 @@ public class Env extends Environment {
             case "readPublicProfile" -> readPublicProfile(agent, action);
             default -> { System.out.println("Unknown action: " + action); yield true; }
         };
-
-        // Notify visualizer after any state-changing action
-        switch (action.getFunctor()) {
-            case "createPost", "repost", "comment", "react" -> visualizer.onUpdate();
-        }
-
         return result;
     }
 

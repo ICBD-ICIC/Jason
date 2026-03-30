@@ -33,14 +33,4 @@ public class DefaultContentManager extends ContentManager {
                         return message.author.equals(author);
                     }).toList();
     }
-
-    @Override
-    public List<VisualMessage> getAllMessages() {
-        return filteredContent.values().stream()
-                .map(message -> {
-                    MessageCreationParams params = content.get(message.id);
-                    return new VisualMessage(message, params);
-                })
-                .toList();
-    }
 }

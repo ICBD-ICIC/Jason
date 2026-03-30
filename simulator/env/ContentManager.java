@@ -28,7 +28,6 @@ public abstract class ContentManager{
     public abstract List<Message> feedFilter(String agent);
     public abstract List<Message> topicFilter(String agent, String concept);
     public abstract List<Message> authorFilter(String agent, String author);
-    public abstract List<VisualMessage> getAllMessages();
 
     public int addMessage(String agent, String messageContent, List<String> topics, Map<String, Object> variables){
         return addMessage(agent, messageContent, topics, variables, Message.EMPTY_REFERENCE);
