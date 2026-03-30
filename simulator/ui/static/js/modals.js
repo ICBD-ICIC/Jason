@@ -51,7 +51,7 @@ function showOutputModal(data) {
   const files = (data.generated_files || []).map(f => `<div class="file-chip">✓ ${esc(f)}</div>`).join('');
   let cmd = 'gradle clean run';
   if (data.output_folder) cmd += ` -PgeneratedFolder=${esc(data.output_folder)}`;
-  if (data.mas_name)      cmd += ` -PmasFile=kialo/${esc(data.mas_name)}.mas2j`;
+  if (data.mas_name)      cmd += ` -PmasFile=${esc(data.mas_name)}.mas2j`;
 
   setHtml('#out-modal-body', `
     <div class="ok-banner">
