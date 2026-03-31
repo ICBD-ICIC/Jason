@@ -8,33 +8,12 @@
 MAS kialo_mas {
     environment: env.Env
 
-    //executionControl: jason.control.ExecutionControlGUI
+    executionControl: jason.control.ExecutionControlGUI
 
     agents:
-        kialo_orchestrator;
         kialo_1;
         kialo_2;
-        kialo_3;
-        kialo_4;
-        kialo_5;
-        kialo_6;
-        kialo_7;
-        kialo_8;
-        kialo_9;
-        kialo_10;
-        kialo_11;
-        kialo_12;
-        kialo_13;
-        kialo_14;
-        kialo_15;
-        kialo_16;
-        kialo_17;
-        kialo_18;
-        kialo_19;
-        kialo_20;
-        kialo_21;
-        kialo_22;
-        kialo_23;
+        kialo_orchestrator;
 
     aslSourcePath: "./agt";
 }
