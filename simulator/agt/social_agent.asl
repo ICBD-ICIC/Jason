@@ -1,22 +1,31 @@
 /* ==========================================================
-   Available Environment Actions
-   
+    Available Environment Actions
+
     updateFeed
+    updateFeed(+IncludePublicVars)
+        IncludePublicVars: boolean (optional, default false)
         Percepts added: message(+Id, +Author, +Content, +Original, +Timestamp)
                         reaction(+Id, +Author, +Reaction)
                         feed_order(+Ids)
+                        message_var(+Id, +Key, +Value)  [only if IncludePublicVars = true]
 
     searchContent(+Topic)
+    searchContent(+Topic, +IncludePublicVars)
         Topic: string/atom
+        IncludePublicVars: boolean (optional, default false)
         Percepts added: message(+Id, +Author, +Content, +Original, +Timestamp)
                         reaction(+Id, +Author, +Reaction)
                         feed_order(+Ids)
+                        message_var(+Id, +Key, +Value)  [only if IncludePublicVars = true]
 
     searchAuthor(+Author)
+    searchAuthor(+Author, +IncludePublicVars)
         Author: string/atom
+        IncludePublicVars: boolean (optional, default false)
         Percepts added: message(+Id, +Author, +Content, +Original, +Timestamp)
                         reaction(+Id, +Author, +Reaction)
                         feed_order(+Ids)
+                        message_var(+Id, +Key, +Value)  [only if IncludePublicVars = true]
 
     createPost(+Topics, +Variables, +Content)
         Topics: list of strings/atoms, e.g. [tech, news, "floods"]

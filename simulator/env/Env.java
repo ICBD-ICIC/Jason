@@ -32,7 +32,7 @@ public class Env extends Environment {
     @Override
     public boolean executeAction(String agent, Structure action) {
         boolean result = switch (action.getFunctor()) {
-            case "updateFeed"      -> updateFeed(agent);
+            case "updateFeed"      -> updateFeed(agent, action);
             case "searchContent"   -> searchContent(agent, action);
             case "searchAuthor"    -> searchAuthor(agent, action);
             case "createPost"      -> createPost(agent, action);
@@ -48,30 +48,37 @@ public class Env extends Environment {
         return result;
     }
 
-    private boolean updateFeed(String agent) {
-        List<Message> feed = contentManager.feedFilter(agent);
-        updatePercepts(agent, feed);
+    private boolean updateFeed(String agent, Structure action) {
+        boolean includePublicVars = action.getArity() >= 1
+            && JasonToJavaTranslator.translateBoolean(action.getTerm(0));
+        List<MessageWithVars> feed = contentManager.feedFilter(agent, includePublicVars);
+        updatePercepts(agent, feed, includePublicVars);
         return true;
     }
 
     private boolean searchContent(String agent, Structure action) {
         String concept = JasonToJavaTranslator.translateString(action.getTerm(0));
-        List<Message> feed = contentManager.topicFilter(agent, concept);
-        updatePercepts(agent, feed);
+        boolean includePublicVars = action.getArity() >= 2
+            && JasonToJavaTranslator.translateBoolean(action.getTerm(1));
+        List<MessageWithVars> feed = contentManager.topicFilter(agent, concept, includePublicVars);
+        updatePercepts(agent, feed, includePublicVars);
         return true;
     }
 
     private boolean searchAuthor(String agent, Structure action) {
         String author = JasonToJavaTranslator.translateString(action.getTerm(0));
-        List<Message> feed = contentManager.authorFilter(agent, author);
-        updatePercepts(agent, feed);
+        boolean includePublicVars = action.getArity() >= 2
+            && JasonToJavaTranslator.translateBoolean(action.getTerm(1));
+        List<MessageWithVars> feed = contentManager.authorFilter(agent, author, includePublicVars);
+        updatePercepts(agent, feed, includePublicVars);
         return true;
     }
 
-    private void updatePercepts(String agent, List<Message> messages) {
+    private void updatePercepts(String agent, List<MessageWithVars> messages, boolean includePublicVars) {
         clearPercepts(agent);
 
-        messages.forEach(m -> {
+        messages.forEach(mwv -> {
+            Message m = mwv.message();
             addPercept(agent, createLiteral("message",
                 createNumber(m.id),
                 createString(m.author),
@@ -84,10 +91,19 @@ public class Env extends Environment {
                 createString(r.author()),
                 createString(r.reaction())
             )));
+            if (includePublicVars) {
+                mwv.publicVars().forEach((key, value) ->
+                    addPercept(agent, createLiteral("message_var",
+                        createNumber(m.id),
+                        createString(key),
+                        createString(String.valueOf(value))
+                    ))
+                );
+            }
         });
 
         List<Term> ids = messages.stream()
-            .map(m -> (Term) createNumber(m.id))
+            .map(mwv -> (Term) createNumber(mwv.message().id))
             .toList();
         addPercept(agent, createLiteral("feed_order", createList(ids)));
     }

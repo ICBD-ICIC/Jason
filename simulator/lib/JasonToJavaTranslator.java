@@ -225,4 +225,28 @@ public final class JasonToJavaTranslator {
             "Values must be lists, numbers, atoms, strings, vars or nested values. Found: " + t
         );
     }
+
+    /**
+     * Translates a Jason term into a Java boolean.
+     *
+     * <p>Accepted inputs:
+     * <ul>
+     *   <li>Atom("true") → true</li>
+     *   <li>Atom("false") → false</li>
+     * </ul>
+     *
+     * @param t the Jason term to translate
+     * @return the corresponding Java boolean
+     * @throws IllegalArgumentException if the term is not a boolean atom
+     */
+    public static boolean translateBoolean(Term t) {
+        if (t instanceof Atom a && a.getArity() == 0) {
+            String functor = a.getFunctor().toLowerCase();
+            if (functor.equals("true")) return true;
+            if (functor.equals("false")) return false;
+        }
+        throw new IllegalArgumentException(
+            "Expected a Jason boolean term (true/false) but got " + t
+        );
+    }
 }
