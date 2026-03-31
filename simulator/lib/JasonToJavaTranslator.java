@@ -138,6 +138,13 @@ public final class JasonToJavaTranslator {
         if (t instanceof Atom a && a.getArity() == 0) {
             return a.getFunctor();
         }
+        if (t instanceof NumberTerm n) {
+            try {
+                return String.valueOf(n.solve());
+            } catch (Exception e) {
+                return t.toString();
+            }
+        }
         throw new IllegalArgumentException("Expected a Jason string term but got " + t.getClass().getSimpleName());
     }
 

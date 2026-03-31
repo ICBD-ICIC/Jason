@@ -5,6 +5,7 @@ Run from the simulator/ directory: python ui/server.py
 
 import csv
 import io
+import json
 import re
 from pathlib import Path
 from flask import Flask, request, jsonify, render_template
@@ -236,6 +237,58 @@ def generate():
         "mas2j":           mas2j,
     })
 
+# ── Visualisation ─────────────────────────────────────────────────────────────
+
+@app.route("/<path:folder>")
+def visualize(folder: str):
+    """
+    Serve the argument-tree visualisation for a simulation output folder.
+
+    URL:   http://localhost:5050/<folder>
+    Reads: simulator/<folder>/logs/messages.jsonl
+
+    Each JSONL line is expected to have the shape:
+        {
+          "message": {
+            "id": <int>,
+            "author": <str>,
+            "content": <str>,
+            "original": <int | null>,   # parent message id
+            "timestamp": <int>,
+            "reactions": [...]
+          },
+          "topics": [...],
+          "variables": {
+            "relation": <0 | 1 | -1>,   # 0=root, 1=pro, -1=con
+            ...                          # any extra per-scenario vars
+          }
+        }
+    """
+    # Sanitise the folder path so it cannot escape BASE_DIR
+    safe_folder = _safe_folder_name(folder)
+    log_path    = BASE_DIR / safe_folder / "logs" / "messages.jsonl"
+
+    messages = []
+    error    = None
+
+    if not log_path.exists():
+        error = f"Log file not found: {log_path.relative_to(BASE_DIR)}"
+    else:
+        try:
+            for line in log_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line:
+                    messages.append(json.loads(line))
+        except Exception as exc:
+            error = f"Failed to parse log file: {exc}"
+
+    return render_template(
+        "viz.html",
+        folder       = safe_folder,
+        folder_json  = json.dumps(safe_folder),
+        messages_json= json.dumps(messages),
+        error        = error,
+    )
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
