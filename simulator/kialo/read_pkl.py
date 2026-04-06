@@ -2,7 +2,7 @@ import pickle
 import csv
 import os
 
-file_path = 'datasets/15876.pkl'  
+file_path = 'datasets/333.pkl'  
 
 class CompatUnpickler(pickle.Unpickler):
     def find_class(self, module, name):
@@ -27,13 +27,13 @@ sorted_nodes = sorted(raw_nodes.items(), key=lambda x: x[1].get('created', ''))
 # 3. Build node -> index map
 node_to_index = {node_id: i for i, (node_id, _) in enumerate(sorted_nodes, start=1)}
 
-# 4. Build author -> kialo_N map
+# 4. Build author -> kialo_replicator_N map
 author_map = {}
 author_counter = 1
 for _, attrs in sorted_nodes:
     author = attrs.get('author', '')
     if author and author not in author_map:
-        author_map[author] = f'kialo_{author_counter}'
+        author_map[author] = f'kialo_replicator_{author_counter}'
         author_counter += 1
 
 # 5. Build CSV rows

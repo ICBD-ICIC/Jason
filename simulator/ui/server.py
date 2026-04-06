@@ -241,14 +241,59 @@ def generate():
         "mas2j":           mas2j,
     })
 
-# ── Visualisation ─────────────────────────────────────────────────────────────
+# ── Visualisations ─────────────────────────────────────────────────────────────
 
-@app.route("/<path:folder>")
+@app.route("/<path:folder>/agts")
+def visualize_agts(folder: str):
+    """
+    Serve the per-agent metrics visualisation.
+    URL:   http://localhost:5050/<folder>/agts
+    Reads: simulator/<folder>/logs/<agent>.jsonl  (one per agent)
+
+    Each JSONL line shape (produced by save_logs.java):
+        { "timestamp": <long_ms>, <var>: <value>, ... }
+    """
+    safe_folder = _safe_folder_name(folder)
+    logs_dir    = BASE_DIR / safe_folder / "logs"
+
+    agents_data: dict[str, list] = {}
+    error = None
+
+    if not logs_dir.exists():
+        error = f"Logs directory not found: {logs_dir.relative_to(BASE_DIR)}"
+    else:
+        for jsonl_file in sorted(logs_dir.glob("*.jsonl")):
+            # skip the combined messages log used by arg_tree
+            if jsonl_file.stem == "messages":
+                continue
+            agent_name = jsonl_file.stem
+            rows: list[dict] = []
+            try:
+                for line in jsonl_file.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if line:
+                        rows.append(json.loads(line))
+            except Exception as exc:
+                error = f"Failed to parse {jsonl_file.name}: {exc}"
+                break
+            if rows:
+                agents_data[agent_name] = rows
+
+    return render_template(
+        "agts.html",
+        folder      = safe_folder,
+        folder_json = json.dumps(safe_folder),
+        agents_json = json.dumps(agents_data),
+        error       = error,
+    )
+
+
+@app.route("/<path:folder>/arg_tree")
 def visualize(folder: str):
     """
     Serve the argument-tree visualisation for a simulation output folder.
 
-    URL:   http://localhost:5050/<folder>
+    URL:   http://localhost:5050/<folder>/arg_tree
     Reads: simulator/<folder>/logs/messages.jsonl
 
     Each JSONL line is expected to have the shape:
@@ -287,7 +332,7 @@ def visualize(folder: str):
             error = f"Failed to parse log file: {exc}"
 
     return render_template(
-        "viz.html",
+        "arg_tree.html",
         folder       = safe_folder,
         folder_json  = json.dumps(safe_folder),
         messages_json= json.dumps(messages),
