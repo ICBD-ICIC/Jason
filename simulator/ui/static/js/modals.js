@@ -28,10 +28,11 @@ async function generate() {
   );
 
   const payload = {
-    mas_name:      $('#mas-name').value.trim(),
-    output_folder: $('#output-folder').value.trim() || 'simulation_output',
-    agent_types:   types.map(({ asl, arch_class, bb_class, instances }) => ({ asl, arch_class, bb_class, instances })),
-    initializers:  initPayload,
+    mas_name:           $('#mas-name').value.trim(),
+    output_folder:      $('#output-folder').value.trim(),
+    mind_inspector:     $('#mind-inspector').checked,
+    agent_types:        types.map(({ asl, arch_class, bb_class, instances }) => ({ asl, arch_class, bb_class, instances })),
+    initializers:       initPayload,
   };
 
   try {
