@@ -2,7 +2,8 @@ import pickle
 import csv
 import os
 
-file_path = 'datasets/333.pkl'  
+file_path = 'datasets/2222.pkl'
+agent_name = 'kialo_replicator'  
 
 class CompatUnpickler(pickle.Unpickler):
     def find_class(self, module, name):
@@ -33,7 +34,7 @@ author_counter = 1
 for _, attrs in sorted_nodes:
     author = attrs.get('author', '')
     if author and author not in author_map:
-        author_map[author] = f'kialo_replicator_{author_counter}'
+        author_map[author] = f'{agent_name}_{author_counter}'
         author_counter += 1
 
 # 5. Build CSV rows
@@ -74,7 +75,7 @@ with open(output_path, 'w', newline='', encoding='utf-8') as f:
     writer.writerow(rows)
 
 print(f"Done. {len(rows)} nodes written to {os.path.basename(output_path)}")
-print(f"Authors mapped: {len(author_map)} unique -> kialo_0 .. kialo_{author_counter-1}")
+print(f"Authors mapped: {len(author_map)} unique -> {agent_name}_0 .. {agent_name}_{author_counter-1}")
 print("\nFirst 3 columns preview:")
 for col, val in list(rows.items())[:3]:
     print(f"  {col}: {val[:80]}")

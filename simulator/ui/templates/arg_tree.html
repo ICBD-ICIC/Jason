@@ -4,12 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ folder }} · Argument Tree</title>
-  <link rel="stylesheet" href="/static/css/sim.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
 
 <header class="hdr">
-  <span class="hdr-logo">SIM·VIZ</span>
+  <div class="logo">sim<span>/</span>visualizer</div>
   <div class="hdr-sep"></div>
   <span class="hdr-folder">{{ folder }}</span>
   <div class="hdr-spacer"></div>
