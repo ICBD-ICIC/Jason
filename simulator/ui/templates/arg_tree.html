@@ -230,6 +230,7 @@ function render() {
 
     const relCls = rel === 0 ? 'root' : rel === 1 ? 'pro' : 'con';
     const relLbl = rel === 0 ? 'ROOT' : rel === 1 ? '✦ PRO' : '✗ CON';
+    const isGenerated = !!m.variables?.generated;
 
     const ts = m.message.timestamp
       ? new Date(m.message.timestamp).toLocaleString([],
@@ -289,6 +290,7 @@ function render() {
       <div class="node-card ${relCls}" id="card-${id}">
         <div class="node-meta">
           <span class="badge ${relCls}">${relLbl}</span>
+          ${isGenerated ? `<span class="badge">GENERATED</span>` : ''}
           <span class="author">${esc(m.message.author)}</span>
           <span class="msg-id">#${id}</span>
           ${ts ? `<span class="ts">${esc(ts)}</span>` : ''}
