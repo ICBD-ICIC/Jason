@@ -181,6 +181,13 @@ header { grid-area: hd; padding: 0 24px; }
 .var-kv    { font-family: var(--mono); font-size: .74rem; }
 .var-k     { color: var(--muted); }
 .var-v     { color: var(--text); }
+.var-v-block {
+  display: block;
+  white-space: pre;
+  font-family: monospace;
+  font-size: 0.85em;
+  margin-top: 2px;
+}
 
 .children { position: relative; padding-left: 40px; margin-top: 5px; }
 .children::before {

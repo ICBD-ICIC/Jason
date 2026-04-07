@@ -1,14 +1,14 @@
-+your_turn(ID, Text, "", Votes, Relation) : true <-
++your_turn(ID, Text, "", Votes, Relation, RelationAbs) : true <-
     Topics = [];
-    Variables = [votes(Votes), public(relation(Relation)), relation(Relation)];
+    Variables = [votes(Votes), public(relation_abs(RelationAbs)), relation(Relation)];
     ia.save_logs(Variables);
     createPost(Topics, Variables, Text);
     .send(kialo_orchestrator, tell, next(ID)).
 
 
-+your_turn(ID, Text, ParentID, Votes, Relation) : true <-
++your_turn(ID, Text, ParentID, Votes, Relation, RelationAbs) : true <-
     Topics = [];
-    Variables = [votes(Votes), public(relation(Relation)), relation(Relation)];
+    Variables = [votes(Votes), public(relation_abs(RelationAbs)), relation(Relation)];
     ia.save_logs(Variables);
     comment(ParentID, Topics, Variables, Text);
     .send(kialo_orchestrator, tell, next(ID)).

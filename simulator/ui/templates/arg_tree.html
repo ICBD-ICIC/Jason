@@ -112,8 +112,13 @@ function renderNode(m) {
   const vars = m.variables
     ? Object.entries(m.variables)
         .filter(([k]) => k !== 'relation')
-        .map(([k,v]) =>
-          `<span class="var-kv"><span class="var-k">${esc(k)}: </span><span class="var-v">${esc(String(v))}</span></span>`)
+        .map(([k,v]) => {
+          const display = (v !== null && typeof v === 'object')
+            ? JSON.stringify(v, null, 2)
+            : String(v);
+          const isMultiline = display.includes('\n');
+          return `<span class="var-kv"><span class="var-k">${esc(k)}: </span><span class="var-v${isMultiline ? ' var-v-block' : ''}">${esc(display)}</span></span>`;
+        })
         .join('')
     : '';
   const hasVars = vars.length > 0;
