@@ -77,6 +77,22 @@ header { grid-area: hd; padding: 0 24px; }
 .cb:hover  { border-color: var(--accent); color: var(--accent); }
 .cb.active { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
 
+.tl-wrap { padding: 12px 28px 0; border-bottom: 1px solid var(--border2); background: var(--surface); user-select: none; }
+.tl-hist { display: flex; align-items: flex-end; gap: 2px; height: 48px; margin-bottom: 6px; }
+.tl-bar { flex: 1; border-radius: 2px 2px 0 0; min-height: 3px; transition: background 0.12s; }
+.tl-bar.in      { background: var(--accent); }
+.tl-bar.out     { background: var(--border); }
+.tl-bar.root-in { background: var(--accent2); }
+.tl-bar.root-out{ background: var(--border2); }
+.tl-slider-wrap { position: relative; height: 20px; margin: 0 0 4px; }
+.tl-track { position: absolute; top: 8px; left: 0; right: 0; height: 4px; background: var(--border); border-radius: 2px; }
+.tl-range { position: absolute; top: 8px; height: 4px; background: var(--accent); border-radius: 2px; pointer-events: none; }
+.tl-thumb { position: absolute; top: 50%; width: 14px; height: 14px; transform: translate(-50%, -50%); background: var(--text); border: 2px solid var(--accent); border-radius: 50%; cursor: ew-resize; transition: border-color .12s; }
+.tl-thumb:hover, .tl-thumb.dragging { border-color: var(--accent2); }
+.tl-labels { display: flex; justify-content: space-between; font-family: var(--mono); font-size: .65rem; color: var(--muted); padding-bottom: 8px; }
+.tl-info { font-family: var(--mono); font-size: .65rem; color: var(--muted); }
+.tl-info span { color: var(--accent); }
+
 .hdr-stats { display: flex; gap: 18px; }
 .stat {
   font-family: var(--mono); font-size: .75rem;
@@ -181,13 +197,6 @@ header { grid-area: hd; padding: 0 24px; }
 .var-kv    { font-family: var(--mono); font-size: .74rem; }
 .var-k     { color: var(--muted); }
 .var-v     { color: var(--text); }
-.var-v-block {
-  display: block;
-  white-space: pre;
-  font-family: monospace;
-  font-size: 0.85em;
-  margin-top: 2px;
-}
 
 .children { position: relative; padding-left: 40px; margin-top: 5px; }
 .children::before {

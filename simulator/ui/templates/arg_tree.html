@@ -31,6 +31,22 @@
   <button class="cb" onclick="collapseAll()">Collapse all</button>
 </div>
 
+<!-- Timeline block -->
+<div class="tl-wrap" id="tl">
+  <div class="tl-hist" id="tl-hist"></div>
+  <div class="tl-slider-wrap" id="tl-slider">
+    <div class="tl-track"></div>
+    <div class="tl-range" id="tl-range"></div>
+    <div class="tl-thumb" id="tl-lo" data-handle="lo"></div>
+    <div class="tl-thumb" id="tl-hi" data-handle="hi"></div>
+  </div>
+  <div class="tl-labels">
+    <span id="tl-lbl-lo">—</span>
+    <div class="tl-info">showing <span id="tl-count">0</span> of <span id="tl-total">0</span> messages</div>
+    <span id="tl-lbl-hi">—</span>
+  </div>
+</div>
+
 <main class="tree-main" id="tree-root">
   <div class="empty">Loading…</div>
 </main>
@@ -48,25 +64,121 @@ for (const m of MSGS) {
   kids[m.message.id] = kids[m.message.id] || [];
 }
 
-const roots = [];
-for (const m of MSGS) {
-  const rel = +(m.variables?.relation ?? 0);
-  if (rel === 0) {
-    roots.push(m);
-  } else {
-    const pid = m.message.original;
-    if (pid != null && byId[pid]) {
-      (kids[pid] = kids[pid] || []).push(m);
-    } else {
-      roots.push(m);
-    }
+// ── Timeline histogram ────────────────────────────────────────────────
+const TL_BINS = 30;
+const tlTimestamps = MSGS.map(m => m.message.timestamp).filter(Boolean).sort((a,b)=>a-b);
+let tlLoFrac = 0, tlHiFrac = 1;
+let tlActive = false; // becomes true once user drags
+
+(function initTimeline() {
+  if (!tlTimestamps.length) { document.getElementById('tl').style.display = 'none'; return; }
+
+  const tMin = tlTimestamps[0], tMax = tlTimestamps[tlTimestamps.length - 1];
+  const span = tMax - tMin || 1;
+
+  const bins = Array.from({length: TL_BINS}, () => ({total:0, root:0}));
+  for (const m of MSGS) {
+    const t = m.message.timestamp; if (!t) continue;
+    const bi = Math.min(TL_BINS - 1, Math.floor((t - tMin) / span * TL_BINS));
+    bins[bi].total++;
+    if (+(m.variables?.relation ?? 0) === 0) bins[bi].root++;
   }
+  const maxBin = Math.max(...bins.map(b => b.total), 1);
+
+  const histEl  = document.getElementById('tl-hist');
+  const rangeEl = document.getElementById('tl-range');
+  const loEl    = document.getElementById('tl-lo');
+  const hiEl    = document.getElementById('tl-hi');
+  const lblLo   = document.getElementById('tl-lbl-lo');
+  const lblHi   = document.getElementById('tl-lbl-hi');
+  const cntEl   = document.getElementById('tl-count');
+  document.getElementById('tl-total').textContent = tlTimestamps.length;
+
+  function timeFmt(t) {
+    return new Date(t).toLocaleString([], {month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit'});
+  }
+
+  histEl.innerHTML = bins.map((b, i) => {
+    const h = Math.max(3, Math.round((b.total / maxBin) * 44));
+    return `<div class="tl-bar out" data-i="${i}" style="height:${h}px"></div>`;
+  }).join('');
+  const barEls = histEl.querySelectorAll('.tl-bar');
+
+  function tlUpdate() {
+    const lo = tMin + tlLoFrac * span;
+    const hi = tMin + tlHiFrac * span;
+    loEl.style.left = (tlLoFrac * 100) + '%';
+    hiEl.style.left = (tlHiFrac * 100) + '%';
+    rangeEl.style.left  = (tlLoFrac * 100) + '%';
+    rangeEl.style.width = ((tlHiFrac - tlLoFrac) * 100) + '%';
+    lblLo.textContent = timeFmt(lo);
+    lblHi.textContent = timeFmt(hi);
+
+    barEls.forEach((el, i) => {
+      const f = (i + 0.5) / TL_BINS;
+      const inRange = f >= tlLoFrac && f <= tlHiFrac;
+      const isRoot  = bins[i].root > 0 && bins[i].total === bins[i].root;
+      el.className = 'tl-bar ' + (inRange ? (isRoot ? 'root-in' : 'in') : (isRoot ? 'root-out' : 'out'));
+    });
+
+    cntEl.textContent = MSGS.filter(m => {
+      const t = m.message.timestamp;
+      return t && t >= lo && t <= hi;
+    }).length;
+
+    if (tlActive) render();
+  }
+
+  function dragThumb(handle) {
+    return function(e) {
+      e.preventDefault();
+      tlActive = true;
+      const thumb = handle === 'lo' ? loEl : hiEl;
+      thumb.classList.add('dragging');
+      function onMove(ev) {
+        const rect = document.getElementById('tl-slider').getBoundingClientRect();
+        const x = (ev.touches?.[0] || ev).clientX;
+        let f = Math.max(0, Math.min(1, (x - rect.left) / rect.width));
+        if (handle === 'lo') tlLoFrac = Math.min(f, tlHiFrac - 0.01);
+        else                  tlHiFrac = Math.max(f, tlLoFrac + 0.01);
+        tlUpdate();
+      }
+      function onUp() {
+        thumb.classList.remove('dragging');
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup',   onUp);
+        window.removeEventListener('touchmove', onMove);
+        window.removeEventListener('touchend',  onUp);
+      }
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup',   onUp);
+      window.addEventListener('touchmove', onMove, {passive: false});
+      window.addEventListener('touchend',  onUp);
+    };
+  }
+
+  loEl.addEventListener('mousedown',  dragThumb('lo'));
+  hiEl.addEventListener('mousedown',  dragThumb('hi'));
+  loEl.addEventListener('touchstart', dragThumb('lo'), {passive: false});
+  hiEl.addEventListener('touchstart', dragThumb('hi'), {passive: false});
+
+  tlUpdate();
+})();
+
+// ── Helper: visible messages in timeline range ─────────────────────────
+function tlVisibleMsgs() {
+  if (!tlActive || !tlTimestamps.length) return MSGS;
+  const tMin = tlTimestamps[0], tMax = tlTimestamps[tlTimestamps.length - 1];
+  const span = tMax - tMin || 1;
+  const lo = tMin + tlLoFrac * span;
+  const hi = tMin + tlHiFrac * span;
+  return MSGS.filter(m => {
+    const t = m.message.timestamp;
+    return !t || (t >= lo && t <= hi);
+  });
 }
 
-const byTs = (a, b) => (a.message.timestamp || 0) - (b.message.timestamp || 0);
-roots.sort(byTs);
-for (const id in kids) kids[id].sort(byTs);
-
+// ── Tree rendering ────────────────────────────────────────────────────
 let collapsed = {};
 
 function esc(s) {
@@ -76,88 +188,128 @@ function esc(s) {
 
 function render() {
   const el = document.getElementById('tree-root');
-  if (!MSGS.length) {
+  const visibleMSGS = tlVisibleMsgs();
+  if (!visibleMSGS.length) {
     el.innerHTML = '<div class="empty">No messages in log.</div>';
     updateStats(); return;
   }
+
+  // Build roots/kids for visible messages
+  const vById = {}, vKids = {};
+  for (const m of visibleMSGS) {
+    vById[m.message.id] = m;
+    vKids[m.message.id] = [];
+  }
+
+  const roots = [];
+  for (const m of visibleMSGS) {
+    const rel = +(m.variables?.relation ?? 0);
+    if (rel === 0) {
+      roots.push(m);
+    } else {
+      const pid = m.message.original;
+      if (pid != null && vById[pid]) {
+        vKids[pid].push(m);
+      } else {
+        roots.push(m);
+      }
+    }
+  }
+
+  const byTs = (a, b) => (a.message.timestamp || 0) - (b.message.timestamp || 0);
+  roots.sort(byTs);
+  for (const id in vKids) vKids[id].sort(byTs);
+
+  currentKids = vKids;
+
+  function renderNode(m) {
+    const id     = m.message.id;
+    const rel    = +(m.variables?.relation ?? 0);
+    const ck     = vKids[id] || [];
+    const isColl = collapsed[id] ?? false;
+
+    const relCls = rel === 0 ? 'root' : rel === 1 ? 'pro' : 'con';
+    const relLbl = rel === 0 ? 'ROOT' : rel === 1 ? '✦ PRO' : '✗ CON';
+
+    const ts = m.message.timestamp
+      ? new Date(m.message.timestamp).toLocaleString([],
+          { month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' })
+      : '';
+
+    const proC = ck.filter(c => +(c.variables?.relation ?? 0) === 1).length;
+    const conC = ck.filter(c => +(c.variables?.relation ?? 0) === -1).length;
+
+    const reactions = (m.message.reactions || [])
+      .map(r => `<span class="reaction">${esc(String(r))}</span>`).join('');
+
+    const topics = (m.topics || [])
+      .map(t => `<span class="topic">${esc(String(t))}</span>`).join('');
+
+    const vars = m.variables
+      ? Object.entries(m.variables)
+          .filter(([k]) => k !== 'relation')
+          .map(([k,v]) => {
+            let display;
+            if (v instanceof Map) {
+              // convert Map to object for proper JSON display
+              display = JSON.stringify(Object.fromEntries(v), null, 2);
+            } else if (v !== null && typeof v === 'object') {
+              display = JSON.stringify(v, null, 2);
+            } else {
+              display = String(v);
+            }
+            const isMultiline = display.includes('\n');
+            return `<span class="var-kv"><span class="var-k">${esc(k)}: </span>` +
+                  (isMultiline
+                    ? `<pre class="var-v var-v-block">${esc(display)}</pre>`
+                    : `<span class="var-v">${esc(display)}</span>`) +
+                  `</span>`;
+          })
+          .join('')
+      : '';
+    const hasVars = vars.length > 0;
+
+    const foot = (ck.length || reactions || hasVars) ? `
+      <div class="node-foot">
+        ${ck.length ? `<span class="child-cnt">
+          ${proC ? `<span class="p">▲${proC}</span>` : ''}
+          ${conC ? `<span class="c">▼${conC}</span>` : ''}
+          ${!proC && !conC ? `<span>${ck.length} repl.</span>` : ''}
+        </span>` : ''}
+        ${reactions ? `<span class="reactions">${reactions}</span>` : ''}
+        ${hasVars ? `<button class="foot-btn" onclick="toggleVars(${id},event)">⬡ vars</button>` : ''}
+        ${ck.length ? `<button class="foot-btn" onclick="toggleNode(${id},event)">${isColl ? '▸ expand' : '▾ collapse'}</button>` : ''}
+      </div>` : '';
+
+    const varsPanel = hasVars
+      ? `<div class="vars-panel" id="vp-${id}"><div class="vars-grid">${vars}</div></div>`
+      : '';
+
+    const card = `
+      <div class="node-card ${relCls}" id="card-${id}">
+        <div class="node-meta">
+          <span class="badge ${relCls}">${relLbl}</span>
+          <span class="author">${esc(m.message.author)}</span>
+          <span class="msg-id">#${id}</span>
+          ${ts ? `<span class="ts">${esc(ts)}</span>` : ''}
+        </div>
+        <div class="node-body" id="body-${id}">${esc(m.message.content)}</div>
+        ${topics ? `<div class="topics">${topics}</div>` : ''}
+        ${varsPanel}
+        ${foot}
+      </div>`;
+
+    const childrenHtml = (ck.length && !isColl)
+      ? `<div class="children">${ck.map(c => `<div class="child-item">${renderNode(c)}</div>`).join('')}</div>`
+      : '';
+
+    return `<div class="node-wrap" data-id="${id}" data-rel="${rel}">${card}${childrenHtml}</div>`;
+  }
+
   el.innerHTML = `<div class="tree-list">${
     roots.map(r => `<div class="thread">${renderNode(r)}</div>`).join('')
   }</div>`;
-  updateStats();
-}
-
-function renderNode(m) {
-  const id     = m.message.id;
-  const rel    = +(m.variables?.relation ?? 0);
-  const ck     = kids[id] || [];
-  const isColl = collapsed[id] ?? false;
-
-  const relCls = rel === 0 ? 'root' : rel === 1 ? 'pro' : 'con';
-  const relLbl = rel === 0 ? 'ROOT' : rel === 1 ? '✦ PRO' : '✗ CON';
-
-  const ts = m.message.timestamp
-    ? new Date(m.message.timestamp).toLocaleString([],
-        { month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' })
-    : '';
-
-  const proC = ck.filter(c => +(c.variables?.relation ?? 0) === 1).length;
-  const conC = ck.filter(c => +(c.variables?.relation ?? 0) === -1).length;
-
-  const reactions = (m.message.reactions || [])
-    .map(r => `<span class="reaction">${esc(String(r))}</span>`).join('');
-
-  const topics = (m.topics || [])
-    .map(t => `<span class="topic">${esc(String(t))}</span>`).join('');
-
-  const vars = m.variables
-    ? Object.entries(m.variables)
-        .filter(([k]) => k !== 'relation')
-        .map(([k,v]) => {
-          const display = (v !== null && typeof v === 'object')
-            ? JSON.stringify(v, null, 2)
-            : String(v);
-          const isMultiline = display.includes('\n');
-          return `<span class="var-kv"><span class="var-k">${esc(k)}: </span><span class="var-v${isMultiline ? ' var-v-block' : ''}">${esc(display)}</span></span>`;
-        })
-        .join('')
-    : '';
-  const hasVars = vars.length > 0;
-
-  const foot = (ck.length || reactions || hasVars) ? `
-    <div class="node-foot">
-      ${ck.length ? `<span class="child-cnt">
-        ${proC ? `<span class="p">▲${proC}</span>` : ''}
-        ${conC ? `<span class="c">▼${conC}</span>` : ''}
-        ${!proC && !conC ? `<span>${ck.length} repl.</span>` : ''}
-      </span>` : ''}
-      ${reactions ? `<span class="reactions">${reactions}</span>` : ''}
-      ${hasVars ? `<button class="foot-btn" onclick="toggleVars(${id},event)">⬡ vars</button>` : ''}
-      ${ck.length ? `<button class="foot-btn" onclick="toggleNode(${id},event)">${isColl ? '▸ expand' : '▾ collapse'}</button>` : ''}
-    </div>` : '';
-
-  const varsPanel = hasVars
-    ? `<div class="vars-panel" id="vp-${id}"><div class="vars-grid">${vars}</div></div>`
-    : '';
-
-  const card = `
-    <div class="node-card ${relCls}" id="card-${id}">
-      <div class="node-meta">
-        <span class="badge ${relCls}">${relLbl}</span>
-        <span class="author">${esc(m.message.author)}</span>
-        <span class="msg-id">#${id}</span>
-        ${ts ? `<span class="ts">${esc(ts)}</span>` : ''}
-      </div>
-      <div class="node-body" id="body-${id}">${esc(m.message.content)}</div>
-      ${topics ? `<div class="topics">${topics}</div>` : ''}
-      ${varsPanel}
-      ${foot}
-    </div>`;
-
-  const childrenHtml = (ck.length && !isColl)
-    ? `<div class="children">${ck.map(c => `<div class="child-item">${renderNode(c)}</div>`).join('')}</div>`
-    : '';
-
-  return `<div class="node-wrap" data-id="${id}" data-rel="${rel}">${card}${childrenHtml}</div>`;
+  updateStats(visibleMSGS);
 }
 
 function toggleNode(id, e) {
@@ -169,17 +321,22 @@ function toggleVars(id, e) {
   e.stopPropagation();
   document.getElementById(`vp-${id}`)?.classList.toggle('open');
 }
-function expandAll()   { collapsed = {}; render(); }
+function expandAll() {
+  collapsed = {};
+  render();
+}
 function collapseAll() {
-  for (const m of MSGS) if ((kids[m.message.id]||[]).length) collapsed[m.message.id] = true;
+  for (const id in currentKids) {
+    if ((currentKids[id] || []).length) collapsed[id] = true;
+  }
   render();
 }
 
-function updateStats() {
-  const total = MSGS.length;
-  const rs    = MSGS.filter(m => +(m.variables?.relation ?? 0) === 0).length;
-  const pros  = MSGS.filter(m => +(m.variables?.relation ?? 0) === 1).length;
-  const cons  = MSGS.filter(m => +(m.variables?.relation ?? 0) === -1).length;
+function updateStats(msgs=MSGS) {
+  const total = msg.count || msg.length || msg.length;
+  const rs    = msg.filter(m => +(m.variables?.relation ?? 0) === 0).length;
+  const pros  = msg.filter(m => +(m.variables?.relation ?? 0) === 1).length;
+  const cons  = msg.filter(m => +(m.variables?.relation ?? 0) === -1).length;
   document.getElementById('hdr-stats').innerHTML = `
     <span class="stat"><span class="stat-dot" style="background:var(--accent)"></span>${rs} root${rs!==1?'s':''}</span>
     <span class="stat"><span class="stat-dot" style="background:var(--pro)"></span>${pros} pro</span>
