@@ -7,6 +7,7 @@ import jason.environment.Environment;
 import java.util.*;
 
 import lib.JasonToJavaTranslator;
+import lib.JavaToJasonTranslator;
 import initializer.MessageLoader;
 import initializer.NetworkLoader;
 import initializer.PublicProfileLoader;
@@ -96,7 +97,7 @@ public class Env extends Environment {
                     addPercept(agent, createLiteral("message_var",
                         createNumber(m.id),
                         createString(key),
-                        createString(String.valueOf(value))
+                        JavaToJasonTranslator.objectToTerm(value)
                     ))
                 );
             }

@@ -17,12 +17,10 @@ public class KialoGeminiAgArch extends AgArch implements SocialAgArch {
     // ---------------- PUBLIC API ----------------
 
     public String createContent(Term topics, Term variables) {
-        //List<String> topicList = JasonToJavaTranslator.translateTopics(topics);
         Map<String, Object> varMap = JasonToJavaTranslator.translateVariables(variables);
 
-        String stance = varMap.get("stance").toString();
+        String stance = relationToStance(varMap.get("stance"));
         String targetLeaf = varMap.get("targetLeaf").toString();
-
         String parent = varMap.getOrDefault("parentClaim", "").toString();
         String siblings = varMap.getOrDefault("siblings", "").toString();
 
@@ -48,9 +46,24 @@ public class KialoGeminiAgArch extends AgArch implements SocialAgArch {
         throw new UnsupportedOperationException("interpretContent is not implemented yet.");
     }
 
+    // ---------------- HELPERS ----------------
+
+    private static String relationToStance(Object value) {
+        if (value == null) return "neutral";
+        double rel;
+        try {
+            rel = Double.parseDouble(value.toString());
+        } catch (NumberFormatException e) {
+            return value.toString();
+        }
+        if (rel > 0) return "pro";
+        if (rel < 0) return "con";
+        return "neutral";
+    }
+
     private String getResponse(String prompt) {
-        final int maxRetries = 3; 
-        final long retryDelay = 1000; 
+        final int maxRetries = 3;
+        final long retryDelay = 1000;
         int attempt = 0;
 
         while (attempt < maxRetries) {

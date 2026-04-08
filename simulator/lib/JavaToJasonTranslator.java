@@ -58,7 +58,7 @@ public final class JavaToJasonTranslator {
      * @return the corresponding Jason term
      * @throws IllegalArgumentException if the object is null or contains null values in nested structures
      */
-    private static Term objectToTerm(Object obj) throws IllegalArgumentException {
+    public static Term objectToTerm(Object obj) throws IllegalArgumentException {
         if (obj == null) {
             throw new IllegalArgumentException("Null values are not allowed");
         }
