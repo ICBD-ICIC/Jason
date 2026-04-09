@@ -559,7 +559,10 @@ function buildMetaAttacks(attacks, supports) {
 function computeWinner(nodes, status) {
   let proScore = 0, conScore = 0, rootIds = [];
   for (const [id, node] of Object.entries(nodes)) {
-    if (node.rel === 0) { rootIds.push(id); continue; }
+    if (node.rel === 0) { 
+      proScore += node.weight;   // count roots as PRO
+      rootIds.push(id); 
+    }
     const s = status[id];
     if (s !== 'in') continue;
     if (node.rel === 1)  proScore += node.weight;
