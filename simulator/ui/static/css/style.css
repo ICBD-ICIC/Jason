@@ -817,3 +817,11 @@ select option { background: var(--card); }
 #net-edge-tbody tr      { height: 34px; }
 #net-edge-tbody td      { vertical-align: middle; padding: 0 6px; overflow: hidden; }
 #net-edge-tbody input[type="text"] { width: 100%; box-sizing: border-box; }
+
+.err-box {
+  display: flex;
+  flex-direction: column;  
+  justify-content: center; 
+  align-items: center;     
+  height: 200px;
+}
