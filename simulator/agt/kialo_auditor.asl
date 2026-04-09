@@ -105,8 +105,11 @@ wait_timeout(3000).
     !default_if_timeout(T2, RelAbs, 0.0);
     !default_if_timeout(T3, Votes,  [0,0,0,0,0]).
 
-+!default_if_timeout(true, X, Default) : true <- X = Default.
-+!default_if_timeout(false, _, _)      : true <- true.
++!default_if_timeout(Elapsed, X, Default) : 
+        wait_timeout(T) & Elapsed >= T & var(X) <- 
+    X = Default.
+
++!default_if_timeout(_, _, _) : true <- true.
 
 +!get_relation(Id, Relation) : true <-
     wait_timeout(T);
