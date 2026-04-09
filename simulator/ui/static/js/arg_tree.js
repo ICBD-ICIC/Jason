@@ -1,0 +1,698 @@
+// ── Index ────────────────────────────────────────────────────────────────
+const byId = {};
+const kids = {};
+
+for (const m of MSGS) {
+  byId[m.message.id] = m;
+  kids[m.message.id] = kids[m.message.id] || [];
+}
+
+// ── Timeline histogram ────────────────────────────────────────────────
+const TL_BINS = 30;
+const tlTimestamps = MSGS.map(m => m.message.timestamp).filter(Boolean).sort((a,b)=>a-b);
+let tlLoFrac = 0, tlHiFrac = 1;
+let tlActive = false;
+
+(function initTimeline() {
+  if (!tlTimestamps.length) { document.getElementById('tl').style.display = 'none'; return; }
+
+  const tMin = tlTimestamps[0], tMax = tlTimestamps[tlTimestamps.length - 1];
+  const span = tMax - tMin || 1;
+
+  const bins = Array.from({length: TL_BINS}, () => ({total:0, root:0}));
+  for (const m of MSGS) {
+    const t = m.message.timestamp; if (!t) continue;
+    const bi = Math.min(TL_BINS - 1, Math.floor((t - tMin) / span * TL_BINS));
+    bins[bi].total++;
+    if (+(m.variables?.public?.relation ?? 0) === 0) bins[bi].root++;
+  }
+  const maxBin = Math.max(...bins.map(b => b.total), 1);
+
+  const histEl  = document.getElementById('tl-hist');
+  const rangeEl = document.getElementById('tl-range');
+  const loEl    = document.getElementById('tl-lo');
+  const hiEl    = document.getElementById('tl-hi');
+  const lblLo   = document.getElementById('tl-lbl-lo');
+  const lblHi   = document.getElementById('tl-lbl-hi');
+  const cntEl   = document.getElementById('tl-count');
+  document.getElementById('tl-total').textContent = tlTimestamps.length;
+
+  function timeFmt(t) {
+    return new Date(t).toLocaleString([], {month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit'});
+  }
+
+  histEl.innerHTML = bins.map((b, i) => {
+    const h = Math.max(3, Math.round((b.total / maxBin) * 44));
+    return `<div class="tl-bar out" data-i="${i}" style="height:${h}px"></div>`;
+  }).join('');
+  const barEls = histEl.querySelectorAll('.tl-bar');
+
+  function tlUpdate() {
+    const lo = tMin + tlLoFrac * span;
+    const hi = tMin + tlHiFrac * span;
+    loEl.style.left = (tlLoFrac * 100) + '%';
+    hiEl.style.left = (tlHiFrac * 100) + '%';
+    rangeEl.style.left  = (tlLoFrac * 100) + '%';
+    rangeEl.style.width = ((tlHiFrac - tlLoFrac) * 100) + '%';
+    lblLo.textContent = timeFmt(lo);
+    lblHi.textContent = timeFmt(hi);
+
+    barEls.forEach((el, i) => {
+      const f = (i + 0.5) / TL_BINS;
+      const inRange = f >= tlLoFrac && f <= tlHiFrac;
+      const isRoot  = bins[i].root > 0 && bins[i].total === bins[i].root;
+      el.className = 'tl-bar ' + (inRange ? (isRoot ? 'root-in' : 'in') : (isRoot ? 'root-out' : 'out'));
+    });
+
+    cntEl.textContent = MSGS.filter(m => {
+      const t = m.message.timestamp;
+      return t && t >= lo && t <= hi;
+    }).length;
+
+    if (tlActive) render();
+  }
+
+  function dragThumb(handle) {
+    return function(e) {
+      e.preventDefault();
+      tlActive = true;
+      const thumb = handle === 'lo' ? loEl : hiEl;
+      thumb.classList.add('dragging');
+      function onMove(ev) {
+        const rect = document.getElementById('tl-slider').getBoundingClientRect();
+        const x = (ev.touches?.[0] || ev).clientX;
+        let f = Math.max(0, Math.min(1, (x - rect.left) / rect.width));
+        if (handle === 'lo') tlLoFrac = Math.min(f, tlHiFrac - 0.01);
+        else                  tlHiFrac = Math.max(f, tlLoFrac + 0.01);
+        tlUpdate();
+      }
+      function onUp() {
+        thumb.classList.remove('dragging');
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup',   onUp);
+        window.removeEventListener('touchmove', onMove);
+        window.removeEventListener('touchend',  onUp);
+      }
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup',   onUp);
+      window.addEventListener('touchmove', onMove, {passive: false});
+      window.addEventListener('touchend',  onUp);
+    };
+  }
+
+  loEl.addEventListener('mousedown',  dragThumb('lo'));
+  hiEl.addEventListener('mousedown',  dragThumb('hi'));
+  loEl.addEventListener('touchstart', dragThumb('lo'), {passive: false});
+  hiEl.addEventListener('touchstart', dragThumb('hi'), {passive: false});
+
+  tlUpdate();
+})();
+
+// ── Helper: visible messages in timeline range ─────────────────────────
+function tlVisibleMsgs() {
+  if (!tlActive || !tlTimestamps.length) return MSGS;
+  const tMin = tlTimestamps[0], tMax = tlTimestamps[tlTimestamps.length - 1];
+  const span = tMax - tMin || 1;
+  const lo = tMin + tlLoFrac * span;
+  const hi = tMin + tlHiFrac * span;
+  return MSGS.filter(m => {
+    const t = m.message.timestamp;
+    return !t || (t >= lo && t <= hi);
+  });
+}
+
+// ── Tree rendering ────────────────────────────────────────────────────
+let collapsed = {};
+let currentKids = {};
+let bafLabels = {};   // id → 'in' | 'out' | 'undecided' | 'root'
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function render() {
+  const el = document.getElementById('tree-root');
+  const visibleMSGS = tlVisibleMsgs();
+  if (!visibleMSGS.length) {
+    el.innerHTML = '<div class="empty">No messages in log.</div>';
+    updateStats(); return;
+  }
+
+  const vById = {}, vKids = {};
+  for (const m of visibleMSGS) {
+    vById[m.message.id] = m;
+    vKids[m.message.id] = [];
+  }
+
+  const roots = [];
+  for (const m of visibleMSGS) {
+    const rel = +(m.variables?.public?.relation ?? 0);
+    if (rel === 0) {
+      roots.push(m);
+    } else {
+      const pid = m.message.original;
+      if (pid != null && vById[pid]) {
+        vKids[pid].push(m);
+      } else {
+        roots.push(m);
+      }
+    }
+  }
+
+  const byTs = (a, b) => (a.message.timestamp || 0) - (b.message.timestamp || 0);
+  roots.sort(byTs);
+  for (const id in vKids) vKids[id].sort(byTs);
+
+  currentKids = vKids;
+
+  function renderNode(m) {
+    const id     = m.message.id;
+    const rel    = +(m.variables?.public?.relation ?? 0);
+    const ck     = vKids[id] || [];
+    const isColl = collapsed[id] ?? false;
+
+    const relCls = rel === 0 ? 'root' : rel === 1 ? 'pro' : 'con';
+    const relLbl = rel === 0 ? 'ROOT' : rel === 1 ? '✦ PRO' : '✗ CON';
+    const isGenerated = !!m.variables?.generated;
+
+    const ts = m.message.timestamp
+      ? new Date(m.message.timestamp).toLocaleString([],
+          { month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' })
+      : '';
+
+    const proC = ck.filter(c => +(c.variables?.public?.relation ?? 0) === 1).length;
+    const conC = ck.filter(c => +(c.variables?.public?.relation ?? 0) === -1).length;
+
+    const reactions = (m.message.reactions || [])
+      .map(r => `<span class="reaction">${esc(String(r))}</span>`).join('');
+
+    const topics = (m.topics || [])
+      .map(t => `<span class="topic">${esc(String(t))}</span>`).join('');
+
+    const vars = m.variables
+      ? Object.entries(m.variables)
+          .filter(([k]) => k !== 'relation')
+          .map(([k,v]) => {
+            let display;
+            if (v instanceof Map) {
+              display = JSON.stringify(Object.fromEntries(v), null, 2);
+            } else if (v !== null && typeof v === 'object') {
+              display = JSON.stringify(v, null, 2);
+            } else {
+              display = String(v);
+            }
+            const isMultiline = display.includes('\n');
+            return `<span class="var-kv"><span class="var-k">${esc(k)}: </span>` +
+                  (isMultiline
+                    ? `<pre class="var-v var-v-block">${esc(display)}</pre>`
+                    : `<span class="var-v">${esc(display)}</span>`) +
+                  `</span>`;
+          })
+          .join('')
+      : '';
+    const hasVars = vars.length > 0;
+
+    // BAF highlight classes
+    const bafCls = bafLabels[id]
+      ? (bafLabels[id] === 'in'        ? ' baf-accepted'
+       : bafLabels[id] === 'out'       ? ' baf-rejected'
+       : bafLabels[id] === 'undecided' ? ' baf-undecided'
+       : '')
+      : '';
+
+    // BAF badge
+    const bafBadge = bafLabels[id] && document.getElementById('baf-highlight')?.checked
+      ? `<span class="badge" style="background:${
+          bafLabels[id]==='in'        ? 'rgba(45,232,154,.18)' :
+          bafLabels[id]==='out'       ? 'rgba(245,96,74,.18)'  :
+          'rgba(255,204,0,.18)'
+        };color:${
+          bafLabels[id]==='in'        ? 'var(--pro)' :
+          bafLabels[id]==='out'       ? 'var(--con)'  :
+          '#9a7c00'
+        }">BAF:${bafLabels[id].toUpperCase()}</span>`
+      : '';
+
+    const foot = (ck.length || reactions || hasVars) ? `
+      <div class="node-foot">
+        ${ck.length ? `<span class="child-cnt">
+          ${proC ? `<span class="p">▲${proC}</span>` : ''}
+          ${conC ? `<span class="c">▼${conC}</span>` : ''}
+          ${!proC && !conC ? `<span>${ck.length} repl.</span>` : ''}
+        </span>` : ''}
+        ${reactions ? `<span class="reactions">${reactions}</span>` : ''}
+        ${hasVars ? `<button class="foot-btn" onclick="toggleVars(${id},event)">⬡ vars</button>` : ''}
+        ${ck.length ? `<button class="foot-btn" onclick="toggleNode(${id},event)">${isColl ? '▸ expand' : '▾ collapse'}</button>` : ''}
+      </div>` : '';
+
+    const varsPanel = hasVars
+      ? `<div class="vars-panel" id="vp-${id}"><div class="vars-grid">${vars}</div></div>`
+      : '';
+
+    const doHighlight = document.getElementById('baf-highlight')?.checked;
+
+    const card = `
+      <div class="node-card ${relCls}${doHighlight ? bafCls : ''}" id="card-${id}">
+        <div class="node-meta">
+          <span class="badge ${relCls}">${relLbl}</span>
+          ${isGenerated ? `<span class="badge">GENERATED</span>` : ''}
+          ${bafBadge}
+          <span class="author">${esc(m.message.author)}</span>
+          <span class="msg-id">#${id}</span>
+          ${ts ? `<span class="ts">${esc(ts)}</span>` : ''}
+        </div>
+        <div class="node-body" id="body-${id}">${esc(m.message.content)}</div>
+        ${topics ? `<div class="topics">${topics}</div>` : ''}
+        ${varsPanel}
+        ${foot}
+      </div>`;
+
+    const childrenHtml = (ck.length && !isColl)
+      ? `<div class="children">${ck.map(c => `<div class="child-item">${renderNode(c)}</div>`).join('')}</div>`
+      : '';
+
+    return `<div class="node-wrap" data-id="${id}" data-rel="${rel}">${card}${childrenHtml}</div>`;
+  }
+
+  el.innerHTML = `<div class="tree-list">${
+    roots.map(r => `<div class="thread">${renderNode(r)}</div>`).join('')
+  }</div>`;
+  updateStats(visibleMSGS);
+}
+
+function toggleNode(id, e) {
+  e.stopPropagation();
+  collapsed[id] = !collapsed[id];
+  render();
+}
+function toggleVars(id, e) {
+  e.stopPropagation();
+  document.getElementById(`vp-${id}`)?.classList.toggle('open');
+}
+function expandAll() {
+  collapsed = {};
+  render();
+}
+function collapseAll() {
+  for (const id in currentKids) {
+    if ((currentKids[id] || []).length) collapsed[id] = true;
+  }
+  render();
+}
+
+function updateStats(msgs=MSGS) {
+  const total = msgs.length;
+  const rs    = msgs.filter(m => +(m.variables?.public?.relation ?? 0) === 0).length;
+  const pros  = msgs.filter(m => +(m.variables?.public?.relation ?? 0) === 1).length;
+  const cons  = msgs.filter(m => +(m.variables?.public?.relation ?? 0) === -1).length;
+  document.getElementById('hdr-stats').innerHTML = `
+    <span class="stat"><span class="stat-dot" style="background:var(--accent)"></span>${rs} root${rs!==1?'s':''}</span>
+    <span class="stat"><span class="stat-dot" style="background:var(--pro)"></span>${pros} pro</span>
+    <span class="stat"><span class="stat-dot" style="background:var(--con)"></span>${cons} con</span>
+    <span class="stat" style="margin-left:4px;color:var(--muted)">${total} total</span>
+  `;
+}
+
+render();
+
+// ════════════════════════════════════════════════════════════════════════
+//  BAF Panel Logic
+// ════════════════════════════════════════════════════════════════════════
+
+function toggleBafPanel() {
+  const panel = document.getElementById('baf-panel');
+  const btn   = document.getElementById('baf-toggle-btn');
+  const isOpen = panel.classList.toggle('open');
+  btn.classList.toggle('active', isOpen);
+  document.body.classList.toggle('baf-open', isOpen);
+}
+
+// ── Build the argumentation framework from messages ──────────────────
+function buildFramework(msgs) {
+  const ids   = new Set(msgs.map(m => m.message.id));
+  const nodes = {};
+  const attacks = [];
+  const supports = [];
+
+  for (const m of msgs) {
+    const id  = m.message.id;
+    const rel = +(m.variables?.public?.relation ?? 0);
+    const weightMode = document.getElementById('baf-weight').value;
+    let w = 1;
+    if (weightMode === 'impact') {
+      const v = m.variables?.public?.votes;
+      if (Array.isArray(v)) {
+        const total = v.reduce((a,b)=>a+b,0);
+        if (total > 0) w = (0*v[0]+1*v[1]+2*v[2]+3*v[3]+4*v[4]) / total / 4;
+        else w = 0.5;
+      }
+    } else if (weightMode === 'votes') {
+      const v = m.variables?.public?.votes;
+      if (Array.isArray(v)) w = v.reduce((a,b)=>a+b,0) || 1;
+    }
+    nodes[id] = { id, rel, content: m.message.content, weight: w, original: m.message.original };
+  }
+
+  const proRole = document.getElementById('baf-pro-role').value;
+
+  for (const m of msgs) {
+    const id  = m.message.id;
+    const rel = +(m.variables?.public?.relation ?? 0);
+    const pid = m.message.original;
+    if (!pid || !ids.has(pid)) continue;
+
+    if (rel === -1) {
+      attacks.push({ from: id, to: pid, weight: nodes[id]?.weight ?? 1 });
+    } else if (rel === 1 && proRole === 'support') {
+      supports.push({ from: id, to: pid, weight: nodes[id]?.weight ?? 1 });
+    }
+  }
+
+  return { nodes, attacks, supports };
+}
+
+// ── Grounded semantics ───────────────────────────────────────────────
+function computeGrounded(nodes, attacks, supports) {
+  const ids = Object.keys(nodes);
+  const status = {};
+  for (const id of ids) status[id] = 'undecided';
+
+  const allAttacks = [...attacks];
+  for (const sup of supports) {
+    for (const att of attacks) {
+      if (att.to === sup.to) {
+        allAttacks.push({ from: sup.from, to: att.from, weight: sup.weight });
+      }
+    }
+  }
+
+  const attackedBy = {};
+  for (const id of ids) attackedBy[id] = [];
+  for (const {from, to} of allAttacks) {
+    if (attackedBy[to]) attackedBy[to].push(from);
+  }
+
+  const rootsIn = document.getElementById('baf-roots-in')?.checked;
+  const inSet   = new Set();
+  const outSet  = new Set();
+
+  for (const id of ids) {
+    if (rootsIn && nodes[id].rel === 0) inSet.add(id);
+  }
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const id of ids) {
+      if (inSet.has(id) || outSet.has(id)) continue;
+      const attackers = attackedBy[id];
+      const allAttackersOut = attackers.length > 0 && attackers.every(a => outSet.has(a));
+      const anyAttackerIn   = attackers.some(a => inSet.has(a));
+      if (allAttackersOut || attackers.length === 0) {
+        inSet.add(id); changed = true;
+      } else if (anyAttackerIn) {
+        outSet.add(id); changed = true;
+      }
+    }
+  }
+
+  for (const id of ids) {
+    status[id] = inSet.has(id) ? 'in' : outSet.has(id) ? 'out' : 'undecided';
+  }
+  return status;
+}
+
+// ── Preferred semantics ──────────────────────────────────────────────
+function computePreferred(nodes, attacks, supports) {
+  const ids = Object.keys(nodes).map(Number);
+  const allAttacks = buildMetaAttacks(attacks, supports);
+
+  const attackedBy = {};
+  for (const id of ids) { attackedBy[id] = new Set(); }
+  for (const {from, to} of allAttacks) {
+    if (attackedBy[to]) attackedBy[to].add(from);
+  }
+
+  function isAdmissible(S) {
+    const Sset = new Set(S);
+    for (const a of S) for (const b of S) {
+      if (attackedBy[a]?.has(b)) return false;
+    }
+    for (const a of S) {
+      for (const att of (attackedBy[a] || [])) {
+        if (!S.some(d => attackedBy[att]?.has(d))) return false;
+      }
+    }
+    return true;
+  }
+
+  const limitedIds = ids.slice(0, 20);
+  const preferred = [];
+  const n = limitedIds.length;
+
+  for (let mask = (1 << n) - 1; mask >= 0; mask--) {
+    const S = limitedIds.filter((_, i) => mask & (1 << i));
+    if (!isAdmissible(S)) continue;
+    const dominated = preferred.some(ext => S.every(x => ext.includes(x)));
+    if (!dominated) preferred.push(S);
+  }
+
+  const status = {};
+  for (const id of ids) {
+    if (preferred.every(ext => ext.includes(id)))       status[id] = 'in';
+    else if (preferred.every(ext => !ext.includes(id))) status[id] = 'out';
+    else status[id] = 'undecided';
+  }
+  return status;
+}
+
+// ── Stable semantics ──────────────────────────────────────────────────
+function computeStable(nodes, attacks, supports) {
+  const ids = Object.keys(nodes).map(Number);
+  const allAttacks = buildMetaAttacks(attacks, supports);
+
+  const attackedBy = {};
+  for (const id of ids) attackedBy[id] = new Set();
+  for (const {from, to} of allAttacks) { if (attackedBy[to]) attackedBy[to].add(from); }
+
+  const limitedIds = ids.slice(0, 20);
+  const n = limitedIds.length;
+
+  for (let mask = (1 << n) - 1; mask >= 0; mask--) {
+    const S    = new Set(limitedIds.filter((_, i) => mask & (1 << i)));
+    const notS = limitedIds.filter(x => !S.has(x));
+    const cfree = ![...S].some(a => [...S].some(b => attackedBy[a].has(b)));
+    if (!cfree) continue;
+    const covers = notS.every(a => [...S].some(s => attackedBy[a].has(s)));
+    if (covers) {
+      const status = {};
+      for (const id of ids) status[id] = S.has(id) ? 'in' : 'out';
+      return status;
+    }
+  }
+  const status = {};
+  for (const id of ids) status[id] = 'undecided';
+  return status;
+}
+
+// ── Complete semantics ────────────────────────────────────────────────
+function computeComplete(nodes, attacks, supports) {
+  const ids = Object.keys(nodes).map(Number);
+  const allAttacks = buildMetaAttacks(attacks, supports);
+  const attackedBy = {};
+  for (const id of ids) attackedBy[id] = new Set();
+  for (const {from, to} of allAttacks) { if (attackedBy[to]) attackedBy[to].add(from); }
+
+  function defend(S) {
+    const defended = new Set(S);
+    for (const id of ids) {
+      if (defended.has(id)) continue;
+      const atts = attackedBy[id] || new Set();
+      const allDefeated = [...atts].every(a => [...S].some(s => attackedBy[a]?.has(s)));
+      if (allDefeated) defended.add(id);
+    }
+    return [...defended];
+  }
+
+  function isComplete(S) {
+    const Sset = new Set(S);
+    const cfree = ![...Sset].some(a => [...Sset].some(b => attackedBy[a]?.has(b)));
+    if (!cfree) return false;
+    const defended = new Set(defend(S));
+    return S.every(x => defended.has(x)) && [...defended].every(x => Sset.has(x));
+  }
+
+  const limitedIds = ids.slice(0, 18);
+  const n = limitedIds.length;
+  const complete = [];
+
+  for (let mask = 0; mask < (1 << n); mask++) {
+    const S = limitedIds.filter((_, i) => mask & (1 << i));
+    if (isComplete(S)) complete.push(S);
+  }
+
+  const status = {};
+  for (const id of ids) {
+    if (complete.length === 0) { status[id] = 'undecided'; continue; }
+    const inAll  = complete.every(ext => ext.includes(id));
+    const inNone = complete.every(ext => !ext.includes(id));
+    status[id] = inAll ? 'in' : inNone ? 'out' : 'undecided';
+  }
+  return status;
+}
+
+// ── Meta-attack translation for support edges ─────────────────────────
+function buildMetaAttacks(attacks, supports) {
+  const extra = [];
+  for (const sup of supports) {
+    for (const att of attacks) {
+      if (att.to === sup.to) {
+        extra.push({ from: sup.from, to: att.from, weight: sup.weight });
+      }
+    }
+  }
+  return [...attacks, ...extra];
+}
+
+// ── Compute winning side ──────────────────────────────────────────────
+function computeWinner(nodes, status) {
+  let proScore = 0, conScore = 0, rootIds = [];
+  for (const [id, node] of Object.entries(nodes)) {
+    if (node.rel === 0) { rootIds.push(id); continue; }
+    const s = status[id];
+    if (s !== 'in') continue;
+    if (node.rel === 1)  proScore += node.weight;
+    if (node.rel === -1) conScore += node.weight;
+  }
+  return { proScore, conScore, rootIds };
+}
+
+// ── Main: run BAF ─────────────────────────────────────────────────────
+function runBaf() {
+  const scope     = document.getElementById('baf-scope').value;
+  const semantics = document.getElementById('baf-semantics').value;
+
+  const msgs = scope === 'visible' ? tlVisibleMsgs() : MSGS;
+  if (!msgs.length) {
+    document.getElementById('baf-results').innerHTML = '<div class="baf-empty">No messages to evaluate.</div>';
+    return;
+  }
+
+  const { nodes, attacks, supports } = buildFramework(msgs);
+
+  let status;
+  try {
+    if (semantics === 'grounded')       status = computeGrounded(nodes, attacks, supports);
+    else if (semantics === 'preferred') status = computePreferred(nodes, attacks, supports);
+    else if (semantics === 'stable')    status = computeStable(nodes, attacks, supports);
+    else                                status = computeComplete(nodes, attacks, supports);
+  } catch(e) {
+    document.getElementById('baf-results').innerHTML =
+      `<div class="baf-empty">Computation error: ${esc(e.message)}</div>`;
+    return;
+  }
+
+  bafLabels = status;
+  render();
+  renderBafResults(nodes, status, attacks, supports);
+}
+
+function renderBafResults(nodes, status, attacks, supports) {
+  const { proScore, conScore, rootIds } = computeWinner(nodes, status);
+  const inArgs  = Object.entries(status).filter(([,s])=>s==='in').map(([id])=>+id);
+  const outArgs = Object.entries(status).filter(([,s])=>s==='out').map(([id])=>+id);
+  const undArgs = Object.entries(status).filter(([,s])=>s==='undecided').map(([id])=>+id);
+
+  const winner   = proScore > conScore ? 'pro' : conScore > proScore ? 'con' : 'tie';
+  const winLabel = winner === 'pro' ? '✦ PRO side winning'
+                 : winner === 'con' ? '✗ CON side winning'
+                 : '⚖ Debate is balanced (tie)';
+  const winSub = winner === 'tie'
+    ? 'Neither side has a dominant accepted argument cluster.'
+    : `Accepted ${winner.toUpperCase()} arguments outweigh ${winner==='pro'?'CON':'PRO'} (${
+        winner==='pro' ? proScore.toFixed(2)+' vs '+conScore.toFixed(2)
+                       : conScore.toFixed(2)+' vs '+proScore.toFixed(2)
+      }).`;
+
+  function argItem(id) {
+    const n = nodes[id];
+    if (!n) return '';
+    const lbl     = status[id];
+    const snippet = n.content ? esc(n.content.slice(0,80)) + (n.content.length>80?'…':'') : '(no content)';
+    return `<li class="baf-arg-item" onclick="scrollToCard(${id})" title="Click to scroll to #${id}">
+      <div class="baf-dot ${lbl}"></div>
+      <div>
+        <div class="baf-arg-text">${snippet}</div>
+        <div class="baf-arg-id">#${id} · ${n.rel===0?'root':n.rel===1?'pro':'con'}</div>
+      </div>
+    </li>`;
+  }
+
+  document.getElementById('baf-results').innerHTML = `
+    <div class="baf-legend">
+      <div class="baf-leg-item"><div class="baf-dot in"></div> IN (accepted)</div>
+      <div class="baf-leg-item"><div class="baf-dot out"></div> OUT (rejected)</div>
+      <div class="baf-leg-item"><div class="baf-dot undecided"></div> Undecided</div>
+    </div>
+
+    <div class="baf-winner-box ${winner}">
+      <div class="baf-winner-title">${winLabel}</div>
+      <div>${winSub}</div>
+    </div>
+
+    <div class="baf-stat-row">
+      <div class="baf-stat">
+        <div class="baf-stat-n" style="color:var(--pro)">${inArgs.length}</div>
+        <div class="baf-stat-lbl">IN</div>
+      </div>
+      <div class="baf-stat">
+        <div class="baf-stat-n" style="color:var(--con)">${outArgs.length}</div>
+        <div class="baf-stat-lbl">OUT</div>
+      </div>
+      <div class="baf-stat">
+        <div class="baf-stat-n" style="color:#ffcc00">${undArgs.length}</div>
+        <div class="baf-stat-lbl">Undecided</div>
+      </div>
+      <div class="baf-stat">
+        <div class="baf-stat-n">${attacks.length}</div>
+        <div class="baf-stat-lbl">Attacks</div>
+      </div>
+    </div>
+
+    ${inArgs.length ? `
+      <div class="baf-section-lbl">Accepted (IN)</div>
+      <ul class="baf-arg-list">${inArgs.map(argItem).join('')}</ul>
+    ` : ''}
+
+    ${outArgs.length ? `
+      <div class="baf-section-lbl">Rejected (OUT)</div>
+      <ul class="baf-arg-list">${outArgs.map(argItem).join('')}</ul>
+    ` : ''}
+
+    ${undArgs.length ? `
+      <div class="baf-section-lbl">Undecided</div>
+      <ul class="baf-arg-list">${undArgs.map(argItem).join('')}</ul>
+    ` : ''}
+  `;
+}
+
+function scrollToCard(id) {
+  const el = document.getElementById('card-' + id);
+  if (el) {
+    let node = el.closest('.node-wrap');
+    while (node) {
+      const pid = node.dataset.id;
+      if (pid && collapsed[pid]) {
+        collapsed[pid] = false;
+        render();
+        break;
+      }
+      node = node.parentElement?.closest('.node-wrap');
+    }
+    setTimeout(() => {
+      const target = document.getElementById('card-' + id);
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 80);
+  }
+}

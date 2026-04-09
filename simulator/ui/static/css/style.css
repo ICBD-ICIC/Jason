@@ -256,9 +256,7 @@ header { grid-area: hd; padding: 0 24px; }
 }
 .baf-panel.open { transform: translateX(0); }
 
-body.baf-open .tree-main { margin-right: 340px; }
-body.baf-open .controls  { margin-right: 340px; }
-body.baf-open .tl-wrap   { margin-right: 340px; }
+body.baf-open .main-content { margin-right: 340px; transition: margin-right 0.3s ease; }
 
 .baf-head {
   padding: 16px 18px 12px;
