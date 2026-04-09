@@ -7,6 +7,7 @@ import csv
 import io
 import json
 import re
+import ast
 from pathlib import Path
 from flask import Flask, request, jsonify, render_template
 from io import StringIO
@@ -368,34 +369,33 @@ def _parse_fact_args(value: str) -> list[str]:
 
 
 def _render_arg(arg: str) -> str:
-    """
-    Render one parsed argument for a Jason belief literal.
-    Rules:
-    - Numbers                 → as-is
-    - Valid atoms/vars        → as-is
-    - Strings (including CSV-quoted) → double-quoted, internal quotes escaped
-    - Lists / dict-like text  → double-quoted
-    """
     arg = arg.strip()
     if not arg:
         return '""'
     # Already quoted strings from CSV
     if (arg.startswith('"') and arg.endswith('"')) or (arg.startswith("'") and arg.endswith("'")):
         inner = arg[1:-1]
-        inner = inner.replace('"', '\\"')  # escape double quotes
+        inner = inner.replace('"', '\\"')
         return f'"{inner}"'
     # Numbers
     if _is_number(arg):
         return arg
-    # Atoms / variable names (letters, digits, underscore)
+    # Atoms / variable names
     if re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', arg):
         return arg
-    # Structured literals (arrays / dict-like strings)
+    # list-like
     if arg.startswith("[") and arg.endswith("]"):
+        try:
+            parsed = ast.literal_eval(arg)
+            if isinstance(parsed, list):
+                return "[" + ",".join(_render_arg(str(x)) for x in parsed) + "]"
+        except Exception:
+            pass
         return f'"{arg}"'
+    # Dict-like
     if arg.startswith("{") and arg.endswith("}"):
         return f'"{arg}"'
-    # Fallback: quote anything else and escape internal quotes
+    # Fallback
     inner_escaped = arg.replace('"', r'\"')
     return f'"{inner_escaped}"'
 

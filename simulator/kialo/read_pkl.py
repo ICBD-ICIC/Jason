@@ -2,7 +2,7 @@ import pickle
 import csv
 import os
 
-file_path = 'datasets/333.pkl'
+file_path = 'datasets/15876.pkl'
 agent_name = 'kialo_replicator'  
 
 class CompatUnpickler(pickle.Unpickler):
@@ -48,6 +48,8 @@ raw_succ  = data.__dict__.get('succ', {})  # succ[node] = {parent_id: {weight:..
 
 # Sort nodes by creation time
 sorted_nodes = sorted(raw_nodes.items(), key=lambda x: x[1].get('created', ''))
+# Drop the first node (title)
+sorted_nodes = sorted_nodes[1:]
 
 # Build node -> index map
 node_to_index = {node_id: i for i, (node_id, _) in enumerate(sorted_nodes, start=1)}

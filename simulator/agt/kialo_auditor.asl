@@ -57,8 +57,7 @@ wait_timeout(3000).
 
 /* Root node: timed out waiting for message */
 +!get_depth(Id, Acc, Acc) :
-        not message(Id, _, _, _, _) <-
-    wait_timeout(T);
+        not message(Id, _, _, _, _) & wait_timeout(T) <-
     .wait(message(Id, _Author, _Content, _Original, _Timestamp), T, true).
 
 /* Root node: Original = 0 means no parent */
@@ -98,8 +97,7 @@ wait_timeout(3000).
     !get_relation(Id, Relation);
     !compute_scores(Rest, MaxDepth, [score(Id, Score, Relation, RawDepth)|Acc], Scores).
 
-+!get_message_vars(Id, RelAbs, Votes) : true <-
-    wait_timeout(T);
++!get_message_vars(Id, RelAbs, Votes) : wait_timeout(T) <-
     .wait(message_var(Id, "relation_abs", RelAbs), T, T2);
     .wait(message_var(Id, "votes",        Votes),  T, T3);
     !default_if_timeout(T2, RelAbs, 0.0);
@@ -111,8 +109,7 @@ wait_timeout(3000).
 
 +!default_if_timeout(_, _, _) : true <- true.
 
-+!get_relation(Id, Relation) : true <-
-    wait_timeout(T);
++!get_relation(Id, Relation) : wait_timeout(T) <-
     .wait(message_var(Id, "relation", Relation), T, TimedOut);
     !default_if_timeout(TimedOut, Relation, 0).
 
@@ -188,15 +185,13 @@ wait_timeout(3000).
 
 +!get_leaf_relation(none, 0) : true <- true.
 
-+!get_leaf_relation(LeafId, LeafRelation) : true <-
-    wait_timeout(T);
++!get_leaf_relation(LeafId, LeafRelation) : wait_timeout(T) <-
     .wait(message_var(LeafId, "relation", LeafRelation), T, TimedOut);
     !default_if_timeout(TimedOut, LeafRelation, 0).
 
 +!build_parent_set([], Acc, Acc) : true <- true.
 
-+!build_parent_set([id_depth(Id,_)|Rest], Acc, ParentSet) : true <-
-    wait_timeout(T);
++!build_parent_set([id_depth(Id,_)|Rest], Acc, ParentSet) : wait_timeout(T) <-
     .wait(message(Id, _Author, _Content, Original, _Timestamp), T, TimedOut);
     !add_parent(TimedOut, Original, Rest, Acc, ParentSet).
 
@@ -215,8 +210,7 @@ wait_timeout(3000).
         .member(Id, Parents) <-
     !best_leaf(Rest, Parents, Side, CurBestId, CurBestD, FinalId).
 
-+!best_leaf([id_depth(Id, D)|Rest], Parents, Side, CurBestId, CurBestD, FinalId) : true <-
-    wait_timeout(T);
++!best_leaf([id_depth(Id, D)|Rest], Parents, Side, CurBestId, CurBestD, FinalId) : wait_timeout(T) <-
     .wait(message_var(Id, "relation", R), T, TimedOut);
     !default_if_timeout(TimedOut, R, 0);
     !update_best(Id, D, R, Side, CurBestId, CurBestD, NewBestId, NewBestD);
@@ -238,9 +232,8 @@ wait_timeout(3000).
 +!post_balancing_comment(_TargetSide, none, _LeafRelation) : true <-
     .print("[Auditor] No suitable leaf found. Skipping comment.").
 
-+!post_balancing_comment(TargetSide, LeafId, LeafRelation) : true <-
++!post_balancing_comment(TargetSide, LeafId, LeafRelation) : wait_timeout(T) <-
     !derive_relation(LeafRelation, TargetSide, CommentRelation);
-    wait_timeout(T);
     .wait(message(LeafId,   _A1, LeafContent,   ParentId, _T1), T);
     .wait(message(ParentId, _A2, ParentContent, _P2,      _T2), T);
     .findall(C, (message(SibId, _A, C, ParentId, _T) & SibId \== LeafId), SiblingsRaw);

@@ -9,10 +9,9 @@ MAS kialo {
     environment: env.Env
 
 
-    executionControl: jason.control.ExecutionControlGUI
-
     agents:
-        kialo_orchestrator;
+        kialo_auditor
+            agentArchClass arch.KialoGeminiAgArch;
         kialo_replicator_1;
         kialo_replicator_2;
         kialo_replicator_3;
@@ -36,36 +35,7 @@ MAS kialo {
         kialo_replicator_21;
         kialo_replicator_22;
         kialo_replicator_23;
-        kialo_replicator_24;
-        kialo_replicator_25;
-        kialo_replicator_26;
-        kialo_replicator_27;
-        kialo_replicator_28;
-        kialo_replicator_29;
-        kialo_replicator_30;
-        kialo_replicator_31;
-        kialo_replicator_32;
-        kialo_replicator_33;
-        kialo_replicator_34;
-        kialo_replicator_35;
-        kialo_replicator_36;
-        kialo_replicator_37;
-        kialo_replicator_38;
-        kialo_replicator_39;
-        kialo_replicator_40;
-        kialo_replicator_41;
-        kialo_replicator_42;
-        kialo_replicator_43;
-        kialo_replicator_44;
-        kialo_replicator_45;
-        kialo_replicator_46;
-        kialo_replicator_47;
-        kialo_replicator_48;
-        kialo_replicator_49;
-        kialo_replicator_50;
-        kialo_replicator_51;
-        kialo_auditor
-            agentArchClass arch.KialoGeminiAgArch;
+        kialo_orchestrator;
 
     aslSourcePath: "./agt";
 }
