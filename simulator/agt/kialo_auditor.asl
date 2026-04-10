@@ -69,7 +69,7 @@ polarization_threshold(0.5).
 +!check_and_intervene(GlobalPolarization, DeepestLeaf, Scores, VoteStats) :
         polarization_threshold(T) & GlobalPolarization > T <-
     .print("[audit] polarization above threshold - selecting target leaf ", DeepestLeaf);
-    !intervene(DeepestLeaf, Scores, VoteStats, GlobalPolarization).
+    !intervene(DeepestLeaf, Scores, VoteStats, GlobalPolarization, T).
 
 +!check_and_intervene(GlobalPolarization, _, _, _) :
         polarization_threshold(T) & GlobalPolarization <= T <-
@@ -78,30 +78,28 @@ polarization_threshold(0.5).
 
 /* ---- Build context and post comment ---- */
 
-+!intervene(LeafId, Scores, VoteStats, GlobalPolarization) <-
++!intervene(LeafId, Scores, VoteStats, GlobalPolarization, Threshold) <-
     .wait(message(LeafId, _, LeafContent, ParentId, _));
     .wait(message(ParentId, _, ParentClaim, _, _));
     .findall(C, (message(SibId, _, C, ParentId, _) & SibId \== LeafId), SibContents);
-    .concat(SibContents, "\n", SiblingsStr);
     ia.choose_stance(Scores, Stance);
     .wait(message_var(LeafId, "relation_abs", LeafRelAbs));
     .if_then_else(
         Stance == LeafRelAbs,
-        Relation = 1,
-        Relation = -1
+        { Relation = 1 },
+        { Relation = -1 }
     );
     PromptParams = [stance(Stance), 
                     targetLeaf(LeafContent), 
                     parentClaim(ParentClaim), 
-                    siblings(SiblingsStr)];
+                    siblings(SibContents)];
     ia.createContent([], PromptParams, CommentContent);
     ia.choose_votes(VoteStats, Votes);
     CommentVars = [
         generated(true),
-        public([relation_abs(Stance), relation(Relation), votes(Votes)]),
+        public(relation_abs(Stance), relation(Relation), votes(Votes)),
         prompt_params(PromptParams)];
     comment(LeafId, [], CommentVars, CommentContent);
     .print("[audit] comment posted on leaf ", LeafId, " with stance ", Stance);
-    polarization_threshold(T);
     ia.save_logs([polarization(GlobalPolarization), action(comment),
-                  leaf(LeafId), stance(Stance), threshold(T)]).
+                  leaf(LeafId), stance(Stance), threshold(Threshold)]).

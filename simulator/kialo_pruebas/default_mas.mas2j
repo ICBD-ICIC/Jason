@@ -12,6 +12,7 @@ MAS default_mas {
     agents:
         kialo_auditor
             agentArchClass arch.KialoGeminiAgArch;
+        kialo_orchestrator;
         kialo_replicator_1;
         kialo_replicator_2;
         kialo_replicator_3;
@@ -25,7 +26,16 @@ MAS default_mas {
         kialo_replicator_11;
         kialo_replicator_12;
         kialo_replicator_13;
-        kialo_orchestrator;
+        kialo_replicator_14;
+        kialo_replicator_15;
+        kialo_replicator_16;
+        kialo_replicator_17;
+        kialo_replicator_18;
+        kialo_replicator_19;
+        kialo_replicator_20;
+        kialo_replicator_21;
+        kialo_replicator_22;
+        kialo_replicator_23;
 
     aslSourcePath: "./agt";
 }

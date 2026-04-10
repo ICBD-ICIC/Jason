@@ -27,7 +27,19 @@ public class KialoGeminiAgArch extends AgArch implements SocialAgArch {
         String stance      = relationToStance(varMap.get("stance"));
         String targetLeaf  = stringify(varMap.get("targetLeaf"));
         String parent      = stringify(varMap.getOrDefault("parentClaim", ""));
-        String siblings    = stringify(varMap.getOrDefault("siblings", "(no other arguments in this branch)"));
+        Object siblingsRaw = varMap.getOrDefault("siblings", List.of());
+        String siblings;
+        if (siblingsRaw instanceof List<?> list) {
+            if (list.isEmpty()) {
+                siblings = "(no other arguments in this branch)";
+            } else {
+                siblings = list.stream()
+                            .map(item -> stringify(item))
+                            .collect(java.util.stream.Collectors.joining("\n"));
+            }
+        } else {
+            siblings = stringify(siblingsRaw);
+        }
 
         String prompt = String.format(
             "You are a neutral moderator participating in an online debate to reduce polarization.\n\n" +

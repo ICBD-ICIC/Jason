@@ -43,6 +43,8 @@ public class choose_stance extends DefaultInternalAction {
         double proMean = proCount > 0 ? proSum / proCount : 0;
         double conMean = conCount > 0 ? conSum / conCount : 0;
 
+        System.out.println("[choose_stance] proMean: " + proMean + ", conMean: " + conMean);
+
         // Counter the dominant side; tie-break = 1
         int stance = (proMean > conMean) ? -1 : 1;
 

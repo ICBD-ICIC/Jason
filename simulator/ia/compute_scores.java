@@ -143,6 +143,11 @@ public class compute_scores extends DefaultInternalAction {
 
         // ---- Unify ----
 
+        System.out.println("Computed scores: " + scoredTerms);
+        System.out.println("Global polarization: " + globalPolarization);
+        System.out.println("Deepest leaf ID: " + deepestLeafId);
+        System.out.println("Slot stats: " + statTerms);
+
         return un.unifies(args[1], ASSyntax.createList(scoredTerms))
             && un.unifies(args[2], ASSyntax.createNumber(globalPolarization))
             && un.unifies(args[3], ASSyntax.createNumber(deepestLeafId))
