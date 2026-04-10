@@ -16,24 +16,30 @@ public class KialoGeminiAgArch extends AgArch implements SocialAgArch {
 
     // ---------------- PUBLIC API ----------------
 
+    /**
+     * Called by ia.createContent.
+     * For the audit agent, topics is an empty list and variables contains:
+     *   stance, targetLeaf, parentClaim, siblings
+     */
     public String createContent(Term topics, Term variables) {
         Map<String, Object> varMap = JasonToJavaTranslator.translateVariables(variables);
 
-        String stance = relationToStance(varMap.get("stance"));
-        String targetLeaf = varMap.get("targetLeaf").toString();
-        String parent = varMap.getOrDefault("parentClaim", "").toString();
-        String siblings = varMap.getOrDefault("siblings", "").toString();
+        String stance      = relationToStance(varMap.get("stance"));
+        String targetLeaf  = stringify(varMap.get("targetLeaf"));
+        String parent      = stringify(varMap.getOrDefault("parentClaim", ""));
+        String siblings    = stringify(varMap.getOrDefault("siblings", "(no other arguments in this branch)"));
 
         String prompt = String.format(
-            "You are participating in an online debate.\n\n" +
-            "Target claim:\n\"%s\"\n\n" +
-            "Parent claim:\n\"%s\"\n\n" +
-            "Other arguments in this branch:\n%s\n\n" +
+            "You are a neutral moderator participating in an online debate to reduce polarization.\n\n" +
+            "Target claim (the message you are directly replying to):\n\"%s\"\n\n" +
+            "Parent claim (the message the target claim responds to):\n\"%s\"\n\n" +
+            "Other arguments already in this branch:\n%s\n\n" +
             "Your task:\n" +
             "- Write a %s argument responding to the target claim\n" +
-            "- Be persuasive and concise\n" +
+            "- Be persuasive and concise (2-4 sentences)\n" +
             "- Do NOT repeat existing arguments\n" +
-            "- Add new reasoning\n",
+            "- Add new reasoning or evidence\n" +
+            "- Your goal is to rebalance the conversation, not to inflame it\n",
             targetLeaf,
             parent,
             siblings,
@@ -59,6 +65,11 @@ public class KialoGeminiAgArch extends AgArch implements SocialAgArch {
         if (rel > 0) return "pro";
         if (rel < 0) return "con";
         return "neutral";
+    }
+
+    private static String stringify(Object o) {
+        if (o == null) return "";
+        return o.toString();
     }
 
     private String getResponse(String prompt) {
