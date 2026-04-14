@@ -340,6 +340,38 @@ def visualize(folder: str):
         error        = error,
     )
 
+@app.route("/<path:folder>/polarization")
+def visualize_polarization(folder: str):
+    """
+    Serve the polarization metrics visualisation.
+    URL:   http://localhost:5050/<folder>/polarization
+    Reads: simulator/<folder>/logs/messages.jsonl  (same format as arg_tree)
+    """
+    safe_folder = _safe_folder_name(folder)
+    log_path    = BASE_DIR / safe_folder / "logs" / "messages.jsonl"
+
+    messages = []
+    error    = None
+
+    if not log_path.exists():
+        error = f"Log file not found: {log_path.relative_to(BASE_DIR)}"
+    else:
+        try:
+            for line in log_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line:
+                    messages.append(json.loads(line))
+        except Exception as exc:
+            error = f"Failed to parse log file: {exc}"
+
+    return render_template(
+        "polarization.html",
+        folder        = safe_folder,
+        folder_json   = json.dumps(safe_folder),
+        messages_json = json.dumps(messages),
+        error         = error,
+    )
+
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _build_fact_block(instance: dict) -> str:
