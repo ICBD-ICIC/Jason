@@ -11,7 +11,7 @@ let pendingColTypeId = null;
 const INIT_NAMES = ['messages.csv', 'network.csv', 'public_profiles.csv'];
 let initializers = {};
 
-// Collect all agent instance names from defined types
+/** Collect all agent instance names derived from defined types */
 function getAllAgentNames() {
   return types.flatMap(t => {
     if (!t.asl || !t.instances.length) return [];
@@ -34,14 +34,19 @@ function getAllAgentNames() {
   }
 })();
 
-// Sidebar tab switching
+/** Sidebar tab switching */
 function switchTab(tab) {
   currentTab = tab;
   ['agents', 'init'].forEach(t => {
     $(`#tab-${t}`).classList.toggle('active', t === tab);
     $(`#sb-${t}`).classList.toggle('sb-panel--active', t === tab);
   });
-  if (tab === 'agents') { activeInit = null; }
-  else { activeTypeId = null; if (!activeInit) activeInit = INIT_NAMES[0]; renderInitNav(); }
+  if (tab === 'agents') {
+    activeInit = null;
+  } else {
+    activeTypeId = null;
+    if (!activeInit) activeInit = INIT_NAMES[0];
+    renderInitNav();
+  }
   renderMain();
 }

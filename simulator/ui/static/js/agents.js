@@ -191,7 +191,6 @@ function buildInstancesTable(t) {
   if (!t.columns.length && !t.instances.length)
     return `<div class="no-rows">No instances yet — click <strong>+ Add Instance</strong> or upload a CSV</div>`;
 
-  // Instances with no columns
   if (!t.columns.length) {
     return `<div class="tbl-wrap"><table class="data-table">
       <thead><tr><th class="col-idx">#</th><th></th><th class="col-del"></th></tr></thead>

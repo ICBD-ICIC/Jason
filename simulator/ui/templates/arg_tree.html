@@ -4,7 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ folder }} · Argument Tree</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/visualizer.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/arg_tree.css') }}">
 </head>
 <body>
 
@@ -27,34 +29,34 @@
 {% else %}
 
 <div class="main-content">
-<div class="controls">
-  <button class="cb" onclick="expandAll()">Expand all</button>
-  <button class="cb" onclick="collapseAll()">Collapse all</button>
-  <button class="baf-toggle" id="baf-toggle-btn" onclick="toggleBafPanel()">BAF Semantics</button>
-</div>
-
-<!-- Timeline block -->
-<div class="tl-wrap" id="tl">
-  <div class="tl-hist" id="tl-hist"></div>
-  <div class="tl-slider-wrap" id="tl-slider">
-    <div class="tl-track"></div>
-    <div class="tl-range" id="tl-range"></div>
-    <div class="tl-thumb" id="tl-lo" data-handle="lo"></div>
-    <div class="tl-thumb" id="tl-hi" data-handle="hi"></div>
+  <div class="controls">
+    <button class="cb" onclick="expandAll()">Expand all</button>
+    <button class="cb" onclick="collapseAll()">Collapse all</button>
+    <button class="baf-toggle" id="baf-toggle-btn" onclick="toggleBafPanel()">BAF Semantics</button>
   </div>
-  <div class="tl-labels">
-    <span id="tl-lbl-lo">—</span>
-    <div class="tl-info">showing <span id="tl-count">0</span> of <span id="tl-total">0</span> messages</div>
-    <span id="tl-lbl-hi">—</span>
+
+  <!-- Timeline -->
+  <div class="tl-wrap" id="tl">
+    <div class="tl-hist" id="tl-hist"></div>
+    <div class="tl-slider-wrap" id="tl-slider">
+      <div class="tl-track"></div>
+      <div class="tl-range" id="tl-range"></div>
+      <div class="tl-thumb" id="tl-lo" data-handle="lo"></div>
+      <div class="tl-thumb" id="tl-hi" data-handle="hi"></div>
+    </div>
+    <div class="tl-labels">
+      <span id="tl-lbl-lo">—</span>
+      <div class="tl-info">showing <span id="tl-count">0</span> of <span id="tl-total">0</span> messages</div>
+      <span id="tl-lbl-hi">—</span>
+    </div>
   </div>
+
+  <main class="tree-main" id="tree-root">
+    <div class="empty">Loading…</div>
+  </main>
 </div>
 
-<main class="tree-main" id="tree-root">
-  <div class="empty">Loading…</div>
-</main>
-</div>
-
-<!-- ── BAF Side Panel ─────────────────────────────────────────────────── -->
+<!-- BAF Side Panel -->
 <div class="baf-panel" id="baf-panel">
   <div class="baf-head">
     <h2>Bipolar Argumentation</h2>
@@ -71,7 +73,6 @@
         <option value="complete">Complete (all)</option>
       </select>
     </div>
-
     <div class="baf-row">
       <span class="baf-label">PRO edges</span>
       <select id="baf-pro-role">
@@ -79,7 +80,6 @@
         <option value="ignore">Ignore (only attacks matter)</option>
       </select>
     </div>
-
     <div class="baf-row">
       <span class="baf-label">Scope</span>
       <select id="baf-scope">
@@ -87,7 +87,6 @@
         <option value="all">All messages</option>
       </select>
     </div>
-
     <div class="baf-row">
       <span class="baf-label">Weight</span>
       <select id="baf-weight">
@@ -96,7 +95,6 @@
         <option value="votes">Use vote counts</option>
       </select>
     </div>
-
     <div class="baf-checkrow">
       <input type="checkbox" id="baf-highlight" checked>
       <label for="baf-highlight">Highlight in tree</label>
@@ -105,7 +103,6 @@
       <input type="checkbox" id="baf-roots-in" checked>
       <label for="baf-roots-in">Root claims always start IN</label>
     </div>
-
     <button class="baf-run-btn" onclick="runBaf()">▶ Compute</button>
   </div>
 
@@ -118,7 +115,11 @@
 const MSGS   = {{ messages_json | safe }};
 const FOLDER = {{ folder_json   | safe }};
 </script>
+<script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+<script src="{{ url_for('static', filename='js/timeline.js') }}"></script>
+<script src="{{ url_for('static', filename='js/baf.js') }}"></script>
 <script src="{{ url_for('static', filename='js/arg_tree.js') }}"></script>
+
 {% endif %}
 </body>
 </html>

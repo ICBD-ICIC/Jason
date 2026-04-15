@@ -128,7 +128,7 @@ const netView = { scale: 1, offsetX: 0, offsetY: 0, dragging: false, lastX: 0, l
 let netPreviewHeight = 220;
 let _resizing = false, _resizeStartY = 0, _resizeStartH = 0;
 
-const VIRT_ROW_H  = 34;
+const VIRT_ROW_H   = 34;
 const VIRT_OVERSCAN = 8;
 
 // ── Main HTML builder ─────────────────────────────────────────────────────────
@@ -226,7 +226,7 @@ function buildPreview() {
         <div class="dot" style="background:var(--accent)"></div>
         <h4>Preview</h4>
         <span id="net-preview-stats" style="font-family:var(--mono);font-size:.68rem;color:var(--accent2);margin-left:4px;"></span>
-        <div class="net-preview-controls" style="margin-left:auto">
+        <div class="net-preview-controls">
           <button class="net-ctrl-btn" onclick="netZoom(0.2)"   title="Zoom in">+</button>
           <button class="net-ctrl-btn" onclick="netZoom(-0.2)"  title="Zoom out">−</button>
           <button class="net-ctrl-btn" onclick="netResetView()" title="Reset">⊡</button>
@@ -278,15 +278,15 @@ function renderNetVirtRows(scrollTop) {
   const tbody = $('#net-edge-tbody'), table = $('#net-virt-table');
   if (!tbody || !table) return;
 
-  const st    = initializers['network.csv'];
+  const st     = initializers['network.csv'];
   const agents = getAllAgentNames();
-  const total = st.rows.length;
-  const wrap  = $('#net-virt-wrap');
-  const viewH = wrap?.clientHeight ?? 420;
+  const total  = st.rows.length;
+  const wrap   = $('#net-virt-wrap');
+  const viewH  = wrap?.clientHeight ?? 420;
 
-  const first  = Math.floor(scrollTop / VIRT_ROW_H);
-  const start  = Math.max(0, first - VIRT_OVERSCAN);
-  const end    = Math.min(total - 1, first + Math.ceil(viewH / VIRT_ROW_H) + VIRT_OVERSCAN);
+  const first = Math.floor(scrollTop / VIRT_ROW_H);
+  const start = Math.max(0, first - VIRT_OVERSCAN);
+  const end   = Math.min(total - 1, first + Math.ceil(viewH / VIRT_ROW_H) + VIRT_OVERSCAN);
 
   table.style.top = (start * VIRT_ROW_H) + 'px';
 
@@ -412,10 +412,8 @@ function _setupResizeHandle() {
   if (!handle || handle._resizeAttached) return;
   handle._resizeAttached = true;
 
-  const startResize = (clientY) => {
-    _resizing = true; _resizeStartY = clientY; _resizeStartH = netPreviewHeight;
-  };
-  const doResize = (clientY) => {
+  const startResize = (clientY) => { _resizing = true; _resizeStartY = clientY; _resizeStartH = netPreviewHeight; };
+  const doResize    = (clientY) => {
     if (!_resizing) return;
     netPreviewHeight = Math.max(120, _resizeStartH + (clientY - _resizeStartY));
     const body = $('#net-preview-body');
@@ -426,8 +424,7 @@ function _setupResizeHandle() {
 
   handle.addEventListener('mousedown', e => { startResize(e.clientY); document.body.style.userSelect = 'none'; document.body.style.cursor = 'ns-resize'; e.preventDefault(); });
   window.addEventListener('mousemove', e => doResize(e.clientY));
-  window.addEventListener('mouseup',  endResize);
-
+  window.addEventListener('mouseup',   endResize);
   handle.addEventListener('touchstart', e => { startResize(e.touches[0].clientY); e.preventDefault(); }, { passive: false });
   window.addEventListener('touchmove',  e => { if (_resizing) doResize(e.touches[0].clientY); });
   window.addEventListener('touchend',   endResize);
@@ -439,7 +436,6 @@ function netZoom(delta) {
   netView.scale = Math.min(8, Math.max(0.1, netView.scale + delta));
   drawNetPreview();
 }
-
 function netResetView() {
   netView.scale = 1; netView.offsetX = 0; netView.offsetY = 0;
   drawNetPreview();
@@ -453,7 +449,7 @@ function _setupCanvasInteraction(canvas) {
 
   canvas.addEventListener('wheel', e => {
     e.preventDefault();
-    const rect = canvas.getBoundingClientRect();
+    const rect  = canvas.getBoundingClientRect();
     const delta = e.deltaY < 0 ? 0.15 : -0.15;
     const old   = netView.scale;
     netView.scale = Math.min(8, Math.max(0.1, old + delta));
@@ -481,7 +477,6 @@ function _setupCanvasInteraction(canvas) {
     if (e.touches.length === 1) { netView.dragging = true; netView.lastX = e.touches[0].clientX; netView.lastY = e.touches[0].clientY; }
     if (e.touches.length === 2) { netView.dragging = false; lastTouchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); }
   }, { passive: true });
-
   canvas.addEventListener('touchmove', e => {
     e.preventDefault();
     if (e.touches.length === 1 && netView.dragging) {
@@ -526,8 +521,8 @@ function _drawFrame() {
   ctx.scale(dpr, dpr);
   ctx.fillStyle = '#0a0c10'; ctx.fillRect(0, 0, W, H);
 
-  const st     = initializers['network.csv'];
-  const known  = new Set(getAllAgentNames());
+  const st      = initializers['network.csv'];
+  const known   = new Set(getAllAgentNames());
   const nodeSet = new Set([...known]);
   for (const r of st.rows) { if (r.from) nodeSet.add(r.from); if (r.to) nodeSet.add(r.to); }
   const nodes = [...nodeSet];
@@ -586,8 +581,8 @@ function _drawFrame() {
   }
 
   // Nodes
-  const nodeR     = nodes.length > 500 ? 2 : Math.max(3, Math.min(9, 140 / nodes.length));
-  const nodeStep  = Math.max(1, Math.ceil(nodes.length / MAX_DRAW_NODES));
+  const nodeR    = nodes.length > 500 ? 2 : Math.max(3, Math.min(9, 140 / nodes.length));
+  const nodeStep = Math.max(1, Math.ceil(nodes.length / MAX_DRAW_NODES));
   const showLabel = nodes.length <= 40;
 
   for (const [fill, filter] of [

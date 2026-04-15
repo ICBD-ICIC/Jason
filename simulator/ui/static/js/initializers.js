@@ -8,7 +8,7 @@ function buildInitEditor(name) {
 function buildGenericInitEditor(name) {
   const st = initializers[name]; if (!st) return '';
   const { schema, rows } = st;
-  const agents   = getAllAgentNames();
+  const agents     = getAllAgentNames();
   const isProfiles = name === 'public_profiles.csv';
 
   const agentBanner = isProfiles ? `
