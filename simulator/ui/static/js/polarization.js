@@ -95,7 +95,8 @@ function getArgScore(m, depths, maxDepth) {
   const rel = getRelAbs(m), imp = getImpact(m);
   if (rel === null || imp === null) return null;
   const depthNorm = maxDepth > 0 ? (depths[m.message.id] || 0) / maxDepth : 0;
-  return imp * depthNorm * rel;
+  const impNorm = imp / 4;
+  return impNorm * depthNorm * rel;
 }
 
 function buildScoreMap(msgs) {
@@ -298,7 +299,8 @@ function metricContinuousArgs(msgs, depths, maxDepth) {
     const rel = getRelAbs(m), imp = getImpact(m);
     if (rel === null || imp === null) continue;
     const depthNorm = maxDepth > 0 ? (depths[m.message.id] || 0) / maxDepth : 0;
-    valid.push({ m, score: imp * depthNorm * rel, rel, imp, depthNorm });
+    const impNorm = imp / 4;
+    valid.push({ m, score: impNorm * depthNorm * rel, rel, imp, impNorm, depthNorm });
   }
   if (!valid.length) return null;
 
@@ -578,10 +580,16 @@ function renderAll() {
     }
 
     const tipData = JSON.stringify({
-      id: mid, author: m.message.author, rel: relLabel,
-      depth: depths[mid] || 0, imp: imp !== null ? imp.toFixed(3) : '—',
-      score: scoreStr, depthN: depthN.toFixed(3),
-      isHighest, isChanged,
+      id: mid,
+      author: m.message.author,
+      rel: relLabel,
+      depth: depths[mid] || 0,
+      depthN: depthN.toFixed(3),
+      imp: imp !== null ? imp.toFixed(3) : '—',
+      impNorm: imp !== null ? (imp / 4).toFixed(3) : '—',
+      score: scoreStr,
+      isHighest,
+      isChanged,
     }).replace(/"/g, '&quot;');
 
     const filterAttr = isHighest ? 'filter="url(#pol-glow-white)"' : '';
@@ -773,16 +781,27 @@ function showTip(e, el) {
   tooltip.innerHTML = `
     <div class="pol-tooltip-title">#${d.id} · ${esc(d.author)}</div>
     <div>Relation: <b>${esc(d.rel)}</b></div>
-    <div>Depth: ${d.depth}</div>
-    <div>Impact: ${esc(d.imp)}</div>
-    <div>${esc(d.score)}</div>
+    <div>Depth: ${d.depth} <span style="color:var(--muted)">(norm: ${esc(d.depthN)})</span></div>
+    <div>Impact: ${esc(d.imp)}${d.impNorm !== null ? ` <span style="color:var(--muted)">(norm: ${esc(d.impNorm)})</span>` : ''}</div>
+    <div><b style="color:var(--accent2)">${esc(d.score)}</b></div>
     ${d.isHighest ? `<div style="color:#fff;margin-top:4px">⭐ Highest score node</div>` : ''}
     ${d.isChanged ? `<div style="color:#f0c040;margin-top:2px">⚡ Score changed after deletion</div>` : ''}
     <div class="pol-tooltip-hint">Click or right-click to remove subtree</div>`;
   tooltip.style.display = 'block';
   moveTip(e);
 }
-function moveTip(e)  { tooltip.style.left = (e.clientX + 14) + 'px'; tooltip.style.top = (e.clientY + 14) + 'px'; }
+function moveTip(e) {
+  const tw = tooltip.offsetWidth || 260;
+  const left = (e.clientX + 14 + tw > window.innerWidth)
+    ? e.clientX - tw - 14
+    : e.clientX + 14;
+  const th = tooltip.offsetHeight || 120;
+  const top = (e.clientY + 14 + th > window.innerHeight)
+    ? e.clientY - th - 14
+    : e.clientY + 14;
+  tooltip.style.left = left + 'px';
+  tooltip.style.top  = top  + 'px';
+}
 function hideTip()   { tooltip.style.display = 'none'; }
 document.addEventListener('mousemove', e => { if (tooltip.style.display === 'block') moveTip(e); });
 

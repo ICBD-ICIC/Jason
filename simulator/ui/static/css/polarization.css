@@ -1,14 +1,34 @@
+body {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.tl-wrap {
+  flex-shrink: 0; /* timeline takes its natural height, doesn't grow */
+}
+
+.pol-body {
+  display: grid; grid-template-columns: 300px 1fr;
+  flex: 1;        /* fills whatever remains after header + timeline */
+  min-height: 0;  /* critical: allows flex child to shrink */
+  overflow: hidden;
+}
+
 /* ── Polarization layout ─────────────────────────────────────────────────────── */
 .pol-body {
   display: grid; grid-template-columns: 300px 1fr;
-  min-height: calc(100vh - 56px);
+  height: calc(100vh - 56px);  /* ← hard height, not min-height */
+  overflow: hidden;
 }
-
 /* ── Sidebar ─────────────────────────────────────────────────────────────────── */
 .pol-sidebar {
   border-right: 1px solid var(--border); background: var(--surface);
   display: flex; flex-direction: column;
-  position: sticky; top: 56px; height: calc(100vh - 56px); overflow: hidden;
+  height: 100%;
+  overflow: hidden;
+  align-self: start;
 }
 .pol-sidebar-inner {
   flex: 1; overflow-y: auto; padding: 20px 16px;
@@ -112,9 +132,21 @@
 }
 
 /* ── Main panel ──────────────────────────────────────────────────────────────── */
-.pol-main { display: flex; flex-direction: column; overflow: hidden; }
-.pol-tree-wrap { flex: 1; overflow: auto; display: flex; flex-direction: column; align-items: flex-start; padding: 12px; }
-#pol-svg-container { min-height: 400px; }
+.pol-main {
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  height: 100%;
+}
+.pol-tree-wrap {
+  flex: 1;
+  overflow: auto;
+  display: flex; flex-direction: column; align-items: flex-start;
+  padding: 12px;
+  min-height: 0; /* ← critical: lets flex child shrink below content size */
+}
+#pol-svg-container {
+  min-height: 0;
+}
 #pol-svg { display: block; }
 
 /* ── Info bar ────────────────────────────────────────────────────────────────── */
