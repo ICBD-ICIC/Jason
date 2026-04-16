@@ -57,7 +57,9 @@
         <select class="metric-select" id="metric-select" onchange="onMetricChange()">
           <option value="discrete">Discrete Arguments (binary)</option>
           <option value="continuous_args">Continuous Arguments</option>
-          <option value="continuous_ind">Continuous Individuals</option>
+          <option value="continuous_ind_relabs">Continuous Individuals (relation_abs)</option>
+          <option value="continuous_ind_score">Continuous Individuals (score)</option>
+          <option value="continuous_ind_pondered">Continuous Individuals (pondered score)</option>
         </select>
       </div>
 
@@ -89,6 +91,9 @@
             <div class="pol-scalar-bar" id="scalar-bar" style="width:0%"></div>
           </div>
           <div class="pol-scalar-sub" id="scalar-sub">Select a metric to compute.</div>
+          <!-- Fix 6: previous μ after deletion -->
+          <div class="pol-prev-mu" id="pol-prev-mu"
+               style="font-family:var(--mono);font-size:.7rem;margin-top:6px;min-height:1.2em;"></div>
         </div>
       </div>
 
@@ -137,7 +142,7 @@
           </div>
           <div class="pol-legend-item">
             <div class="pol-legend-dot glow-white" style="background:#2de89a"></div>
-            Highest-score node (white glow)
+            Highest-score node (white glow) — continuous metrics only
           </div>
           <div class="pol-legend-item">
             <div class="pol-legend-dot yellow-border" style="background:#2de89a"></div>

@@ -1,10 +1,11 @@
 // polarization.js — polarization metrics + SVG tree
-// Features:
-//   1. Highest-score node highlighted with white glow
-//   2. Click/right-click any node → context menu → remove node + subtree
-//   3. Recompute scores after deletion; yellow border on changed nodes/components/breakdown
-//   4. Undo stack (multiple levels) + reset
-//   5. Improved tree layout: wraps wide forests into multiple rows
+// Fixes:
+//   1. No highest-score highlight for discrete metric
+//   2. "continuous_ind" renamed to "continuous_ind_relabs"
+//   3. Added "continuous_ind_score"   — xi = avg(score_im) per author
+//   4. Added "continuous_ind_pondered" — xi = weighted avg(score_im, impact) per author
+//   5. Tree max-height subtracts timeline bar height
+//   6. Shows previous μ value in sidebar when a node is deleted
 //
 // Requires: utils.js, timeline.js
 // Expects globals: MSGS, FOLDER (injected by server template)
@@ -17,20 +18,21 @@ for (const m of MSGS) byId[m.message.id] = m;
 const timeline = new Timeline(MSGS, renderAll);
 
 // ── Deletion / undo state ─────────────────────────────────────────────────────
-let deletedIds  = new Set();   // all currently excluded message IDs
-let undoStack   = [];          // [{ removedIds: Set, label: string }, ...]
-let prevScoreMap = null;       // scoreMap before the last deletion (for diff highlights)
-let changedNodeIds = new Set();// node IDs whose score changed after last deletion
+let deletedIds   = new Set();
+let undoStack    = [];
+let prevScoreMap = null;
+let changedNodeIds = new Set();
 
 // ── Metric state ──────────────────────────────────────────────────────────────
 let currentMetric = 'discrete';
 let currentResult = null;
-let prevResult    = null;      // result before last deletion (for sidebar diff)
+let prevResult    = null;
+let prevMu        = null;   // Fix 6: store previous μ before deletion
 
 // ── Context menu state ────────────────────────────────────────────────────────
 let menuNodeId = null;
 
-// ── Active messages (timeline visible AND not deleted) ────────────────────────
+// ── Active messages ───────────────────────────────────────────────────────────
 function activeMsgs() {
   return timeline.visibleMsgs().filter(m => !deletedIds.has(m.message.id));
 }
@@ -60,7 +62,6 @@ function calcDepths(roots, kids) {
   return depth;
 }
 
-// Collect all descendant IDs (inclusive) from a root within a set of msgs
 function collectSubtree(rootId, msgs) {
   const vById = {}, vKids = {};
   for (const m of msgs) { vById[m.message.id] = m; vKids[m.message.id] = []; }
@@ -78,7 +79,10 @@ function collectSubtree(rootId, msgs) {
 }
 
 // ── Score helpers ─────────────────────────────────────────────────────────────
-const getRelAbs = m => { const v = m.variables?.public?.relation_abs; return (v !== undefined && v !== null && v !== '') ? +v : null; };
+const getRelAbs = m => {
+  const v = m.variables?.public?.relation_abs;
+  return (v !== undefined && v !== null && v !== '') ? +v : null;
+};
 const getImpact = m => {
   const votes = m.variables?.public?.votes;
   if (!Array.isArray(votes)) return null;
@@ -86,7 +90,14 @@ const getImpact = m => {
   return total === 0 ? 0 : votes.reduce((s, v, k) => s + k * v, 0) / total;
 };
 
-// Build a nodeId → score map for the current metric and a given message set
+// Build argument score (same as continuous_args logic)
+function getArgScore(m, depths, maxDepth) {
+  const rel = getRelAbs(m), imp = getImpact(m);
+  if (rel === null || imp === null) return null;
+  const depthNorm = maxDepth > 0 ? (depths[m.message.id] || 0) / maxDepth : 0;
+  return imp * depthNorm * rel;
+}
+
 function buildScoreMap(msgs) {
   const metric = currentMetric;
   if (metric === 'discrete') {
@@ -100,21 +111,34 @@ function buildScoreMap(msgs) {
     const maxDepth = Math.max(0, ...Object.values(depths));
     const map = {};
     for (const m of msgs) {
-      const rel = getRelAbs(m), imp = getImpact(m);
-      if (rel === null || imp === null) continue;
-      const dn = maxDepth > 0 ? (depths[m.message.id] || 0) / maxDepth : 0;
-      map[m.message.id] = imp * dn * rel;
+      const s = getArgScore(m, depths, maxDepth);
+      if (s !== null) map[m.message.id] = s;
     }
     return map;
   }
-  // continuous_ind
+  // All continuous_ind variants: per-node value is the author's xi
+  const { roots, kids } = buildTree(msgs);
+  const depths   = calcDepths(roots, kids);
+  const maxDepth = Math.max(0, ...Object.values(depths));
   const byAuthor = {};
   for (const m of msgs) {
-    const rel = getRelAbs(m); if (rel === null) continue;
     const a = m.message.author || '(unknown)';
-    (byAuthor[a] = byAuthor[a] || []).push(rel);
+    if (!byAuthor[a]) byAuthor[a] = [];
+    if (metric === 'continuous_ind_relabs') {
+      const r = getRelAbs(m); if (r !== null) byAuthor[a].push({ val: r, w: 1 });
+    } else if (metric === 'continuous_ind_score') {
+      const s = getArgScore(m, depths, maxDepth); if (s !== null) byAuthor[a].push({ val: s, w: 1 });
+    } else if (metric === 'continuous_ind_pondered') {
+      const s = getArgScore(m, depths, maxDepth), imp = getImpact(m);
+      if (s !== null && imp !== null && imp > 0) byAuthor[a].push({ val: s, w: imp });
+    }
   }
-  const xiMap = Object.fromEntries(Object.entries(byAuthor).map(([a, rs]) => [a, rs.reduce((s,r)=>s+r,0)/rs.length]));
+  const xiMap = {};
+  for (const [a, items] of Object.entries(byAuthor)) {
+    if (!items.length) continue;
+    const wSum = items.reduce((s, x) => s + x.w, 0);
+    xiMap[a] = wSum > 0 ? items.reduce((s, x) => s + x.val * x.w, 0) / wSum : 0;
+  }
   const map = {};
   for (const m of msgs) {
     const a = m.message.author || '(unknown)';
@@ -128,16 +152,15 @@ function deleteSubtree(nodeId) {
   const msgs    = activeMsgs();
   const subtree = collectSubtree(nodeId, msgs);
 
-  // Snapshot scores before deletion for diff
   prevScoreMap = buildScoreMap(msgs);
   prevResult   = currentResult;
+  prevMu       = currentResult ? currentResult.mu : null;  // Fix 6
 
   const m     = byId[nodeId];
   const label = m ? `#${nodeId} · ${m.message.author || '?'}` : `#${nodeId}`;
   undoStack.push({ removedIds: new Set(subtree), label });
   for (const id of subtree) deletedIds.add(id);
 
-  // Compute which nodes changed score
   const newMsgs     = activeMsgs();
   const newScoreMap = buildScoreMap(newMsgs);
   changedNodeIds    = new Set();
@@ -154,12 +177,12 @@ function deleteSubtree(nodeId) {
 function undo() {
   if (!undoStack.length) return;
   undoStack.pop();
-  // Rebuild deletedIds from remaining stack entries
   deletedIds = new Set();
   for (const entry of undoStack) for (const id of entry.removedIds) deletedIds.add(id);
   changedNodeIds = new Set();
   prevScoreMap   = null;
   prevResult     = null;
+  prevMu         = null;
   renderAll();
   updateUndoUI();
 }
@@ -170,6 +193,7 @@ function undoAll() {
   changedNodeIds = new Set();
   prevScoreMap   = null;
   prevResult     = null;
+  prevMu         = null;
   renderAll();
   updateUndoUI();
 }
@@ -226,6 +250,22 @@ document.addEventListener('click', closeMenu);
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
 
 // ── Polarization metrics ──────────────────────────────────────────────────────
+
+// Shared computation from a list of { xi } individuals
+function computeFromXiList(individuals) {
+  const N = individuals.length; if (!N) return null;
+  const pos     = individuals.filter(i => i.xi > 0);
+  const neg     = individuals.filter(i => i.xi < 0);
+  const Aplus   = pos.length / N;
+  const Aminus  = neg.length / N;
+  const deltaA  = Math.abs(Aplus - Aminus);
+  const gcPlus  = pos.length ? pos.reduce((s, i) => s + i.xi, 0) / pos.length : null;
+  const gcMinus = neg.length ? neg.reduce((s, i) => s + i.xi, 0) / neg.length : null;
+  const d       = (gcPlus !== null && gcMinus !== null) ? Math.abs(gcPlus - gcMinus) / 2 : 0;
+  const mu      = (gcPlus !== null && gcMinus !== null) ? (1 - deltaA) * d : 0;
+  return { N, Aplus, Aminus, deltaA, gcPlus, gcMinus, d, mu };
+}
+
 function metricDiscrete(msgs) {
   const valid = msgs.filter(m => getRelAbs(m) !== null);
   if (!valid.length) return null;
@@ -294,28 +334,31 @@ function metricContinuousArgs(msgs, depths, maxDepth) {
   };
 }
 
-function metricContinuousInd(msgs) {
+// ── Continuous individuals — shared builder ───────────────────────────────────
+// valuesFn(m, depths, maxDepth) → { val, weight } | null for each message
+function metricContinuousInd(msgs, depths, maxDepth, valuesFn, metricLabel) {
   const byAuthor = {};
   for (const m of msgs) {
-    const rel = getRelAbs(m); if (rel === null) continue;
+    const entry = valuesFn(m, depths, maxDepth);
+    if (!entry) continue;
     const a = m.message.author || '(unknown)';
-    (byAuthor[a] = byAuthor[a] || []).push(rel);
+    (byAuthor[a] = byAuthor[a] || []).push(entry);
   }
-  const individuals = Object.entries(byAuthor).map(([author, rels]) => ({
-    author, xi: rels.reduce((s, r) => s + r, 0) / rels.length, count: rels.length,
-  }));
-  const N = individuals.length; if (!N) return null;
 
-  const pos     = individuals.filter(i => i.xi > 0);
-  const neg     = individuals.filter(i => i.xi < 0);
-  const Aplus   = pos.length / N;
-  const Aminus  = neg.length / N;
-  const deltaA  = Math.abs(Aplus - Aminus);
-  const gcPlus  = pos.length ? pos.reduce((s, i) => s + i.xi, 0) / pos.length : null;
-  const gcMinus = neg.length ? neg.reduce((s, i) => s + i.xi, 0) / neg.length : null;
-  const d       = (gcPlus !== null && gcMinus !== null) ? Math.abs(gcPlus - gcMinus) / 2 : 0;
-  const mu      = (gcPlus !== null && gcMinus !== null) ? (1 - deltaA) * d : 0;
-  const xiMap   = Object.fromEntries(individuals.map(i => [i.author, i.xi]));
+  const individuals = [];
+  for (const [author, items] of Object.entries(byAuthor)) {
+    if (!items.length) continue;
+    const wSum = items.reduce((s, x) => s + x.w, 0);
+    const xi   = wSum > 0 ? items.reduce((s, x) => s + x.val * x.w, 0) / wSum : 0;
+    individuals.push({ author, xi, count: items.length });
+  }
+  if (!individuals.length) return null;
+
+  const base = computeFromXiList(individuals);
+  if (!base) return null;
+  const { N, Aplus, Aminus, deltaA, gcPlus, gcMinus, d, mu } = base;
+
+  const xiMap = Object.fromEntries(individuals.map(i => [i.author, i.xi]));
 
   return {
     mu, d, deltaA, Aplus, Aminus, gcPlus, gcMinus,
@@ -380,13 +423,11 @@ function indColor(m, result) {
        : '#7a82a0';
 }
 
-// ── SVG layout — Feature 5: row-wrapping ──────────────────────────────────────
-// When root-level trees are too wide collectively, wrap them into multiple rows.
+// ── SVG layout ────────────────────────────────────────────────────────────────
 const NODE_R = 10, H_GAP = 34, MIN_W_GAP = 22;
-const MAX_ROW_PX = 1400; // max width before wrapping to next row
+const MAX_ROW_PX = 1400;
 
 function layoutTree(roots, kids) {
-  // 1. Compute subtree widths bottom-up
   const subtreeW = {};
   function computeW(m) {
     const ch = kids[m.message.id] || [];
@@ -397,7 +438,6 @@ function layoutTree(roots, kids) {
   }
   roots.forEach(computeW);
 
-  // 2. Assign roots to rows so no row exceeds MAX_ROW_PX
   const TREE_GAP = MIN_W_GAP * 4;
   const rows = [];
   let rowRoots = [], rowWidth = 0;
@@ -413,12 +453,10 @@ function layoutTree(roots, kids) {
   }
   if (rowRoots.length) rows.push(rowRoots);
 
-  // 3. Place each row
   const positions = {};
   let yOffset = 0;
 
   for (const rowGroup of rows) {
-    // max depth in this row (for row height)
     let rowMaxDepth = 0;
     function maxD(m, d) { rowMaxDepth = Math.max(rowMaxDepth, d); (kids[m.message.id]||[]).forEach(c => maxD(c, d+1)); }
     rowGroup.forEach(r => maxD(r, 0));
@@ -466,14 +504,29 @@ function renderAll() {
   const maxDepth = Math.max(0, ...Object.values(depths));
 
   let result = null;
-  if      (currentMetric === 'discrete')        result = metricDiscrete(msgs);
-  else if (currentMetric === 'continuous_args') result = metricContinuousArgs(msgs, depths, maxDepth);
-  else if (currentMetric === 'continuous_ind')  result = metricContinuousInd(msgs);
+  if      (currentMetric === 'discrete')              result = metricDiscrete(msgs);
+  else if (currentMetric === 'continuous_args')        result = metricContinuousArgs(msgs, depths, maxDepth);
+  else if (currentMetric === 'continuous_ind_relabs')  result = metricContinuousInd(
+    msgs, depths, maxDepth,
+    (m) => { const r = getRelAbs(m); return r !== null ? { val: r, w: 1 } : null; }
+  );
+  else if (currentMetric === 'continuous_ind_score')   result = metricContinuousInd(
+    msgs, depths, maxDepth,
+    (m, dep, maxD) => { const s = getArgScore(m, dep, maxD); return s !== null ? { val: s, w: 1 } : null; }
+  );
+  else if (currentMetric === 'continuous_ind_pondered') result = metricContinuousInd(
+    msgs, depths, maxDepth,
+    (m, dep, maxD) => {
+      const s = getArgScore(m, dep, maxD), imp = getImpact(m);
+      return (s !== null && imp !== null && imp > 0) ? { val: s, w: imp } : null;
+    }
+  );
   currentResult = result;
 
-  // Feature 1: find node with highest absolute score
+  // Fix 1: only show highest-score glow for metrics where score has continuous meaning
+  const showHighest = currentMetric !== 'discrete';
   let highestId = null, highestAbsScore = -Infinity;
-  if (result?.scoreMap) {
+  if (showHighest && result?.scoreMap) {
     for (const [id, score] of Object.entries(result.scoreMap)) {
       const abs = Math.abs(+score);
       if (abs > highestAbsScore) { highestAbsScore = abs; highestId = +id; }
@@ -488,7 +541,6 @@ function renderAll() {
 
   let edgesHTML = '', nodesHTML = '';
 
-  // Edges
   for (const m of msgs) {
     const ch = kids[m.message.id] || [], p = positions[m.message.id];
     if (!p) continue;
@@ -500,24 +552,25 @@ function renderAll() {
     }
   }
 
-  // Nodes
+  const isIndMetric = currentMetric.startsWith('continuous_ind');
+
   for (const m of msgs) {
     const p = positions[m.message.id]; if (!p) continue;
     const mid        = m.message.id;
-    const fillColor  = currentMetric === 'continuous_ind' ? indColor(m, result) : nodeColor(m, result);
+    const fillColor  = isIndMetric ? indColor(m, result) : nodeColor(m, result);
     const rel        = +(m.variables?.public?.relation ?? 0);
     const relAbs     = getRelAbs(m);
     const relLabel   = rel === 0 ? 'ROOT' : relAbs === 1 ? 'PRO' : relAbs === -1 ? 'CON' : '?';
     const imp        = getImpact(m);
     const depthN     = maxDepth > 0 ? (depths[mid] || 0) / maxDepth : 0;
-    const isHighest  = mid === highestId;                   // Feature 1
-    const isChanged  = changedNodeIds.has(mid);             // Feature 3
+    const isHighest  = mid === highestId;
+    const isChanged  = changedNodeIds.has(mid);
 
     let scoreStr = '';
     if (currentMetric === 'continuous_args' && result?.scoreMap) {
       const s = result.scoreMap[mid];
       scoreStr = s !== undefined ? `score: ${(+s).toFixed(3)}` : '';
-    } else if (currentMetric === 'continuous_ind' && result?.xiMap) {
+    } else if (isIndMetric && result?.xiMap) {
       const xi = result.xiMap[m.message.author];
       scoreStr = xi !== undefined ? `author xi: ${xi.toFixed(3)}` : '';
     } else {
@@ -531,10 +584,8 @@ function renderAll() {
       isHighest, isChanged,
     }).replace(/"/g, '&quot;');
 
-    // Feature 1: white glow for highest score node (SVG filter)
     const filterAttr = isHighest ? 'filter="url(#pol-glow-white)"' : '';
 
-    // Feature 3: yellow dashed stroke for changed nodes
     let strokeColor = fillColor, strokeWidth = 2, strokeDash = '';
     if (isChanged) {
       strokeColor  = '#f0c040';
@@ -542,7 +593,6 @@ function renderAll() {
       strokeDash   = 'stroke-dasharray="4 2"';
     }
 
-    // Feature 1: outer ring for highest
     const outerRing = isHighest
       ? `<circle cx="${p.x}" cy="${p.y}" r="${NODE_R + 5}" fill="none"
            stroke="rgba(255,255,255,0.45)" stroke-width="1.5" pointer-events="none"/>`
@@ -583,7 +633,17 @@ function renderAll() {
       <g id="pol-nodes">${nodesHTML}</g>
     </svg>`;
 
-  // SVG container needs explicit width so horizontal scroll works
+  // Fix 5: correct available height = viewport minus header (56px) minus timeline bar
+  const tlEl   = document.getElementById('tl');
+  const tlH    = tlEl ? tlEl.offsetHeight : 0;
+  const infoEl = document.getElementById('pol-info-bar');
+  const infoH  = infoEl ? infoEl.offsetHeight : 0;
+  const wrapEl = document.querySelector('.pol-tree-wrap');
+  if (wrapEl) {
+    wrapEl.style.maxHeight = `calc(100vh - 56px - ${tlH}px - ${infoH}px)`;
+    wrapEl.style.overflow  = 'auto';
+  }
+
   const container = document.getElementById('pol-svg-container');
   container.style.width    = svgW + 'px';
   container.style.minWidth = '100%';
@@ -593,9 +653,15 @@ function renderAll() {
   document.getElementById('hdr-count').textContent = `${msgs.length} messages`;
 }
 
-// ── Sidebar update — Feature 3: yellow highlights ─────────────────────────────
+// ── Sidebar update ────────────────────────────────────────────────────────────
 function updateSidebar(result) {
-  const metricNames = { discrete: 'Discrete Arguments', continuous_args: 'Continuous Arguments', continuous_ind: 'Continuous Individuals' };
+  const metricNames = {
+    discrete:               'Discrete Arguments',
+    continuous_args:        'Continuous Arguments',
+    continuous_ind_relabs:  'Continuous Individuals (relation_abs)',
+    continuous_ind_score:   'Continuous Individuals (score)',
+    continuous_ind_pondered:'Continuous Individuals (pondered score)',
+  };
   document.getElementById('scalar-label').textContent = metricNames[currentMetric] || '';
 
   if (!result) {
@@ -603,6 +669,7 @@ function updateSidebar(result) {
     document.getElementById('scalar-value').style.color = 'var(--text)';
     document.getElementById('scalar-bar').style.width   = '0%';
     document.getElementById('scalar-sub').textContent   = 'No valid data for this metric.';
+    document.getElementById('pol-prev-mu').textContent  = '';
     document.getElementById('pol-components').innerHTML = '<div class="pol-no-data">No data.</div>';
     document.getElementById('pol-components').classList.remove('score-changed');
     document.getElementById('breakdown-list').innerHTML = '<div class="pol-no-data">No data.</div>';
@@ -617,7 +684,20 @@ function updateSidebar(result) {
   document.getElementById('scalar-bar').style.width = (result.mu * 100).toFixed(1) + '%';
   document.getElementById('scalar-sub').textContent = `μ = ${result.mu.toFixed(4)} · d = ${result.d.toFixed(4)} · ΔA = ${result.deltaA.toFixed(4)}`;
 
-  // Build prev-component lookup for diff
+  // Fix 6: show previous μ
+  const prevMuEl = document.getElementById('pol-prev-mu');
+  if (prevMuEl) {
+    if (prevMu !== null) {
+      const diff    = result.mu - prevMu;
+      const sign    = diff >= 0 ? '+' : '';
+      const diffClr = diff > 0 ? 'var(--con)' : diff < 0 ? 'var(--pro)' : 'var(--muted)';
+      prevMuEl.innerHTML = `prev μ: <span style="color:var(--muted)">${prevMu.toFixed(4)}</span>&nbsp;<span style="color:${diffClr}">(${sign}${diff.toFixed(4)})</span>`;
+    } else {
+      prevMuEl.textContent = '';
+    }
+  }
+
+  // Components diff
   const prevCompMap = {};
   if (prevResult?.components) for (const c of prevResult.components) prevCompMap[c.key] = c.val;
 
@@ -642,7 +722,6 @@ function updateSidebar(result) {
   document.getElementById('breakdown-label').textContent = isInd ? 'Per-individual breakdown' : 'Per-argument breakdown';
   document.getElementById('breakdown-head').textContent  = isInd ? 'Author · xᵢ · args' : 'Argument · value';
 
-  // Build prev-breakdown lookup
   const prevBdMap = {};
   if (prevResult?.breakdown) {
     for (const item of prevResult.breakdown) {
@@ -711,6 +790,7 @@ document.addEventListener('mousemove', e => { if (tooltip.style.display === 'blo
 function onMetricChange() {
   currentMetric  = document.getElementById('metric-select').value;
   prevResult     = null;
+  prevMu         = null;
   changedNodeIds = new Set();
   renderAll();
 }
