@@ -51,6 +51,7 @@
   <aside class="pol-sidebar">
     <div class="pol-sidebar-inner">
 
+      <!-- Metric selector -->
       <div>
         <div class="pol-section-label">Polarization Metric</div>
         <select class="metric-select" id="metric-select" onchange="onMetricChange()">
@@ -60,8 +61,25 @@
         </select>
       </div>
 
+      <!-- Undo / deletion history (hidden until a deletion exists) -->
+      <div id="pol-undo-section" style="display:none">
+        <div class="pol-section-label">Deletions</div>
+        <div class="pol-undo-section">
+          <div class="pol-undo-row">
+            <span class="pol-undo-label" id="pol-undo-label">—</span>
+            <span class="pol-undo-count" id="pol-undo-count"></span>
+          </div>
+          <div class="pol-undo-row">
+            <button class="pol-undo-btn" onclick="undo()" title="Undo last deletion">↩ Undo</button>
+            <button class="pol-undo-btn danger" onclick="undoAll()" title="Restore all nodes">✕ Reset all</button>
+          </div>
+          <div class="pol-deleted-chips" id="pol-deleted-chips"></div>
+        </div>
+      </div>
+
       <div class="pol-divider"></div>
 
+      <!-- Scalar result -->
       <div>
         <div class="pol-section-label">Polarization Index μ</div>
         <div class="pol-scalar-box">
@@ -74,6 +92,7 @@
         </div>
       </div>
 
+      <!-- Components -->
       <div>
         <div class="pol-section-label">Components</div>
         <div class="pol-components" id="pol-components">
@@ -83,9 +102,10 @@
 
       <div class="pol-divider"></div>
 
+      <!-- Per-node / per-author breakdown -->
       <div>
         <div class="pol-section-label" id="breakdown-label">Per-argument breakdown</div>
-        <div class="pol-breakdown">
+        <div class="pol-breakdown" id="pol-breakdown">
           <div class="pol-breakdown-head" id="breakdown-head">Score / value</div>
           <div class="pol-breakdown-list" id="breakdown-list">
             <div class="pol-no-data">No data yet.</div>
@@ -95,13 +115,37 @@
 
       <div class="pol-divider"></div>
 
+      <!-- Legend -->
       <div>
         <div class="pol-section-label">Legend</div>
         <div class="pol-legend">
-          <div class="pol-legend-item"><div class="pol-legend-dot" style="background:#2de89a"></div> PRO (+1)</div>
-          <div class="pol-legend-item"><div class="pol-legend-dot" style="background:#f5604a"></div> CON (−1)</div>
-          <div class="pol-legend-item"><div class="pol-legend-dot" style="background:#5b8df6"></div> ROOT</div>
-          <div class="pol-legend-item"><div class="pol-legend-dot" style="background:#7a82a0;border:1px dashed #aaa"></div> No data</div>
+          <div class="pol-legend-item">
+            <div class="pol-legend-dot" style="background:#2de89a"></div>
+            PRO (+1) argument
+          </div>
+          <div class="pol-legend-item">
+            <div class="pol-legend-dot" style="background:#f5604a"></div>
+            CON (−1) argument
+          </div>
+          <div class="pol-legend-item">
+            <div class="pol-legend-dot" style="background:#5b8df6"></div>
+            ROOT claim
+          </div>
+          <div class="pol-legend-item">
+            <div class="pol-legend-dot" style="background:#7a82a0;border:1px dashed #aaa"></div>
+            No score data
+          </div>
+          <div class="pol-legend-item">
+            <div class="pol-legend-dot glow-white" style="background:#2de89a"></div>
+            Highest-score node (white glow)
+          </div>
+          <div class="pol-legend-item">
+            <div class="pol-legend-dot yellow-border" style="background:#2de89a"></div>
+            Score changed after deletion
+          </div>
+          <div class="pol-legend-item" style="font-size:.63rem;color:var(--muted);line-height:1.5;margin-top:4px">
+            Click or right-click any node to remove it and its subtree from the analysis.
+          </div>
         </div>
       </div>
 
@@ -115,6 +159,7 @@
       <div class="pol-info-item">Edges: <span id="info-edges">—</span></div>
       <div class="pol-info-item">Max depth: <span id="info-depth">—</span></div>
       <div class="pol-info-item">Authors: <span id="info-authors">—</span></div>
+      <div class="pol-info-item accent"><span id="info-excluded"></span></div>
     </div>
     <div class="pol-tree-wrap">
       <div id="pol-svg-container">
@@ -128,7 +173,19 @@
 
 </div>
 
+<!-- Tooltip -->
 <div class="pol-tooltip" id="pol-tooltip"></div>
+
+<!-- Node context menu -->
+<div class="pol-node-menu" id="pol-node-menu">
+  <div class="pol-node-menu-title" id="pol-menu-title">Node</div>
+  <div class="pol-node-menu-sep"></div>
+  <button class="pol-node-menu-item danger" onclick="menuDeleteSubtree()">
+    🗑 Remove node + subtree
+  </button>
+  <div class="pol-node-menu-sep"></div>
+  <button class="pol-node-menu-item" onclick="closeMenu()">Cancel</button>
+</div>
 
 <script>
 const MSGS   = {{ messages_json | safe }};
