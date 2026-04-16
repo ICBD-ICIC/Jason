@@ -59,7 +59,8 @@
           <option value="continuous_args">Continuous Arguments</option>
           <option value="continuous_ind_relabs">Continuous Individuals (relation_abs)</option>
           <option value="continuous_ind_score">Continuous Individuals (score)</option>
-          <option value="continuous_ind_pondered">Continuous Individuals (pondered score)</option>
+          <option value="continuous_ind_impact">Continuous Individuals (by impact)</option>
+          <option value="continuous_ind_depth">Continuous Individuals (by depth)</option>
         </select>
       </div>
 
@@ -81,17 +82,15 @@
 
       <div class="pol-divider"></div>
 
-      <!-- Scalar result -->
       <div>
-        <div class="pol-section-label">Polarization Index μ</div>
+        <div class="pol-section-label">Polarization Index</div>
         <div class="pol-scalar-box">
-          <div class="pol-scalar-label" id="scalar-label">—</div>
           <div class="pol-scalar-value" id="scalar-value">—</div>
           <div class="pol-scalar-bar-wrap">
             <div class="pol-scalar-bar" id="scalar-bar" style="width:0%"></div>
           </div>
-          <div class="pol-scalar-sub" id="scalar-sub">Select a metric to compute.</div>
-          <!-- Fix 6: previous μ after deletion -->
+          <!-- scalar-sub intentionally kept but emptied by JS for this change -->
+          <div class="pol-scalar-sub" id="scalar-sub"></div>
           <div class="pol-prev-mu" id="pol-prev-mu"
                style="font-family:var(--mono);font-size:.7rem;margin-top:6px;min-height:1.2em;"></div>
         </div>
@@ -111,7 +110,7 @@
       <div>
         <div class="pol-section-label" id="breakdown-label">Per-argument breakdown</div>
         <div class="pol-breakdown" id="pol-breakdown">
-          <div class="pol-breakdown-head" id="breakdown-head">Score / value</div>
+          <div class="pol-breakdown-head" id="breakdown-head">Score</div>
           <div class="pol-breakdown-list" id="breakdown-list">
             <div class="pol-no-data">No data yet.</div>
           </div>
@@ -147,6 +146,10 @@
           <div class="pol-legend-item">
             <div class="pol-legend-dot yellow-border" style="background:#2de89a"></div>
             Score changed after deletion
+          </div>
+          <div class="pol-legend-item">
+            <div class="pol-legend-dot" style="background:#2de89a;box-shadow:0 0 0 2px rgba(255,200,40,0.7)"></div>
+            Node from highest-xᵢ author — individual metrics only
           </div>
           <div class="pol-legend-item" style="font-size:.63rem;color:var(--muted);line-height:1.5;margin-top:4px">
             Click or right-click any node to remove it and its subtree from the analysis.
@@ -186,7 +189,7 @@
   <div class="pol-node-menu-title" id="pol-menu-title">Node</div>
   <div class="pol-node-menu-sep"></div>
   <button class="pol-node-menu-item danger" onclick="menuDeleteSubtree()">
-    🗑 Remove node + subtree
+    Remove node + subtree
   </button>
   <div class="pol-node-menu-sep"></div>
   <button class="pol-node-menu-item" onclick="closeMenu()">Cancel</button>

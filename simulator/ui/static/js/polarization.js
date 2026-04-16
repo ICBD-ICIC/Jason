@@ -1,12 +1,4 @@
 // polarization.js — polarization metrics + SVG tree
-// Fixes:
-//   1. No highest-score highlight for discrete metric
-//   2. "continuous_ind" renamed to "continuous_ind_relabs"
-//   3. Added "continuous_ind_score"   — xi = avg(score_im) per author
-//   4. Added "continuous_ind_pondered" — xi = weighted avg(score_im, impact) per author
-//   5. Tree max-height subtracts timeline bar height
-//   6. Shows previous μ value in sidebar when a node is deleted
-//
 // Requires: utils.js, timeline.js
 // Expects globals: MSGS, FOLDER (injected by server template)
 
@@ -27,7 +19,7 @@ let changedNodeIds = new Set();
 let currentMetric = 'discrete';
 let currentResult = null;
 let prevResult    = null;
-let prevMu        = null;   // Fix 6: store previous μ before deletion
+let prevMu        = null;
 
 // ── Context menu state ────────────────────────────────────────────────────────
 let menuNodeId = null;
@@ -99,6 +91,14 @@ function getArgScore(m, depths, maxDepth) {
   return impNorm * depthNorm * rel;
 }
 
+// Build argument score weighted by depth only
+function getArgScoreByDepth(m, depths, maxDepth) {
+  const rel = getRelAbs(m);
+  if (rel === null) return null;
+  const depthNorm = maxDepth > 0 ? (depths[m.message.id] || 0) / maxDepth : 0;
+  return depthNorm * rel;
+}
+
 function buildScoreMap(msgs) {
   const metric = currentMetric;
   if (metric === 'discrete') {
@@ -129,9 +129,12 @@ function buildScoreMap(msgs) {
       const r = getRelAbs(m); if (r !== null) byAuthor[a].push({ val: r, w: 1 });
     } else if (metric === 'continuous_ind_score') {
       const s = getArgScore(m, depths, maxDepth); if (s !== null) byAuthor[a].push({ val: s, w: 1 });
-    } else if (metric === 'continuous_ind_pondered') {
+    } else if (metric === 'continuous_ind_impact') {
       const s = getArgScore(m, depths, maxDepth), imp = getImpact(m);
       if (s !== null && imp !== null && imp > 0) byAuthor[a].push({ val: s, w: imp });
+    } else if (metric === 'continuous_ind_depth') {
+      const s = getArgScoreByDepth(m, depths, maxDepth), dep = maxDepth > 0 ? (depths[m.message.id] || 0) / maxDepth : 0;
+      if (s !== null && dep > 0) byAuthor[a].push({ val: s, w: dep });
     }
   }
   const xiMap = {};
@@ -155,7 +158,7 @@ function deleteSubtree(nodeId) {
 
   prevScoreMap = buildScoreMap(msgs);
   prevResult   = currentResult;
-  prevMu       = currentResult ? currentResult.mu : null;  // Fix 6
+  prevMu       = currentResult ? currentResult.mu : null;
 
   const m     = byId[nodeId];
   const label = m ? `#${nodeId} · ${m.message.author || '?'}` : `#${nodeId}`;
@@ -318,10 +321,10 @@ function metricContinuousArgs(msgs, depths, maxDepth) {
   return {
     mu, d, deltaA, Aplus, Aminus, gcPlus, gcMinus,
     scoreMap: Object.fromEntries(valid.map(({ m, score }) => [m.message.id, score])),
-    breakdown: valid.map(({ m, score, imp, depthNorm }) => ({
+    breakdown: valid.map(({ m, score }) => ({
       id: m.message.id, author: m.message.author, value: score,
       label: `#${m.message.id} (${m.message.author})`,
-      extra: `imp=${imp.toFixed(2)} depth=${depthNorm.toFixed(2)}`,
+      extra: null,
     })),
     breakdownType: 'argument',
     components: [
@@ -337,7 +340,6 @@ function metricContinuousArgs(msgs, depths, maxDepth) {
 }
 
 // ── Continuous individuals — shared builder ───────────────────────────────────
-// valuesFn(m, depths, maxDepth) → { val, weight } | null for each message
 function metricContinuousInd(msgs, depths, maxDepth, valuesFn, metricLabel) {
   const byAuthor = {};
   for (const m of msgs) {
@@ -362,9 +364,17 @@ function metricContinuousInd(msgs, depths, maxDepth, valuesFn, metricLabel) {
 
   const xiMap = Object.fromEntries(individuals.map(i => [i.author, i.xi]));
 
+  // Change 7: find highest |xi| author
+  let highestXiAuthor = null, highestXiAbs = -Infinity;
+  for (const ind of individuals) {
+    const abs = Math.abs(ind.xi);
+    if (abs > highestXiAbs) { highestXiAbs = abs; highestXiAuthor = ind.author; }
+  }
+
   return {
     mu, d, deltaA, Aplus, Aminus, gcPlus, gcMinus,
     xiMap,
+    highestXiAuthor,
     scoreMap: (() => {
       const map = {};
       for (const m of msgs) {
@@ -376,6 +386,7 @@ function metricContinuousInd(msgs, depths, maxDepth, valuesFn, metricLabel) {
     breakdown: individuals.sort((a, b) => a.xi - b.xi).map(i => ({
       id: null, author: i.author, value: i.xi, label: i.author,
       extra: `${i.count} arg${i.count !== 1 ? 's' : ''}`,
+      isHighestXi: i.author === highestXiAuthor,
     })),
     breakdownType: 'individual',
     components: [
@@ -516,22 +527,40 @@ function renderAll() {
     msgs, depths, maxDepth,
     (m, dep, maxD) => { const s = getArgScore(m, dep, maxD); return s !== null ? { val: s, w: 1 } : null; }
   );
-  else if (currentMetric === 'continuous_ind_pondered') result = metricContinuousInd(
+  else if (currentMetric === 'continuous_ind_impact') result = metricContinuousInd(
     msgs, depths, maxDepth,
     (m, dep, maxD) => {
       const s = getArgScore(m, dep, maxD), imp = getImpact(m);
       return (s !== null && imp !== null && imp > 0) ? { val: s, w: imp } : null;
     }
   );
+  else if (currentMetric === 'continuous_ind_depth') result = metricContinuousInd(
+    msgs, depths, maxDepth,
+    (m, dep, maxD) => {
+      const s = getArgScoreByDepth(m, dep, maxD);
+      const depthNorm = maxD > 0 ? (dep[m.message.id] || 0) / maxD : 0;
+      return (s !== null && depthNorm > 0) ? { val: s, w: depthNorm } : null;
+    }
+  );
   currentResult = result;
 
-  // Fix 1: only show highest-score glow for metrics where score has continuous meaning
   const showHighest = currentMetric !== 'discrete';
   let highestId = null, highestAbsScore = -Infinity;
   if (showHighest && result?.scoreMap) {
     for (const [id, score] of Object.entries(result.scoreMap)) {
       const abs = Math.abs(+score);
       if (abs > highestAbsScore) { highestAbsScore = abs; highestId = +id; }
+    }
+  }
+
+  const isIndMetric = currentMetric.startsWith('continuous_ind');
+  const highestXiAuthor = isIndMetric ? (result?.highestXiAuthor ?? null) : null;
+  const highestXiAuthorNodeIds = new Set();
+  if (highestXiAuthor) {
+    for (const m of msgs) {
+      if ((m.message.author || '(unknown)') === highestXiAuthor) {
+        highestXiAuthorNodeIds.add(m.message.id);
+      }
     }
   }
 
@@ -554,8 +583,6 @@ function renderAll() {
     }
   }
 
-  const isIndMetric = currentMetric.startsWith('continuous_ind');
-
   for (const m of msgs) {
     const p = positions[m.message.id]; if (!p) continue;
     const mid        = m.message.id;
@@ -567,6 +594,9 @@ function renderAll() {
     const depthN     = maxDepth > 0 ? (depths[mid] || 0) / maxDepth : 0;
     const isHighest  = mid === highestId;
     const isChanged  = changedNodeIds.has(mid);
+
+    const isHighestXiNode  = isIndMetric && highestXiAuthorNodeIds.has(mid);
+    const isHighestXiChamp = isIndMetric && isHighestXiNode && mid === highestId;
 
     let scoreStr = '';
     if (currentMetric === 'continuous_args' && result?.scoreMap) {
@@ -590,9 +620,15 @@ function renderAll() {
       score: scoreStr,
       isHighest,
       isChanged,
+      isHighestXiAuthor: isHighestXiNode,
     }).replace(/"/g, '&quot;');
 
-    const filterAttr = isHighest ? 'filter="url(#pol-glow-white)"' : '';
+    let filterAttr = '';
+    if (isIndMetric) {
+      if (isHighestXiChamp) filterAttr = 'filter="url(#pol-glow-white)"';
+    } else {
+      if (isHighest) filterAttr = 'filter="url(#pol-glow-white)"';
+    }
 
     let strokeColor = fillColor, strokeWidth = 2, strokeDash = '';
     if (isChanged) {
@@ -601,7 +637,13 @@ function renderAll() {
       strokeDash   = 'stroke-dasharray="4 2"';
     }
 
-    const outerRing = isHighest
+    // Gold ring for non-champion nodes of the highest xi author
+    const highestXiRing = (isIndMetric && isHighestXiNode && !isHighestXiChamp)
+      ? `<circle cx="${p.x}" cy="${p.y}" r="${NODE_R + 4}" fill="none"
+           stroke="rgba(255,200,40,0.7)" stroke-width="2" pointer-events="none"/>`
+      : '';
+
+    const outerRing = (isHighest && !isIndMetric) || isHighestXiChamp
       ? `<circle cx="${p.x}" cy="${p.y}" r="${NODE_R + 5}" fill="none"
            stroke="rgba(255,255,255,0.45)" stroke-width="1.5" pointer-events="none"/>`
       : '';
@@ -610,6 +652,7 @@ function renderAll() {
       <g class="pol-node" data-id="${mid}" data-tip="${tipData}"
          onmouseenter="showTip(event,this)" onmouseleave="hideTip()"
          onclick="openMenu(event,${mid})" oncontextmenu="openMenu(event,${mid})">
+        ${highestXiRing}
         ${outerRing}
         <circle cx="${p.x}" cy="${p.y}" r="${NODE_R}"
           fill="${fillColor}" fill-opacity="0.85"
@@ -641,7 +684,6 @@ function renderAll() {
       <g id="pol-nodes">${nodesHTML}</g>
     </svg>`;
 
-  // Fix 5: correct available height = viewport minus header (56px) minus timeline bar
   const tlEl   = document.getElementById('tl');
   const tlH    = tlEl ? tlEl.offsetHeight : 0;
   const infoEl = document.getElementById('pol-info-bar');
@@ -663,36 +705,11 @@ function renderAll() {
 
 // ── Sidebar update ────────────────────────────────────────────────────────────
 function updateSidebar(result) {
-  const metricNames = {
-    discrete:               'Discrete Arguments',
-    continuous_args:        'Continuous Arguments',
-    continuous_ind_relabs:  'Continuous Individuals (relation_abs)',
-    continuous_ind_score:   'Continuous Individuals (score)',
-    continuous_ind_pondered:'Continuous Individuals (pondered score)',
-  };
-  document.getElementById('scalar-label').textContent = metricNames[currentMetric] || '';
-
-  if (!result) {
-    document.getElementById('scalar-value').textContent = '—';
-    document.getElementById('scalar-value').style.color = 'var(--text)';
-    document.getElementById('scalar-bar').style.width   = '0%';
-    document.getElementById('scalar-sub').textContent   = 'No valid data for this metric.';
-    document.getElementById('pol-prev-mu').textContent  = '';
-    document.getElementById('pol-components').innerHTML = '<div class="pol-no-data">No data.</div>';
-    document.getElementById('pol-components').classList.remove('score-changed');
-    document.getElementById('breakdown-list').innerHTML = '<div class="pol-no-data">No data.</div>';
-    document.getElementById('pol-breakdown').classList.remove('score-changed');
-    prevResult = null;
-    return;
-  }
-
   const scalarVal = document.getElementById('scalar-value');
   scalarVal.textContent = result.mu.toFixed(4);
   scalarVal.style.color = result.mu < 0.25 ? 'var(--pro)' : result.mu < 0.5 ? '#f0a500' : 'var(--con)';
   document.getElementById('scalar-bar').style.width = (result.mu * 100).toFixed(1) + '%';
-  document.getElementById('scalar-sub').textContent = `μ = ${result.mu.toFixed(4)} · d = ${result.d.toFixed(4)} · ΔA = ${result.deltaA.toFixed(4)}`;
 
-  // Fix 6: show previous μ
   const prevMuEl = document.getElementById('pol-prev-mu');
   if (prevMuEl) {
     if (prevMu !== null) {
@@ -728,7 +745,7 @@ function updateSidebar(result) {
   // Breakdown
   const isInd = result.breakdownType === 'individual';
   document.getElementById('breakdown-label').textContent = isInd ? 'Per-individual breakdown' : 'Per-argument breakdown';
-  document.getElementById('breakdown-head').textContent  = isInd ? 'Author · xᵢ · args' : 'Argument · value';
+  document.getElementById('breakdown-head').textContent  = isInd ? 'Author · xᵢ · args' : 'Score';
 
   const prevBdMap = {};
   if (prevResult?.breakdown) {
@@ -747,12 +764,17 @@ function updateSidebar(result) {
         const prevV  = prevBdMap[key];
         const changed = prevV !== undefined && Math.abs(+prevV - +item.value) > 1e-9;
         if (changed) anyBdChanged = true;
+
+        const isTopXi = isInd && item.isHighestXi;
+
         return `<div class="pol-breakdown-item${changed ? ' score-changed' : ''}">
-          <div class="pol-bd-dot" style="background:${color}"></div>
-          <div class="pol-bd-name" title="${esc(item.label)}">${esc(item.label)}</div>
+          <div class="pol-bd-dot" style="background:${color}${isTopXi ? ';box-shadow:0 0 0 3px rgba(255,255,255,0.45),0 0 8px 3px rgba(255,255,255,0.2)' : ''}"></div>
+          <div class="pol-bd-name" title="${esc(item.label)}">${esc(item.label)}${isTopXi ? ' <span style="color:#f0c040;font-size:.6rem">★</span>' : ''}</div>
           <div class="pol-bd-val">${typeof item.value === 'number' ? item.value.toFixed(3) : esc(String(item.value))}${
             changed ? `<span class="pol-bd-was">was ${(+prevV).toFixed(3)}</span>` : ''
-          }${item.extra ? `<br><span style="color:var(--muted);font-size:.62rem">${esc(item.extra)}</span>` : ''}
+          }${
+            (isInd && item.extra) ? `<br><span style="color:var(--muted);font-size:.62rem">${esc(item.extra)}</span>` : ''
+          }
           </div>
         </div>`;
       }).join('');
@@ -785,7 +807,8 @@ function showTip(e, el) {
     <div>Impact: ${esc(d.imp)}${d.impNorm !== null ? ` <span style="color:var(--muted)">(norm: ${esc(d.impNorm)})</span>` : ''}</div>
     <div><b style="color:var(--accent2)">${esc(d.score)}</b></div>
     ${d.isHighest ? `<div style="color:#fff;margin-top:4px">⭐ Highest score node</div>` : ''}
-    ${d.isChanged ? `<div style="color:#f0c040;margin-top:2px">⚡ Score changed after deletion</div>` : ''}
+    ${d.isChanged ? `<div style="color:#f0c040;margin-top:2px">Score changed after deletion</div>` : ''}
+    ${d.isHighestXiAuthor ? `<div style="color:#f0c040;margin-top:2px">★ Highest-xᵢ author</div>` : ''}
     <div class="pol-tooltip-hint">Click or right-click to remove subtree</div>`;
   tooltip.style.display = 'block';
   moveTip(e);
