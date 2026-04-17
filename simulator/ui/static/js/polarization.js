@@ -130,11 +130,13 @@ function buildScoreMap(msgs) {
     } else if (metric === 'continuous_ind_score') {
       const s = getArgScore(m, depths, maxDepth); if (s !== null) byAuthor[a].push({ val: s, w: 1 });
     } else if (metric === 'continuous_ind_impact') {
-      const s = getArgScore(m, depths, maxDepth), imp = getImpact(m);
-      if (s !== null && imp !== null && imp > 0) byAuthor[a].push({ val: s, w: imp });
+      const s = getArgScore(m, depths, maxDepth);
+      const imp = getImpact(m);
+      if (s !== null && imp !== null) byAuthor[a].push({ val: s, w: Math.max(0, imp) });
     } else if (metric === 'continuous_ind_depth') {
-      const s = getArgScoreByDepth(m, depths, maxDepth), dep = maxDepth > 0 ? (depths[m.message.id] || 0) / maxDepth : 0;
-      if (s !== null && dep > 0) byAuthor[a].push({ val: s, w: dep });
+      const s = getArgScoreByDepth(m, depths, maxDepth);
+      const depthNorm = maxDepth > 0 ? (depths[m.message.id] || 0) / maxDepth : 0;
+      if (s !== null) byAuthor[a].push({ val: s, w: depthNorm });
     }
   }
   const xiMap = {};
@@ -281,6 +283,8 @@ function metricDiscrete(msgs) {
 
   return {
     mu, d: 1, deltaA, Aplus, Aminus,
+    highestNodeIds:   new Set(),
+    highestXiAuthors: new Set(),
     scoreMap: Object.fromEntries(valid.map(m => [m.message.id, getRelAbs(m)])),
     breakdown: valid.map(m => ({ id: m.message.id, author: m.message.author, value: getRelAbs(m), label: `#${m.message.id} (${m.message.author})` })),
     breakdownType: 'argument',
@@ -318,8 +322,18 @@ function metricContinuousArgs(msgs, depths, maxDepth) {
   const d       = (gcPlus !== null && gcMinus !== null) ? Math.abs(gcPlus - gcMinus) / 2 : 0;
   const mu      = (gcPlus !== null && gcMinus !== null) ? (1 - deltaA) * d : 0;
 
+  // All nodes tied for highest |score|
+  let maxAbs = -Infinity;
+  for (const { score } of valid) { const a = Math.abs(score); if (a > maxAbs) maxAbs = a; }
+  const highestNodeIds = new Set();
+  for (const { m, score } of valid) {
+    if (Math.abs(Math.abs(score) - maxAbs) < 1e-9) highestNodeIds.add(m.message.id);
+  }
+
   return {
     mu, d, deltaA, Aplus, Aminus, gcPlus, gcMinus,
+    highestNodeIds,
+    highestXiAuthors: new Set(),
     scoreMap: Object.fromEntries(valid.map(({ m, score }) => [m.message.id, score])),
     breakdown: valid.map(({ m, score }) => ({
       id: m.message.id, author: m.message.author, value: score,
@@ -340,7 +354,14 @@ function metricContinuousArgs(msgs, depths, maxDepth) {
 }
 
 // ── Continuous individuals — shared builder ───────────────────────────────────
-function metricContinuousInd(msgs, depths, maxDepth, valuesFn, metricLabel) {
+function metricContinuousInd(msgs, depths, maxDepth, valuesFn) {
+  // Count total args per author across all msgs (not just those contributing to xi)
+  const authorArgCount = {};
+  for (const m of msgs) {
+    const a = m.message.author || '(unknown)';
+    authorArgCount[a] = (authorArgCount[a] || 0) + 1;
+  }
+
   const byAuthor = {};
   for (const m of msgs) {
     const entry = valuesFn(m, depths, maxDepth);
@@ -354,7 +375,7 @@ function metricContinuousInd(msgs, depths, maxDepth, valuesFn, metricLabel) {
     if (!items.length) continue;
     const wSum = items.reduce((s, x) => s + x.w, 0);
     const xi   = wSum > 0 ? items.reduce((s, x) => s + x.val * x.w, 0) / wSum : 0;
-    individuals.push({ author, xi, count: items.length });
+    individuals.push({ author, xi, count: authorArgCount[author] || items.length });
   }
   if (!individuals.length) return null;
 
@@ -364,29 +385,39 @@ function metricContinuousInd(msgs, depths, maxDepth, valuesFn, metricLabel) {
 
   const xiMap = Object.fromEntries(individuals.map(i => [i.author, i.xi]));
 
-  // Change 7: find highest |xi| author
-  let highestXiAuthor = null, highestXiAbs = -Infinity;
+  // All authors tied for highest |xi|
+  let maxXiAbs = -Infinity;
+  for (const ind of individuals) { const a = Math.abs(ind.xi); if (a > maxXiAbs) maxXiAbs = a; }
+  const highestXiAuthors = new Set();
   for (const ind of individuals) {
-    const abs = Math.abs(ind.xi);
-    if (abs > highestXiAbs) { highestXiAbs = abs; highestXiAuthor = ind.author; }
+    if (Math.abs(Math.abs(ind.xi) - maxXiAbs) < 1e-9) highestXiAuthors.add(ind.author);
+  }
+
+  // scoreMap: each node gets its author's xi
+  const scoreMap = {};
+  for (const m of msgs) {
+    const a = m.message.author || '(unknown)';
+    if (xiMap[a] !== undefined) scoreMap[m.message.id] = xiMap[a];
+  }
+
+  // All nodes tied for highest |score| (= highest |xi| among nodes)
+  let maxScoreAbs = -Infinity;
+  for (const score of Object.values(scoreMap)) { const a = Math.abs(score); if (a > maxScoreAbs) maxScoreAbs = a; }
+  const highestNodeIds = new Set();
+  for (const [id, score] of Object.entries(scoreMap)) {
+    if (Math.abs(Math.abs(score) - maxScoreAbs) < 1e-9) highestNodeIds.add(+id);
   }
 
   return {
     mu, d, deltaA, Aplus, Aminus, gcPlus, gcMinus,
     xiMap,
-    highestXiAuthor,
-    scoreMap: (() => {
-      const map = {};
-      for (const m of msgs) {
-        const a = m.message.author || '(unknown)';
-        if (xiMap[a] !== undefined) map[m.message.id] = xiMap[a];
-      }
-      return map;
-    })(),
+    highestXiAuthors,
+    highestNodeIds,
+    scoreMap,
     breakdown: individuals.sort((a, b) => a.xi - b.xi).map(i => ({
       id: null, author: i.author, value: i.xi, label: i.author,
       extra: `${i.count} arg${i.count !== 1 ? 's' : ''}`,
-      isHighestXi: i.author === highestXiAuthor,
+      isHighestXi: highestXiAuthors.has(i.author),
     })),
     breakdownType: 'individual',
     components: [
@@ -527,42 +558,31 @@ function renderAll() {
     msgs, depths, maxDepth,
     (m, dep, maxD) => { const s = getArgScore(m, dep, maxD); return s !== null ? { val: s, w: 1 } : null; }
   );
-  else if (currentMetric === 'continuous_ind_impact') result = metricContinuousInd(
+  else if (currentMetric === 'continuous_ind_impact')  result = metricContinuousInd(
     msgs, depths, maxDepth,
     (m, dep, maxD) => {
-      const s = getArgScore(m, dep, maxD), imp = getImpact(m);
-      return (s !== null && imp !== null && imp > 0) ? { val: s, w: imp } : null;
+      const s = getArgScore(m, dep, maxD);
+      const imp = getImpact(m);
+      // Include all args that have a valid score; weight by impact (0 = unvoted args still count)
+      return (s !== null && imp !== null) ? { val: s, w: Math.max(0, imp) } : null;
     }
   );
-  else if (currentMetric === 'continuous_ind_depth') result = metricContinuousInd(
+  else if (currentMetric === 'continuous_ind_depth')   result = metricContinuousInd(
     msgs, depths, maxDepth,
     (m, dep, maxD) => {
       const s = getArgScoreByDepth(m, dep, maxD);
       const depthNorm = maxD > 0 ? (dep[m.message.id] || 0) / maxD : 0;
-      return (s !== null && depthNorm > 0) ? { val: s, w: depthNorm } : null;
+      // Include all args with rel_abs; root nodes get weight 0 but still contribute
+      return s !== null ? { val: s, w: depthNorm } : null;
     }
   );
   currentResult = result;
 
-  const showHighest = currentMetric !== 'discrete';
-  let highestId = null, highestAbsScore = -Infinity;
-  if (showHighest && result?.scoreMap) {
-    for (const [id, score] of Object.entries(result.scoreMap)) {
-      const abs = Math.abs(+score);
-      if (abs > highestAbsScore) { highestAbsScore = abs; highestId = +id; }
-    }
-  }
+  const isIndMetric   = currentMetric.startsWith('continuous_ind');
+  const showHighlight = currentMetric !== 'discrete';
 
-  const isIndMetric = currentMetric.startsWith('continuous_ind');
-  const highestXiAuthor = isIndMetric ? (result?.highestXiAuthor ?? null) : null;
-  const highestXiAuthorNodeIds = new Set();
-  if (highestXiAuthor) {
-    for (const m of msgs) {
-      if ((m.message.author || '(unknown)') === highestXiAuthor) {
-        highestXiAuthorNodeIds.add(m.message.id);
-      }
-    }
-  }
+  const highestNodeIds   = (showHighlight && result?.highestNodeIds)   ? result.highestNodeIds   : new Set();
+  const highestXiAuthors = (isIndMetric   && result?.highestXiAuthors) ? result.highestXiAuthors : new Set();
 
   const positions = layoutTree(roots, kids);
   const xs = Object.values(positions).map(p => p.x);
@@ -585,29 +605,64 @@ function renderAll() {
 
   for (const m of msgs) {
     const p = positions[m.message.id]; if (!p) continue;
-    const mid        = m.message.id;
-    const fillColor  = isIndMetric ? indColor(m, result) : nodeColor(m, result);
-    const rel        = +(m.variables?.public?.relation ?? 0);
-    const relAbs     = getRelAbs(m);
-    const relLabel   = rel === 0 ? 'ROOT' : relAbs === 1 ? 'PRO' : relAbs === -1 ? 'CON' : '?';
-    const imp        = getImpact(m);
-    const depthN     = maxDepth > 0 ? (depths[mid] || 0) / maxDepth : 0;
-    const isHighest  = mid === highestId;
-    const isChanged  = changedNodeIds.has(mid);
+    const mid       = m.message.id;
+    const fillColor = isIndMetric ? indColor(m, result) : nodeColor(m, result);
+    const rel       = +(m.variables?.public?.relation ?? 0);
+    const relAbs    = getRelAbs(m);
+    const relLabel  = rel === 0 ? 'ROOT' : relAbs === 1 ? 'PRO' : relAbs === -1 ? 'CON' : '?';
+    const imp       = getImpact(m);
+    const depthN    = maxDepth > 0 ? (depths[mid] || 0) / maxDepth : 0;
+    const isHighest = highestNodeIds.has(mid);
+    const isChanged = changedNodeIds.has(mid);
+    const isHighestXiNode = isIndMetric && highestXiAuthors.has(m.message.author || '(unknown)');
 
-    const isHighestXiNode  = isIndMetric && highestXiAuthorNodeIds.has(mid);
-    const isHighestXiChamp = isIndMetric && isHighestXiNode && mid === highestId;
+    // ── Metric value line ──────────────────────────────────────────────────────
+    // xMetric: the single accent-colored value that drives this metric for this node
+    // argDetail: secondary dim line for ind metrics (shows what THIS arg contributes)
+    let xLabel = '—', xMetricVal = '—', argDetail = null;
 
-    let scoreStr = '';
-    if (currentMetric === 'continuous_args' && result?.scoreMap) {
-      const s = result.scoreMap[mid];
-      scoreStr = s !== undefined ? `score: ${(+s).toFixed(3)}` : '';
-    } else if (isIndMetric && result?.xiMap) {
-      const xi = result.xiMap[m.message.author];
-      scoreStr = xi !== undefined ? `author xi: ${xi.toFixed(3)}` : '';
+    if (isIndMetric) {
+      // Primary: author's aggregate position
+      xLabel = 'xᵢ (author)';
+      const xi = result?.xiMap?.[m.message.author];
+      xMetricVal = xi !== undefined ? xi.toFixed(3) : '—';
+
+      // Secondary: what this specific arg contributes toward that xᵢ
+      if (relAbs !== null) {
+        const argScore = currentMetric === 'continuous_ind_relabs'
+          ? (relAbs !== null ? relAbs.toFixed(3) : null)
+          : (result?.scoreMap ? null : null); // computed below
+        // Build per-arg detail string depending on sub-metric
+        const depthStr  = `depth ${depths[mid] || 0} (norm ${depthN.toFixed(3)})`;
+        const impStr    = imp !== null ? `impact ${imp.toFixed(2)}` : null;
+        const relAbsStr = `rel_abs ${relAbs > 0 ? '+' : ''}${relAbs}`;
+        if (currentMetric === 'continuous_ind_relabs') {
+          argDetail = relAbsStr;
+        } else if (currentMetric === 'continuous_ind_score') {
+          const s = getArgScore(m, depths, maxDepth);
+          argDetail = `${relAbsStr} · ${depthStr}${impStr ? ' · ' + impStr : ''}` +
+            (s !== null ? ` → xₐ ${s.toFixed(3)}` : '');
+        } else if (currentMetric === 'continuous_ind_impact') {
+          const s = getArgScore(m, depths, maxDepth);
+          argDetail = `${relAbsStr} · ${depthStr}${impStr ? ' · ' + impStr : ''}` +
+            (s !== null ? ` → xₐ ${s.toFixed(3)}` : '');
+        } else if (currentMetric === 'continuous_ind_depth') {
+          argDetail = `${relAbsStr} · ${depthStr}`;
+        }
+      }
+    } else if (currentMetric === 'discrete') {
+      xLabel = 'xₐ';
+      xMetricVal = relAbs !== null ? (relAbs > 0 ? '+1' : '−1') : '—';
     } else {
-      scoreStr = `rel_abs: ${relAbs ?? '—'}`;
+      // continuous_args
+      xLabel = 'xₐ';
+      const s = result?.scoreMap?.[mid];
+      xMetricVal = s !== undefined ? (+s).toFixed(3) : '—';
     }
+
+    // Which raw inputs to show depends on metric
+    const showImp   = currentMetric !== 'discrete' && currentMetric !== 'continuous_ind_relabs' && currentMetric !== 'continuous_ind_depth';
+    const showDepth = currentMetric !== 'discrete';
 
     const tipData = JSON.stringify({
       id: mid,
@@ -617,33 +672,26 @@ function renderAll() {
       depthN: depthN.toFixed(3),
       imp: imp !== null ? imp.toFixed(3) : '—',
       impNorm: imp !== null ? (imp / 4).toFixed(3) : '—',
-      score: scoreStr,
+      showImp,
+      showDepth,
+      xLabel,
+      xMetricVal,
+      argDetail,
       isHighest,
       isChanged,
       isHighestXiAuthor: isHighestXiNode,
     }).replace(/"/g, '&quot;');
 
-    let filterAttr = '';
-    if (isIndMetric) {
-      if (isHighestXiChamp) filterAttr = 'filter="url(#pol-glow-white)"';
-    } else {
-      if (isHighest) filterAttr = 'filter="url(#pol-glow-white)"';
-    }
+    const filterAttr = (isHighest && showHighlight) ? 'filter="url(#pol-glow-white)"' : '';
 
     let strokeColor = fillColor, strokeWidth = 2, strokeDash = '';
     if (isChanged) {
-      strokeColor  = '#f0c040';
-      strokeWidth  = 2.5;
-      strokeDash   = 'stroke-dasharray="4 2"';
+      strokeColor = '#f0c040';
+      strokeWidth = 2.5;
+      strokeDash  = 'stroke-dasharray="4 2"';
     }
 
-    // Gold ring for non-champion nodes of the highest xi author
-    const highestXiRing = (isIndMetric && isHighestXiNode && !isHighestXiChamp)
-      ? `<circle cx="${p.x}" cy="${p.y}" r="${NODE_R + 4}" fill="none"
-           stroke="rgba(255,200,40,0.7)" stroke-width="2" pointer-events="none"/>`
-      : '';
-
-    const outerRing = (isHighest && !isIndMetric) || isHighestXiChamp
+    const outerRing = (isHighest && showHighlight)
       ? `<circle cx="${p.x}" cy="${p.y}" r="${NODE_R + 5}" fill="none"
            stroke="rgba(255,255,255,0.45)" stroke-width="1.5" pointer-events="none"/>`
       : '';
@@ -652,7 +700,6 @@ function renderAll() {
       <g class="pol-node" data-id="${mid}" data-tip="${tipData}"
          onmouseenter="showTip(event,this)" onmouseleave="hideTip()"
          onclick="openMenu(event,${mid})" oncontextmenu="openMenu(event,${mid})">
-        ${highestXiRing}
         ${outerRing}
         <circle cx="${p.x}" cy="${p.y}" r="${NODE_R}"
           fill="${fillColor}" fill-opacity="0.85"
@@ -800,16 +847,30 @@ const tooltip = document.getElementById('pol-tooltip');
 
 function showTip(e, el) {
   let d; try { d = JSON.parse(el.dataset.tip.replace(/&quot;/g, '"')); } catch { return; }
+  // Section 1: node facts
+  let factsHTML = `<div>relation: <b>${esc(d.rel)}</b></div>`;
+  if (d.showDepth) factsHTML += `<div>depth: ${d.depth} <span style="color:var(--muted)">(norm ${esc(d.depthN)})</span></div>`;
+  if (d.showImp)   factsHTML += `<div>impact: ${esc(d.imp)} <span style="color:var(--muted)">(norm ${esc(d.impNorm)})</span></div>`;
+
+  // Section 2: metric value
+  const metricHTML = `<div style="margin-top:5px;padding-top:5px;border-top:1px solid var(--border2)">` +
+    `${esc(d.xLabel)}: <b style="color:var(--accent2)">${esc(d.xMetricVal)}</b>` +
+    (d.argDetail ? `<div style="color:var(--muted);font-size:.65rem;margin-top:2px">${esc(d.argDetail)}</div>` : '') +
+    `</div>`;
+
+  // Section 3: flags
+  const flagsHTML = [
+    d.isHighest       ? `<div style="color:#fff">⭐ highest score</div>` : '',
+    d.isChanged       ? `<div style="color:#f0c040">↕ score changed after deletion</div>` : '',
+    d.isHighestXiAuthor ? `<div style="color:#f0c040">★ highest-xᵢ author</div>` : '',
+  ].filter(Boolean).join('');
+
   tooltip.innerHTML = `
     <div class="pol-tooltip-title">#${d.id} · ${esc(d.author)}</div>
-    <div>Relation: <b>${esc(d.rel)}</b></div>
-    <div>Depth: ${d.depth} <span style="color:var(--muted)">(norm: ${esc(d.depthN)})</span></div>
-    <div>Impact: ${esc(d.imp)}${d.impNorm !== null ? ` <span style="color:var(--muted)">(norm: ${esc(d.impNorm)})</span>` : ''}</div>
-    <div><b style="color:var(--accent2)">${esc(d.score)}</b></div>
-    ${d.isHighest ? `<div style="color:#fff;margin-top:4px">⭐ Highest score node</div>` : ''}
-    ${d.isChanged ? `<div style="color:#f0c040;margin-top:2px">Score changed after deletion</div>` : ''}
-    ${d.isHighestXiAuthor ? `<div style="color:#f0c040;margin-top:2px">★ Highest-xᵢ author</div>` : ''}
-    <div class="pol-tooltip-hint">Click or right-click to remove subtree</div>`;
+    ${factsHTML}
+    ${metricHTML}
+    ${flagsHTML ? `<div style="margin-top:4px;font-size:.68rem">${flagsHTML}</div>` : ''}
+    <div class="pol-tooltip-hint">click or right-click to remove subtree</div>`;
   tooltip.style.display = 'block';
   moveTip(e);
 }

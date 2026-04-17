@@ -104,7 +104,13 @@ body {
 .pol-legend-dot  { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 1px; }
 /* special legend dots */
 .pol-legend-dot.glow-white { box-shadow: 0 0 0 3px rgba(255,255,255,.5), 0 0 8px 3px rgba(255,255,255,.25); }
-.pol-legend-dot.yellow-border { outline: 2px solid rgba(240,192,64,.85); outline-offset: 1px; }
+/* dashed border for "score changed after deletion" */
+.pol-legend-dot.dashed-border {
+  outline: none;
+  border: 2px dashed #f0c040;
+  background: transparent !important;
+  box-sizing: border-box;
+}
 
 /* ── Undo bar ────────────────────────────────────────────────────────────────── */
 .pol-undo-section {
