@@ -1,7 +1,6 @@
 package arch;
 
-import jason.architecture.AgArch;
-import jason.asSyntax.*;
+import jason.asSyntax.Term;
 
 import java.util.*;
 import lib.JasonToJavaTranslator;
@@ -9,51 +8,74 @@ import lib.JasonToJavaTranslator;
 import com.google.genai.Client;
 import com.google.genai.types.GenerateContentResponse;
 
-public class GeminiAgArch extends AgArch implements SocialAgArch {
+/**
+ * Gemini-backed implementation of LLMAgArch.
+ *
+ * Provides three things shared by all Gemini-based conditions:
+ *   - getResponse(): the API call with retry logic.
+ *   - createContent(): prompt construction and text generation.
+ *   - parseInterpretation(): JSON response parsing, reusable by subclasses.
+ *
+ * To swap providers, create a parallel subclass of LLMAgArch
+ * (e.g. OpenAIAgArch) mirroring this structure.
+ */
+public abstract class GeminiAgArch extends LLMAgArch {
 
     private final Client client = new Client();
-    private static final String model = "gemini-2.0-flash";
+    protected static final String MODEL = "gemini-2.0-flash";
 
-    // ---------------- PUBLIC API ----------------
-
+    @Override
     public String createContent(Term topics, Term variables) {
-        // if variables has "originalContent", include it in the prompt
         List<String> topicList = JasonToJavaTranslator.translateTopics(topics);
         Map<String, Object> varMap = JasonToJavaTranslator.translateVariables(variables);
-        String prompt = String.format("Create a tweet that talks about %s and has the following characteristics: %s", topicList.toString(), varMap.toString());
+        String prompt = buildCreateContentPrompt(topicList, varMap);
         return getResponse(prompt);
     }
 
-    public Map<String, Object> interpretContent(Term content) {
-        String contentString = content.toString();
-        String prompt = String.format("Interpret the following content: %s", contentString);
-        //aca habria que traducir a key(value)
-        Map<String, Object> response = new HashMap<>();
-        response.put("interpretation", (Object) getResponse(prompt));
-        return response;
+    protected String buildCreateContentPrompt(List<String> topics, Map<String, Object> variables) {
+        return String.format(
+            "You are a social media user. Write a single tweet (max 280 characters) about: %s. " +
+            "The tweet must reflect these characteristics: %s. " +
+            "Reply with only the tweet text, no commentary.",
+            topics, variables
+        );
     }
 
-    private String getResponse(String prompt) {
-        final int maxRetries = 3; 
-        final long retryDelay = 1000; 
-        int attempt = 0;
+    protected Map<String, Object> parseInterpretation(String raw) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        try {
+            String clean = raw.replaceAll("(?s)```json|```", "").trim();
+            com.fasterxml.jackson.databind.ObjectMapper mapper =
+                new com.fasterxml.jackson.databind.ObjectMapper();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> parsed = mapper.readValue(clean, Map.class);
+            result.putAll(parsed);
+        } catch (Exception e) {
+            System.err.println("[GeminiAgArch] Failed to parse interpretation JSON: " + e.getMessage());
+            result.put("raw", raw);
+        }
+        return result;
+    }
 
-        while (attempt < maxRetries) {
+    @Override
+    protected String getResponse(String prompt) {
+        int attempt = 0;
+        while (attempt < MAX_RETRIES) {
             try {
-                GenerateContentResponse response = client.models.generateContent(model, prompt, null);
+                GenerateContentResponse response =
+                    client.models.generateContent(MODEL, prompt, null);
                 return response.text();
             } catch (Exception e) {
                 attempt++;
-                System.err.println("Error generating content (attempt " + attempt + "): " + e.getMessage());
-                if (attempt >= maxRetries) {
-                    System.err.println("Max retries reached. Returning empty string.");
+                System.err.println("[GeminiAgArch] Error (attempt " + attempt + "): " + e.getMessage());
+                if (attempt >= MAX_RETRIES) {
+                    System.err.println("[GeminiAgArch] Max retries reached. Returning empty string.");
                     return "";
                 }
                 try {
-                    Thread.sleep(retryDelay);
+                    Thread.sleep(RETRY_DELAY);
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
-                    System.err.println("Retry sleep interrupted.");
                     return "";
                 }
             }
