@@ -53,12 +53,12 @@
     createLink(+Agent)
         Agent: string/atom
         Percepts added: follows(Agent) for self        
-                        followedBy(Self) for target
+                        followed_by(Self) for target
 
     removeLink(+Agent)
         Agent: string/atom
         Percepts removed: follows(Agent) for self
-                          followedBy(Self) for target
+                          followed_by(Self) for target
 
     readPublicProfile(+Agent)
         Agent: string/atom 
@@ -93,7 +93,7 @@ cycle(0).
 +follows(Agent): true <- 
     .print("Now following ", Agent).
 
-+followedBy(Agent): true <- 
++followed_by(Agent): true <- 
     .print("Now followed by ", Agent).
 
 +public_profile(Agent, Key, Value): true <- 

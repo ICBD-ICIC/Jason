@@ -143,7 +143,7 @@ public class Env extends Environment {
         String to = JasonToJavaTranslator.translateString(action.getTerm(0));
         networkManager.addEdge(agent, to);
         addPercept(agent, createLiteral("follows", createString(to)));
-        addPercept(to, createLiteral("followedBy", createString(agent)));
+        addPercept(to, createLiteral("followed_by", createString(agent)));
         return true;
     }
 
@@ -151,7 +151,7 @@ public class Env extends Environment {
         String to = JasonToJavaTranslator.translateString(action.getTerm(0));
         networkManager.removeEdge(agent, to);
         removePercept(agent, createLiteral("follows", createString(to)));
-        removePercept(to, createLiteral("followedBy", createString(agent)));
+        removePercept(to, createLiteral("followed_by", createString(agent)));
         return true;
     }
 

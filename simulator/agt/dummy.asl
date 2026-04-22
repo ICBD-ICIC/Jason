@@ -6,5 +6,5 @@
 +follows(Agent): true <- 
     .print("Now following ", Agent).
 
-+followedBy(Agent): true <- 
++followed_by(Agent): true <- 
     .print("Now followed by ", Agent).

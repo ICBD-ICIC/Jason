@@ -1,23 +1,42 @@
 /* ==========================================================
-   CoNVaI Agent
+   CoNVaI Agent (Condition 2)
 
    The BDI cycle implements the CoNVaI f() and g() decision
    functions (Algorithms 2-4 from the paper). The arch computes
-   Pnov and Pnw via Gemini; all transition logic lives here.
+   Pnov, Prpl and Pnw via Gemini. Pusr is computed here using
+   ia.computeSc and agent profile beliefs.
 
-   Conversation tracking
-   ---------------------
-   Each agent generates its own conversation ids: agentName_N.
-   When starting a new conversation, the agent increments its
-   counter and stores in_conversation(CId) before posting, so
-   it can recognise the thread in future feed updates.
-   When replying, the agent reads conversation_id from the
-   parent's message_var percept and stores that instead.
+   Probability parameters (configurable)
+   --------------------------------------
+   finfl(0.1)          — weight of user influence
+   alpha_ratio(0.01)   — alpha for sc(followers/followees)
+   alpha_posts(0.001)  — alpha for sc(posts)
+   pinf(0.1)           — infection rate
+   pmd(0.05)           — vaccination rate on new content
+   pad(0.1)            — adoption rate (change mind)
+   popi(0.15)          — opinion sharing rate
 
    Agent states: neutral | infected | vaccinated
    ========================================================== */
 
-// --- Initial beliefs ---
+// --- Profile beliefs ---
+verified(true).
+number_posts(10).
+finfl(0.1).
+alpha_ratio(0.01).
+alpha_posts(0.001).
+
+// --- Transition parameters ---
+pinf(0.1).
+pmd(0.05).
+pad(0.1).
+popi(0.15).
+prd(0.3).    // read rate per time unit
+
+// --- Read counter (resets each feed cycle) ---
+messages_read(0).
+
+// --- State and conversation tracking ---
 state(neutral).
 conversation_counter(0).
 
@@ -27,87 +46,135 @@ conversation_counter(0).
 
 // Triggered automatically each time updateFeed produces a new feed_order percept.
 +feed_order(Ids): true <-
+    -+messages_read(0);
     !process_messages(Ids).
 
 +!process_messages([]): true <- true.
 
 +!process_messages([Id|Rest]): true <-
-    !process_single_message(Id);
+    messages_read(MR);
+    MR1 = MR + 1;
+    -+messages_read(MR1);
+    prd(Prd);
+    Pread = Prd / MR1;
+    .random(R);
+    if (R < Pread) {
+        !process_single_message(Id)
+    };
     !process_messages(Rest).
+
+// --- Pusr computation (paper Section 4.1) ---
++!compute_pusr(Pusr): true <-
+    .count(follows(_), Followees);
+    .count(followedBy(_), Followers);
+    number_posts(Posts);
+    verified(Verified);
+    finfl(Finfl);
+    alpha_ratio(AlphaRatio);
+    alpha_posts(AlphaPosts);
+    (Followees > 0 -> Ratio = Followers / Followees ; Ratio = 0);
+    ia.computeSc(Ratio, AlphaRatio, ScRatio);
+    ia.computeSc(Posts, AlphaPosts, ScPosts);
+    (Verified == true -> VerifiedVal = 1.0 ; VerifiedVal = 0.0);
+    Infl = 0.4 * ScRatio + 0.4 * ScPosts + 0.2 * VerifiedVal;
+    Pusr = Finfl * Infl.
 
 // --- Single message processing: Algorithm 2 entry point ---
 +!process_single_message(Id): true <-
     .wait(message(Id, Author, Content, Original, Timestamp));
     .wait(message_var(Id, "conversation_id", CId));
-    ia.interpretContent(Content, Interpretation);
+    !compute_pusr(Pusr);
+    // Encode pusr into the content string for the arch to extract
+    .concat(Content, "|||pusr=", Pusr, ContentWithPusr);
     if (in_conversation(CId)) {
+        ia.interpretContent(ContentWithPusr, Interpretation);
         !apply_read_ms(Id, Author, Content, CId, Interpretation);
         !log_state(Id, "known_conversation")
     } else {
+        ia.interpretContent(ContentWithPusr, Interpretation);
         !apply_read_sc(Id, Author, Content, CId, Interpretation);
         !log_state(Id, "unknown_conversation")
     }.
 
 // --- Algorithm 3: ReadSc (unknown conversation) ---
-// ia suggests infected and agent is neutral -> may spread
+// Prpl is the outer gate: is now the right moment to engage?
+// Then Pnov * Pusr adjusts the probability bounds.
+
 +!apply_read_sc(Id, Author, Content, CId, Interpretation):
     state(neutral) &
     .member(state_suggestion(infected), Interpretation) &
+    .member(prpl(Prpl), Interpretation) &
     .member(pnov(Pnov), Interpretation) &
-    .random(R) & R < Pnov <-
+    .random(R1) & R1 < Prpl <-
+    pinf(Pinf);
+    pmd(Pmd);
+    !compute_pusr(Pusr);
     .random(R2);
-    if (R2 < 0.1) {         // PINF
+    if (R2 < (Pinf / (1 - Pusr - Pnov))) {
         -+state(infected);
         +in_conversation(CId);
         !spread_content(Id, Content, CId, infected)
     } else {
         .random(R3);
-        if (R3 < 0.05) {    // PMD
+        if (R3 < (Pmd / (1 - Pusr - Pnov))) {
             -+state(vaccinated);
             +in_conversation(CId);
             !spread_content(Id, Content, CId, vaccinated)
         }
     }.
 
-// Gemini suggests vaccinated and agent is neutral -> may debunk
 +!apply_read_sc(Id, Author, Content, CId, Interpretation):
     state(neutral) &
     .member(state_suggestion(vaccinated), Interpretation) &
+    .member(prpl(Prpl), Interpretation) &
     .member(pnov(Pnov), Interpretation) &
-    .random(R) & R < Pnov <-
-    -+state(vaccinated);
-    +in_conversation(CId);
-    !spread_content(Id, Content, CId, vaccinated).
+    .random(R1) & R1 < Prpl <-
+    pmd(Pmd);
+    !compute_pusr(Pusr);
+    .random(R2);
+    if (R2 < (Pmd / (1 - Pusr - Pnov))) {
+        -+state(vaccinated);
+        +in_conversation(CId);
+        !spread_content(Id, Content, CId, vaccinated)
+    }.
 
 // Default: do nothing
 +!apply_read_sc(Id, Author, Content, CId, Interpretation): true <- true.
 
 // --- Algorithm 4: ReadMs (known conversation) ---
-// Same state as message -> opinion reinforcement (confirmation bias)
+
+// Same state -> confirmation bias (POPI)
 +!apply_read_ms(Id, Author, Content, CId, Interpretation):
     state(S) &
     .member(state_suggestion(S), Interpretation) &
+    .member(prpl(Prpl), Interpretation) &
     .member(pnov(Pnov), Interpretation) &
-    .random(R) & R < Pnov <-
+    .random(R1) & R1 < Prpl <-
+    popi(Popi);
+    !compute_pusr(Pusr);
     .random(R2);
-    if (R2 < 0.15) {        // POPI
+    if (R2 < (Popi / (1 - Pnov - Pusr))) {
         !spread_content(Id, Content, CId, S)
     }.
 
-// Differing state -> may change mind (PAD) or backfire (POPI)
+// Differing state -> change mind (PAD) or backfire (POPI)
 +!apply_read_ms(Id, Author, Content, CId, Interpretation):
     state(S) &
     .member(state_suggestion(OtherS), Interpretation) &
     S \== OtherS &
+    .member(prpl(Prpl), Interpretation) &
     .member(pnov(Pnov), Interpretation) &
-    .random(R) & R < Pnov <-
+    .random(R1) & R1 < Prpl <-
+    pad(Pad);
+    popi(Popi);
+    !compute_pusr(Pusr);
     .random(R2);
-    if (R2 < 0.1) {         // PAD — change mind
+    if (R2 < (Pad / (1 - Pnov - Pusr))) {
         -+state(OtherS);
         !spread_content(Id, Content, CId, OtherS)
     } else {
         .random(R3);
-        if (R3 < 0.15) {    // POPI — backfire, reinforce own view
+        if (R3 < (Popi / (1 - Pnov - Pusr))) {
             !spread_content(Id, Content, CId, S)
         }
     }.
@@ -115,8 +182,7 @@ conversation_counter(0).
 // Default: do nothing
 +!apply_read_ms(Id, Author, Content, CId, Interpretation): true <- true.
 
-// --- Spreading: new conversation ---
-// Agent generates its own CId, stores it before posting.
+// --- Spreading: new standalone post + reply ---
 +!spread_content(Id, Content, _ParentCId, infected):
     state(infected) &
     .my_name(Me) &
@@ -130,7 +196,7 @@ conversation_counter(0).
                  public(conversation_id(NewCId))];
     ia.createContent(Topics, Variables, NewContent);
     createPost(Topics, Variables, NewContent);
-    !reply_to(Id, Content, NewCId, infected);
+    !reply_to(Id, NewCId, infected);
     !maybe_react(Id);
     ia.save_logs([event("spread"), message_id(Id), agent_state(infected),
                   conversation_id(NewCId), content(NewContent)]).
@@ -148,21 +214,21 @@ conversation_counter(0).
                  public(conversation_id(NewCId))];
     ia.createContent(Topics, Variables, NewContent);
     createPost(Topics, Variables, NewContent);
-    !reply_to(Id, Content, NewCId, vaccinated);
+    !reply_to(Id, NewCId, vaccinated);
     !maybe_react(Id);
     ia.save_logs([event("debunk"), message_id(Id), agent_state(vaccinated),
                   conversation_id(NewCId), content(NewContent)]).
 
 +!spread_content(Id, Content, CId, neutral): true <- true.
 
-// --- Reply: inherits parent's conversation_id ---
-+!reply_to(Id, Content, CId, infected): true <-
+// --- Reply: inherits conversation_id from spread_content ---
++!reply_to(Id, CId, infected): true <-
     Topics    = ["misinformation", "spread"];
     Variables = [state(infected), public(conversation_id(CId))];
     ia.createContent(Topics, Variables, ReplyContent);
     comment(Id, Topics, Variables, ReplyContent).
 
-+!reply_to(Id, Content, CId, vaccinated): true <-
++!reply_to(Id, CId, vaccinated): true <-
     Topics    = ["misinformation", "debunk"];
     Variables = [state(vaccinated), public(conversation_id(CId))];
     ia.createContent(Topics, Variables, ReplyContent);

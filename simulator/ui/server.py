@@ -440,7 +440,7 @@ def _build_network_fact_block(
     for target in sorted(follows_map.get(agent_name, [])):
         lines.append(f'follows("{target.replace(chr(34), chr(92)+chr(34))}").')
     for source in sorted(followed_by_map.get(agent_name, [])):
-        lines.append(f'followedBy("{source.replace(chr(34), chr(92)+chr(34))}").')
+        lines.append(f'followed_by("{source.replace(chr(34), chr(92)+chr(34))}").')
     return "\n".join(lines) + ("\n" if lines else "")
 
 
