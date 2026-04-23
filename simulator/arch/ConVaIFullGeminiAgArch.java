@@ -1,5 +1,6 @@
 package arch;
 
+import jason.architecture.AgArch;
 import jason.asSyntax.Term;
 import lib.JasonToJavaTranslator;
 
@@ -8,7 +9,7 @@ import java.util.*;
 /**
  * Condition 1: Full LLM agent architecture.
  *
- * Unlike ConVaIAgArch, this arch replaces the f() decision function
+ * Unlike ConVaIGeminiAgArch, this arch replaces the f() decision function
  * entirely. interpretContent() does not just return probabilities —
  * it asks Gemini to make the spreading decision outright, given the
  * agent's current belief state injected as context.
@@ -21,7 +22,9 @@ import java.util.*;
  * Agent persona and belief state are maintained here across calls
  * so that Gemini has consistent context for each decision.
  */
-public class LLMSocialAgArch extends GeminiAgArch {
+public class ConVaIFullGeminiAgArch extends AgArch implements SocialAgArch {
+
+    private final GeminiClient gemini = new GeminiClient();
 
     // Per-agent belief state passed as context to Gemini on each call.
     // Keys: "persona", "current_state", "conversation_history"
@@ -29,19 +32,19 @@ public class LLMSocialAgArch extends GeminiAgArch {
         Collections.synchronizedMap(new HashMap<>());
 
     // ----------------------------------------------------------------
-    // interpretContent — Gemini makes the full spreading decision
+    // SocialAgArch — interpretContent
     // ----------------------------------------------------------------
 
     /**
      * Asks Gemini to decide what action the agent should take after
      * reading this content. Returns a map with:
      *
-     *   "action":    "spread" | "debunk" | "ignore" | "react" | "comment"
-     *   "state":     "infected" | "vaccinated" | "neutral"
-     *   "reaction":  e.g. "like", "love", "angry" (used if action = react)
-     *   "reasoning": short explanation (for qualitative analysis logs)
-     *   "credibility":        high | medium | low
-     *   "misinformation_risk": high | medium | low
+     *   "action":             "spread" | "debunk" | "ignore" | "react" | "comment"
+     *   "state":              "infected" | "vaccinated" | "neutral"
+     *   "reaction":           e.g. "like", "love", "angry" (only when action = react)
+     *   "reasoning":          short explanation (for qualitative analysis logs)
+     *   "credibility":        "high" | "medium" | "low"
+     *   "misinformation_risk": "high" | "medium" | "low"
      *
      * The ASL reads "action" and "state" to decide which environment
      * actions to execute (createPost, repost, react, etc.).
@@ -56,17 +59,16 @@ public class LLMSocialAgArch extends GeminiAgArch {
         );
 
         String prompt = buildDecisionPrompt(contentStr, ctx);
-        String raw    = getResponse(prompt);
+        String raw    = gemini.getResponse(prompt);
         Map<String, Object> result = parseInterpretation(raw);
 
-        // Update belief state so future calls have consistent context
         updateContext(ctx, contentStr, result);
 
         return result;
     }
 
     // ----------------------------------------------------------------
-    // createContent — full LLM generation with persona context
+    // SocialAgArch — createContent
     // ----------------------------------------------------------------
 
     /**
@@ -96,7 +98,7 @@ public class LLMSocialAgArch extends GeminiAgArch {
             varMap
         );
 
-        return getResponse(prompt);
+        return gemini.getResponse(prompt);
     }
 
     // ----------------------------------------------------------------
@@ -128,13 +130,11 @@ public class LLMSocialAgArch extends GeminiAgArch {
     private void updateContext(Map<String, Object> ctx,
                                String contentSeen,
                                Map<String, Object> decision) {
-        // Update stance
         Object state = decision.get("state");
         if (state != null) {
             ctx.put("current_state", state.toString());
         }
 
-        // Append to conversation history (capped at last 5 entries)
         List<String> history = (List<String>) ctx.get("conversation_history");
         history.add(contentSeen);
         if (history.size() > 5) {
@@ -167,5 +167,25 @@ public class LLMSocialAgArch extends GeminiAgArch {
             historyBlock,
             content
         );
+    }
+
+    // ----------------------------------------------------------------
+    // Helpers
+    // ----------------------------------------------------------------
+
+    private Map<String, Object> parseInterpretation(String raw) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        try {
+            String clean = raw.replaceAll("(?s)```json|```", "").trim();
+            com.fasterxml.jackson.databind.ObjectMapper mapper =
+                new com.fasterxml.jackson.databind.ObjectMapper();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> parsed = mapper.readValue(clean, Map.class);
+            result.putAll(parsed);
+        } catch (Exception e) {
+            System.err.println("[ConVaIFullGeminiAgArch] Failed to parse interpretation JSON: " + e.getMessage());
+            result.put("raw", raw);
+        }
+        return result;
     }
 }

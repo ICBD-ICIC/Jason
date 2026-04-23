@@ -1,5 +1,6 @@
 package arch;
 
+import jason.architecture.AgArch;
 import jason.asSyntax.Term;
 import lib.JasonToJavaTranslator;
 
@@ -10,28 +11,22 @@ import java.util.*;
  *
  * Responsible for computing the three LLM-based textual probability
  * components from PTX = {Pnov, Prpl, Pnw} (Algorithms 2-4):
- *
- *   - Pnov(p, t): novelty of content relative to recently seen content.
- *   - Prpl(p)[t]: likelihood of engaging at this point in the diffusion
- *                 timeline (engagement over time).
- *   - Pnw(p):     predicted cumulative engagement/influence.
- *
- * Pusr is computed entirely on the ASL side using ia.computeSc and
- * passed in via the variables term so this arch can include it as
- * context in the prompt — Gemini uses it to adjust its estimates of
- * how much the author's influence affects engagement.
- *
+ * 
  * interpretContent(content, variables) receives:
  *   - content:   the message text
  *   - variables: map containing at minimum pusr(float)
  *
- * Returns a map with: pnov, prpl, pnw, state_suggestion, credibility,
- * misinformation_risk — all consumed by the ASL transition guards.
+ * Returns a map with:
+ *   - Pnov(p): novelty of content relative to recently seen content.
+ *   - Prpl(p): likelihood of engaging at this point in the diffusion timeline (engagement over time).
+ *   - Pnw(p):  predicted cumulative engagement/influence.
  *
  * createContent() generates tweet text once the ASL f() function has
- * already decided to spread — the decision itself is never made here.
+ * already decided to spread.
  */
-public class ConVaIAgArch extends GeminiAgArch {
+public class ConVaIGeminiAgArch extends AgArch implements SocialAgArch {
+
+    private final GeminiClient gemini = new GeminiClient();
 
     // Sliding window of recently seen content per agent for Pnov estimation.
     private static final Map<String, Deque<String>> recentContentByAgent =
@@ -44,22 +39,15 @@ public class ConVaIAgArch extends GeminiAgArch {
     // ----------------------------------------------------------------
 
     /**
-     * Accepts a variables term carrying pusr so Gemini has author
-     * influence context when estimating Prpl and Pnov.
-     *
-     * The Term signature matches SocialAgArch.interpretContent(Term),
-     * but we expect the ASL to pass a two-element list:
-     *   [content("..."), pusr(0.42)]
-     * and extract both here.
+     * Accepts content encoded as "post text|||pusr=0.42" so the ASL
+     * can pass both the message and the author influence score in a
+     * single Term without changing the SocialAgArch signature.
      */
     @Override
     public Map<String, Object> interpretContent(Term contentTerm) {
         String agentName  = getAgName();
         String contentStr = JasonToJavaTranslator.translateString(contentTerm);
 
-        // pusr is passed via the variables term encoded into content
-        // by the ASL as a Jason string: "content|||pusr=0.42"
-        // We split on the separator to recover both values.
         double pusr = 0.0;
         String pureContent = contentStr;
         if (contentStr.contains("|||")) {
@@ -68,18 +56,17 @@ public class ConVaIAgArch extends GeminiAgArch {
             try {
                 pusr = Double.parseDouble(parts[1].replace("pusr=", "").trim());
             } catch (NumberFormatException e) {
-                System.err.println("[ConVaIAgArch] Could not parse pusr from: " + parts[1]);
+                System.err.println("[ConVaIGeminiAgArch] Could not parse pusr from: " + parts[1]);
             }
         }
 
         Deque<String> recentContent = recentContentByAgent
             .computeIfAbsent(agentName, k -> new ArrayDeque<>());
 
-        String prompt = buildConVaIInterpretPrompt(pureContent, pusr, recentContent);
-        String raw    = getResponse(prompt);
+        String prompt = buildInterpretPrompt(pureContent, pusr, recentContent);
+        String raw    = gemini.getResponse(prompt);
         Map<String, Object> result = parseInterpretation(raw);
 
-        // Update sliding window
         synchronized (recentContent) {
             recentContent.addLast(pureContent);
             if (recentContent.size() > CONTEXT_WINDOW_SIZE) {
@@ -90,9 +77,9 @@ public class ConVaIAgArch extends GeminiAgArch {
         return result;
     }
 
-    private String buildConVaIInterpretPrompt(String content,
-                                               double pusr,
-                                               Deque<String> recentContent) {
+    private String buildInterpretPrompt(String content,
+                                        double pusr,
+                                        Deque<String> recentContent) {
         String contextBlock = recentContent.isEmpty()
             ? "(none)"
             : String.join("\n- ", recentContent);
@@ -114,9 +101,7 @@ public class ConVaIAgArch extends GeminiAgArch {
                         "or ignore (neutral) this post?\n" +
             "  \"credibility\": \"high\" | \"medium\" | \"low\".\n" +
             "  \"misinformation_risk\": \"high\" | \"medium\" | \"low\".",
-            pusr,
-            contextBlock,
-            content
+            pusr, contextBlock, content
         );
     }
 
@@ -149,6 +134,26 @@ public class ConVaIAgArch extends GeminiAgArch {
             stance, topicList, varMap
         );
 
-        return getResponse(prompt);
+        return gemini.getResponse(prompt);
+    }
+
+    // ----------------------------------------------------------------
+    // Helpers
+    // ----------------------------------------------------------------
+
+    private Map<String, Object> parseInterpretation(String raw) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        try {
+            String clean = raw.replaceAll("(?s)```json|```", "").trim();
+            com.fasterxml.jackson.databind.ObjectMapper mapper =
+                new com.fasterxml.jackson.databind.ObjectMapper();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> parsed = mapper.readValue(clean, Map.class);
+            result.putAll(parsed);
+        } catch (Exception e) {
+            System.err.println("[ConVaIGeminiAgArch] Failed to parse interpretation JSON: " + e.getMessage());
+            result.put("raw", raw);
+        }
+        return result;
     }
 }
