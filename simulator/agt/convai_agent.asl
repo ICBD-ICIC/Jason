@@ -58,23 +58,23 @@ read_history([]).
     +read_history([Content | PastMessages]).
 
 /* Algorithm 3 */
-+!read_sc(Id, Author, Content, CId, [pnov(Pnov), prpl(Prpl), pnw(Pnw)]): true <-
++!read_sc(Id, Author, Content, CId, [pnov(Pnov), prpl(Prpl), pnw(Pnw)]): 
+    pinf(Pinf) & pmd(Pmd)
+<-
     -+state(neutral);
     Max1 = 1 - Pnov;
     ia.U(U1, Max1);
-    if_then_else(U1 < Prpl,
+    if_then_else(U1 <= Prpl,
         {
             -+replying(CId);
             readPublicProfile(Author);
             .wait(public_profile(Author, "pusr", Pusr));
-            pinf(Pinf);
-            pmd(Pmd);
             Max2 = 1 - Pusr - Pnw;
             ia.U(U2, Max2);
             ia.U(U3, Max2);
-            if_then_else(U2 < Pinf,
+            if_then_else(U2 <= Pinf,
                 { -+state(infected) },
-                { if_then_else(U3 < Pmd,
+                { if_then_else(U3 <= Pmd,
                     { -+state(vaccinated) },
                     { true }
                 )}
@@ -83,4 +83,47 @@ read_history([]).
         { true }
     ).
 
-
+/* Algorithm 4 */
++!read_ms(Id, Author, Content, CId, [pnov(Pnov), prpl(Prpl), pnw(Pnw)]): 
+    state(State) & popi(Popi) & pad(Pad)
+<-
+    readPublicProfile(Author);
+    .wait(public_profile(Author, "pusr", Pusr));
+    Max1 = 1 - Pnov - Pusr;
+    ia.U(U1, Max1);
+    if_then_else(U1 <= Prpl,
+        {
+            ia.U(U2);
+            ia.U(U3);
+            ia.U(U4);
+            .wait(message_var(Id, "state", Sk));
+            if_then_else((State == Sk) & (U2 <= Popi),
+                {
+                    -+replying(CId)
+                },
+                {
+                    if_then_else(State \== Sk,
+                        {
+                            if_then_else(U3 <= Pad,
+                                { 
+                                    -+replying(CId);
+                                    -+state(Sk) 
+                                },
+                                {
+                                    if_then_else(U4 <= Popi,
+                                        { 
+                                            -+replying(CId);
+                                            -+state(State)
+                                        },
+                                        { true }
+                                    )
+                                }
+                            )
+                        },
+                        { true }
+                    )
+                }
+            )
+        },
+        { true }
+    ).

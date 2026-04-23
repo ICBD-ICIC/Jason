@@ -11,6 +11,7 @@ public class U extends DefaultInternalAction {
         if (args.length > 0 && args[0] instanceof NumberTerm) {
             max = ((NumberTerm) args[0]).solve();
         }
+        max = Math.max(0.0, Math.min(1.0, max));
 
         double u1;
         do {
