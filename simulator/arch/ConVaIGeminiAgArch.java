@@ -96,15 +96,16 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
     /**
      * Generates tweet text for an agent that has already decided
      * (via the CoNVaI f() function in the ASL) to spread or debunk.
-     * Expects variables to contain a "state" key.
+     * Expects variables to contain "state" and "content" keys.
      */
     @Override
     public String createContent(Term topics, Term variables) {
-        List<String> topicList   = JasonToJavaTranslator.translateTopics(topics);
         Map<String, Object> varMap = JasonToJavaTranslator.translateVariables(variables);
 
-        String agentState = varMap.getOrDefault("state", "infected").toString();
-        boolean spreading = agentState.equalsIgnoreCase("infected");
+        String agentState = stringify(varMap.get("state"));
+        boolean spreading = agentState.equals("infected");
+
+        String content = stringify(varMap.get("content"));
 
         String stance = spreading
             ? "You believe this information and want to spread it."
@@ -112,10 +113,9 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
 
         String prompt = String.format(
             "You are a social media user. %s " +
-            "Write a single tweet (max 280 characters) about: %s. " +
-            "Reflect these characteristics: %s. " +
+            "Write a single tweet (max 280 characters) replying to: %s. " +
             "Reply with only the tweet text, no commentary.",
-            stance, topicList, varMap
+            stance, content
         );
 
         return gemini.getResponse(prompt);
@@ -155,5 +155,9 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
         }
 
         return result;
+    }
+
+    private static String stringify(Object o) {
+        return o == null ? "" : o.toString();
     }
 }
