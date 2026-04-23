@@ -4,7 +4,6 @@
     Agent states: neutral | infected | vaccinated
 
     Input parameters:
-        Pusr
         Pinf
         Pmd
         Pad
@@ -15,6 +14,8 @@
         Pnov
         Prpl
         Pnw
+    Params in Public Profiles:
+        Pusr
    ========================================================== */
 
 conversation_counter(0).
@@ -35,8 +36,8 @@ read_history([]).
     -+messages_read(MR1);
     prd(Prd);
     Pread = Prd / MR1;
-    ia.U(U);
-    if (U < Pread) {
+    ia.U(U1);
+    if (U1 < Pread) {
         !process_single_message(Id)
     };
     !process_messages(Rest).
@@ -45,7 +46,7 @@ read_history([]).
     .wait(message(Id, Author, Content, Original, Timestamp));
     .wait(message_var(Id, "conversation_id", CId));
     ia.interpretContent(content(Content, PastMessages), Interpretation);
-    if_then_else(in_conversation(CId),
+    .if_then_else(in_conversation(CId),
         {
             !read_ms(Id, Author, Content, CId, Interpretation)
         },
@@ -59,14 +60,27 @@ read_history([]).
 /* Algorithm 3 */
 +!read_sc(Id, Author, Content, CId, [pnov(Pnov), prpl(Prpl), pnw(Pnw)]): true <-
     -+state(neutral);
-    Max = 1 - Pnov;
-    ia.U(U, Max);
-    if_then_else(U < Prpl,
+    Max1 = 1 - Pnov;
+    ia.U(U1, Max1);
+    if_then_else(U1 < Prpl,
         {
-            ?
+            -+replying(CId);
+            readPublicProfile(Author);
+            .wait(public_profile(Author, "pusr", Pusr));
+            pinf(Pinf);
+            pmd(Pmd);
+            Max2 = 1 - Pusr - Pnw;
+            ia.U(U2, Max2);
+            ia.U(U3, Max2);
+            if_then_else(U2 < Pinf,
+                { -+state(infected) },
+                { if_then_else(U3 < Pmd,
+                    { -+state(vaccinated) },
+                    { true }
+                )}
+            )
         },
-        {
-            nothing
-        }
+        { true }
     ).
+
 
