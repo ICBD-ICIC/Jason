@@ -9,7 +9,7 @@ import java.util.*;
 /**
  * Condition 1: Full LLM agent architecture.
  *
- * Unlike ConVaIGeminiAgArch, this arch replaces the f() decision function
+ * Unlike CoNVaIGeminiAgArch, this arch replaces the f() decision function
  * entirely. interpretContent() does not just return probabilities —
  * it asks Gemini to make the spreading decision outright, given the
  * agent's current belief state injected as context.
@@ -22,7 +22,7 @@ import java.util.*;
  * Agent persona and belief state are maintained here across calls
  * so that Gemini has consistent context for each decision.
  */
-public class ConVaIFullGeminiAgArch extends AgArch implements SocialAgArch {
+public class CoNVaIFullGeminiAgArch extends AgArch implements SocialAgArch {
 
     private final GeminiClient gemini = new GeminiClient();
 

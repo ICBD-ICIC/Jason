@@ -18,6 +18,7 @@
    ========================================================== */
 
 conversation_counter(0).
+read_history([]).
 
 +!start: true <-
     updateFeed(true).
@@ -34,22 +35,38 @@ conversation_counter(0).
     -+messages_read(MR1);
     prd(Prd);
     Pread = Prd / MR1;
-    .random(U);
+    ia.U(U);
     if (U < Pread) {
         !process_single_message(Id)
     };
     !process_messages(Rest).
 
-+!process_single_message(Id): true <-
++!process_single_message(Id): read_history(PastMessages) <-
     .wait(message(Id, Author, Content, Original, Timestamp));
     .wait(message_var(Id, "conversation_id", CId));
+    ia.interpretContent(content(Content, PastMessages), Interpretation);
     if_then_else(in_conversation(CId),
         {
-            ia.interpretContent(Content, Interpretation);
             !read_ms(Id, Author, Content, CId, Interpretation)
         },
         {
-            ia.interpretContent(Content, Interpretation);
             !read_sc(Id, Author, Content, CId, Interpretation)
         }
+    );
+    -read_history(PastMessages);
+    +read_history([Content | PastMessages]).
+
+/* Algorithm 3 */
++!read_sc(Id, Author, Content, CId, [pnov(Pnov), prpl(Prpl), pnw(Pnw)]): true <-
+    -+state(neutral);
+    Max = 1 - Pnov;
+    ia.U(U, Max);
+    if_then_else(U < Prpl,
+        {
+            ?
+        },
+        {
+            nothing
+        }
     ).
+

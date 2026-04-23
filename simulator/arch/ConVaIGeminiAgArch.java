@@ -7,101 +7,85 @@ import lib.JasonToJavaTranslator;
 import java.util.*;
 
 /**
- * Condition 2: CoNVaI agent architecture.
+ * CoNVaI agent architecture.
  *
  * Responsible for computing the three LLM-based textual probability
  * components from PTX = {Pnov, Prpl, Pnw} (Algorithms 2-4):
- * 
- * interpretContent(content, variables) receives:
- *   - content:   the message text
- *   - variables: map containing at minimum pusr(float)
  *
- * Returns a map with:
- *   - Pnov(p): novelty of content relative to recently seen content.
- *   - Prpl(p): likelihood of engaging at this point in the diffusion timeline (engagement over time).
- *   - Pnw(p):  predicted cumulative engagement/influence.
+ * interpretContent(contentTerm, pastMessagesTerm) receives:
+ *   - contentTerm:      the message text (Jason Term)
+ *   - pastMessagesTerm: list of previously read messages by this agent (Jason Term)
  *
- * createContent() generates tweet text once the ASL f() function has
- * already decided to spread.
+ * Returns a map with exactly three keys:
+ *   - pnov (double): novelty — semantic/lexical divergence from prior messages.
+ *   - prpl (double): engagement likelihood — how likely this provokes a reply.
+ *   - pnw  (double): cumulative influence — how broadly impactful the message seems.
+ *
+ * createContent() generates tweet text once the ASL f() function has already decided to spread.
  */
-public class ConVaIGeminiAgArch extends AgArch implements SocialAgArch {
+public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
 
     private final GeminiClient gemini = new GeminiClient();
-
-    // Sliding window of recently seen content per agent for Pnov estimation.
-    private static final Map<String, Deque<String>> recentContentByAgent =
-        Collections.synchronizedMap(new HashMap<>());
-
-    private static final int CONTEXT_WINDOW_SIZE = 10;
 
     // ----------------------------------------------------------------
     // SocialAgArch — interpretContent
     // ----------------------------------------------------------------
 
     /**
-     * Accepts content encoded as "post text|||pusr=0.42" so the ASL
-     * can pass both the message and the author influence score in a
-     * single Term without changing the SocialAgArch signature.
+     * Estimates Pnov, Prpl, and Pnw for {@code contentTerm} given the
+     * agent's reading history ({@code pastMessagesTerm}).
+     *
+     * @param contentTerm      Jason Term encoding the message text.
+     * @param pastMessagesTerm Jason Term encoding a list of past messages.
+     * @return Map with keys "pnov", "prpl", "pnw" (all doubles in [0, 1]).
      */
     @Override
-    public Map<String, Object> interpretContent(Term contentTerm) {
-        String agentName  = getAgName();
-        String contentStr = JasonToJavaTranslator.translateString(contentTerm);
+    public Map<String, Object> interpretContent(Term term) {
+        Structure s       = (Structure) term;
+        String content    = JasonToJavaTranslator.translateString(s.getTerm(0));
+        List<String> past = JasonToJavaTranslator.translateTopics(s.getTerm(1));
 
-        double pusr = 0.0;
-        String pureContent = contentStr;
-        if (contentStr.contains("|||")) {
-            String[] parts = contentStr.split("\\|\\|\\|", 2);
-            pureContent = parts[0];
-            try {
-                pusr = Double.parseDouble(parts[1].replace("pusr=", "").trim());
-            } catch (NumberFormatException e) {
-                System.err.println("[ConVaIGeminiAgArch] Could not parse pusr from: " + parts[1]);
-            }
-        }
-
-        Deque<String> recentContent = recentContentByAgent
-            .computeIfAbsent(agentName, k -> new ArrayDeque<>());
-
-        String prompt = buildInterpretPrompt(pureContent, pusr, recentContent);
+        String prompt = buildInterpretPrompt(content, past);
         String raw    = gemini.getResponse(prompt);
-        Map<String, Object> result = parseInterpretation(raw);
-
-        synchronized (recentContent) {
-            recentContent.addLast(pureContent);
-            if (recentContent.size() > CONTEXT_WINDOW_SIZE) {
-                recentContent.removeFirst();
-            }
-        }
-
-        return result;
+        return parseInterpretation(raw);
     }
 
-    private String buildInterpretPrompt(String content,
-                                        double pusr,
-                                        Deque<String> recentContent) {
-        String contextBlock = recentContent.isEmpty()
+    /**
+     * Builds a single prompt that asks the LLM to estimate all three
+     * PTX components in one shot.
+     */
+    private String buildInterpretPrompt(String content, List<String> pastMessages) {
+        String historyBlock = pastMessages.isEmpty()
             ? "(none)"
-            : String.join("\n- ", recentContent);
+            : "- " + String.join("\n- ", pastMessages);
 
         return String.format(
-            "You are evaluating a social media post for an information diffusion simulation.\n" +
-            "The author's influence score (Pusr) is %.4f (range 0.0-1.0, higher = more influential).\n\n" +
-            "Recently seen posts by this agent:\n- %s\n\n" +
-            "New post to evaluate: \"%s\"\n\n" +
-            "Respond ONLY with a JSON object (no markdown, no explanation) with these keys:\n" +
-            "  \"pnov\": float 0.0-1.0 — how novel is this post compared to recent ones " +
-                        "(1.0 = completely new topic, 0.0 = already seen).\n" +
-            "  \"prpl\": float 0.0-1.0 — how likely is engagement with this post RIGHT NOW " +
-                        "given its age and momentum in the diffusion timeline " +
-                        "(higher early in diffusion, lower as momentum fades).\n" +
-            "  \"pnw\": float 0.0-1.0 — predicted cumulative engagement this post will receive.\n" +
-            "  \"state_suggestion\": \"infected\" | \"vaccinated\" | \"neutral\" — " +
-                        "would a typical user believe (infected), debunk (vaccinated), " +
-                        "or ignore (neutral) this post?\n" +
-            "  \"credibility\": \"high\" | \"medium\" | \"low\".\n" +
-            "  \"misinformation_risk\": \"high\" | \"medium\" | \"low\".",
-            pusr, contextBlock, content
+            "You are an analytical engine for an information-diffusion simulation.\n" +
+            "Given an agent's reading history and a new message, estimate three scores.\n\n" +
+
+            "=== READING HISTORY (messages the agent has already seen, most recent first) ===\n" +
+            "%s\n\n" +
+
+            "=== NEW MESSAGE ===\n" +
+            "\"%s\"\n\n" +
+
+            "=== TASK ===\n" +
+            "Return ONLY a JSON object with exactly these three keys (floats in [0.0, 1.0]):\n\n" +
+
+            "  \"pnov\" — Novelty: semantic and lexical divergence of the new message from\n" +
+            "            the reading history (listed most recent first). 1.0 = entirely new\n" +
+            "            topic/vocabulary, 0.0 = near-duplicate of something already seen.\n\n" +
+
+            "  \"prpl\" — Engagement likelihood: probability that a typical user would reply\n" +
+            "            to or interact with this message, based on its emotional charge,\n" +
+            "            rhetorical features, call-to-action language, and controversy.\n\n" +
+
+            "  \"pnw\"  — Cumulative influence: how broadly impactful this message is likely\n" +
+            "            to become overall, considering topic salience, shareability, and\n" +
+            "            persuasive strength.\n\n" +
+
+            "No markdown, no explanation — output the raw JSON object only.",
+            historyBlock, content
         );
     }
 
@@ -116,7 +100,7 @@ public class ConVaIGeminiAgArch extends AgArch implements SocialAgArch {
      */
     @Override
     public String createContent(Term topics, Term variables) {
-        List<String> topicList = JasonToJavaTranslator.translateTopics(topics);
+        List<String> topicList   = JasonToJavaTranslator.translateTopics(topics);
         Map<String, Object> varMap = JasonToJavaTranslator.translateVariables(variables);
 
         String agentState = varMap.getOrDefault("state", "infected").toString();
@@ -141,19 +125,35 @@ public class ConVaIGeminiAgArch extends AgArch implements SocialAgArch {
     // Helpers
     // ----------------------------------------------------------------
 
+    /**
+     * Parses the LLM response into a map containing exactly "pnov", "prpl", "pnw".
+     * Falls back to 0.0 for any key that cannot be extracted.
+     */
     private Map<String, Object> parseInterpretation(String raw) {
         Map<String, Object> result = new LinkedHashMap<>();
+        result.put("pnov", 0.0);
+        result.put("prpl", 0.0);
+        result.put("pnw",  0.0);
+
         try {
             String clean = raw.replaceAll("(?s)```json|```", "").trim();
             com.fasterxml.jackson.databind.ObjectMapper mapper =
                 new com.fasterxml.jackson.databind.ObjectMapper();
+
             @SuppressWarnings("unchecked")
             Map<String, Object> parsed = mapper.readValue(clean, Map.class);
-            result.putAll(parsed);
+
+            for (String key : List.of("pnov", "prpl", "pnw")) {
+                if (parsed.containsKey(key)) {
+                    double value = ((Number) parsed.get(key)).doubleValue();
+                    result.put(key, Math.min(value, 1.0));
+                }
+            }
         } catch (Exception e) {
-            System.err.println("[ConVaIGeminiAgArch] Failed to parse interpretation JSON: " + e.getMessage());
-            result.put("raw", raw);
+            System.err.println("[ConVaIGeminiAgArch] Failed to parse interpretation JSON: "
+                + e.getMessage() + " | raw=" + raw);
         }
+
         return result;
     }
 }
