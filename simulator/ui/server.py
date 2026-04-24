@@ -27,7 +27,7 @@ DEFAULT_MAS_NAME      = "simulation_example"
 
 # Fixed column schemas for each initializer CSV
 INITIALIZER_SCHEMAS = {
-    "messages.csv":        ["id", "author", "content", "reactions", "original", "topics"],
+    "messages.csv":        ["id", "author", "content", "reactions", "original", "topics", "variables"],
     "network.csv":         ["from", "to", "weight"],
     "public_profiles.csv": ["agent", "attribute", "value"],
 }
@@ -94,6 +94,8 @@ def parse_csv():
     columns = [c.strip() for c in (reader.fieldnames or [])]
     return jsonify({"rows": rows, "columns": columns})
 
+import json
+
 @app.route("/api/parse_initializer_csv", methods=["POST"])
 def parse_initializer_csv():
     """Parse an uploaded initializer CSV (fixed schema, returned as row dicts)."""
@@ -104,10 +106,23 @@ def parse_initializer_csv():
     schema = INITIALIZER_SCHEMAS.get(name, [])
     text   = f.read().decode("utf-8-sig")
     reader = csv.DictReader(io.StringIO(text))
-    rows   = []
-    for row in reader:
+    rows = []
+    for row_idx, row in enumerate(reader):
         clean = {k.strip(): (v or "").strip() for k, v in row.items()}
-        rows.append({col: clean.get(col, "") for col in schema})
+        parsed_row = {}
+        for col in schema:
+            value = clean.get(col, "")
+
+            if col == "variables":
+                try:
+                    parsed_row[col] = value
+                except ValueError as e:
+                    return jsonify({
+                        "error": f"Row {row_idx}: {str(e)}"
+                    }), 400
+            else:
+                parsed_row[col] = value
+        rows.append(parsed_row)
     return jsonify({"rows": rows})
 
 @app.route("/api/generate", methods=["POST"])
@@ -219,11 +234,26 @@ def generate():
         schema = INITIALIZER_SCHEMAS.get(csv_name)
         if not schema or not rows:
             continue
+
         out_path = out_init_dir / csv_name
+
         with out_path.open("w", newline="", encoding="utf-8") as fh:
             writer = csv.DictWriter(fh, fieldnames=schema, extrasaction="ignore")
             writer.writeheader()
-            writer.writerows(rows)
+
+            for row_idx, row in enumerate(rows):
+                if "variables" in row:
+                    raw = (row.get("variables") or "").strip()
+                    try:
+                        parsed = parse_variables(raw, row_idx)
+                        row["variables"] = json.dumps(parsed)
+                    except ValueError as e:
+                        return jsonify({
+                            "ok": False,
+                            "error": f"{csv_name} row {row_idx}: {str(e)}"
+                        }), 400
+
+                writer.writerow(row)
         gen_files.append(str(out_path.relative_to(BASE_DIR)))
 
     # ── .mas2j ────────────────────────────────────────────────────────────────
@@ -373,6 +403,50 @@ def visualize_polarization(folder: str):
     )
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
+
+def parse_variables(value: str, row_idx: int):
+    """
+    Parses a string like:
+    'public.likes=10;private.score=0.8'
+    into a nested dict.
+    """
+    if not value:
+        return {}
+
+    result = {}
+
+    pairs = value.split(";")
+    for pair in pairs:
+        pair = pair.strip()
+        if not pair:
+            continue
+
+        if "=" not in pair:
+            raise ValueError(f"Invalid variable '{pair}' (missing '=')")
+
+        key_path, raw_value = pair.split("=", 1)
+        keys = [k.strip() for k in key_path.split(".") if k.strip()]
+        if not keys:
+            raise ValueError(f"Invalid key in '{pair}'")
+
+        val = raw_value.strip()
+        if val.lower() in ("true", "false"):
+            val = val.lower() == "true"
+        else:
+            try:
+                if "." in val:
+                    val = float(val)
+                else:
+                    val = int(val)
+            except ValueError:
+                pass
+
+        current = result
+        for k in keys[:-1]:
+            current = current.setdefault(k, {})
+        current[keys[-1]] = val
+
+    return result
 
 def _build_fact_block(instance: dict) -> str:
     lines = []

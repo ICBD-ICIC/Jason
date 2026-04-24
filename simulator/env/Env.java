@@ -15,7 +15,8 @@ import initializer.PublicProfileLoader;
 public class Env extends Environment {
 
     private final NetworkManager networkManager = new NetworkManager();
-    private final ContentManager contentManager = new DefaultContentManager(networkManager);
+    // private final ContentManager contentManager = new DefaultContentManager(networkManager);
+    private final ContentManager contentManager = new CoNVaIContentManager(networkManager);
     private final KnowledgeManager knowledgeManager = new DefaultKnowledgeManager();
     private final Map<String, Map<String, String>> publicProfiles = new HashMap<>();
 

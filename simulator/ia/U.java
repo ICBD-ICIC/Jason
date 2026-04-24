@@ -1,23 +1,29 @@
 package ia;
 
-import jason.asSyntax.NumberTerm;
-import jason.asSyntax.NumberTermImpl;
+import jason.asSemantics.*;
+import jason.asSyntax.*;
+
+import java.util.Random;
 
 public class U extends DefaultInternalAction {
+
+    private final Random rand = new Random();
 
     @Override
     public Object execute(TransitionSystem ts, Unifier un, Term[] args) throws Exception {
         double max = 1.0;
-        if (args.length > 0 && args[0] instanceof NumberTerm) {
+        if (args.length == 2) {
             max = ((NumberTerm) args[0]).solve();
+            max = Math.max(0.0, Math.min(1.0, max));
+        } else if (args.length != 1) {
+            throw new IllegalArgumentException("U expects 1 or 2 args");
         }
-        max = Math.max(0.0, Math.min(1.0, max));
 
-        double u1;
+        double u;
         do {
-            u1 = rand.nextDouble() * max;
-        } while (u1 == 0.0);
+            u = new Random().nextDouble() * max;
+        } while (u == 0.0);
 
-        return un.unifies(args[args.length - 1], new NumberTermImpl(u1));
+        return un.unifies(args[args.length - 1], ASSyntax.createNumber(u));
     }
 }

@@ -5,16 +5,19 @@ import tech.tablesaw.io.csv.CsvReadOptions;
 
 import java.io.IOException;
 import java.util.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import env.ContentManager;
 import env.Message;
 
 public class MessageLoader {
 
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
 /**
      * Loads messages from a CSV file and returns them as an ordered list of Message objects.
      *
-     * CSV columns: id, author, content, reactions, original, topics
+     * CSV columns: id, author, content, reactions, original, topics, variables
      *
      * Rules:
      * - id: numeric, used only to resolve "original" references within the file.
@@ -24,15 +27,15 @@ public class MessageLoader {
      * - reactions: semicolon-separated "agentName: reaction" pairs.
      * - original: numeric, must reference an id present in the file, or be empty.
      * - topics: semicolon-separated list of topics associated with the message.
+     * - variables: JSON format.
      * - timestamps assigned in file order automatically.
-     * - variables not included in the CSV.
      *
      * @param contentManager the content manager used to register messages, reposts, and reactions
      * @param csvPath path to the CSV file to load, following the specified rules
      * @throws IOException if the file cannot be read, a row is malformed, or a referential constraint is violated
      */
     public static void load(ContentManager contentManager, String csvPath) throws IOException {
-        Optional<Table> result = CsvLoader.load(csvPath, List.of("id", "author", "content", "reactions", "original", "topics"));
+        Optional<Table> result = CsvLoader.load(csvPath, List.of("id", "author", "content", "reactions", "original", "topics", "variables"));
         if (result.isEmpty()) return;
         Table table = result.get();
         
@@ -46,12 +49,22 @@ public class MessageLoader {
             String content = row.getString("content");
             String reactionsRaw = row.getString("reactions");
             String originalCsvId = row.getString("original");
+            String variablesRaw = row.getString("variables");
             List<String> topics = Arrays.stream(row.getString("topics").split(";"))
                                                                         .map(String::trim)
                                                                         .filter(s -> !s.isBlank())
                                                                         .toList();
             if (author == null || author.isBlank())
                 throw new IOException("Row " + rowIdx + " is missing an author.");
+
+            Map<String, Object> variables = Map.of();
+            if (variablesRaw != null && !variablesRaw.isBlank()) {
+                try {
+                    variables = MAPPER.readValue(variablesRaw, Map.class);
+                } catch (Exception e) {
+                    throw new IOException("Row " + rowIdx + ": malformed variables JSON.", e);
+                }
+            }
 
             int originalSimId = Message.EMPTY_REFERENCE;
             if (originalCsvId != null && !originalCsvId.isBlank()) {
@@ -72,7 +85,7 @@ public class MessageLoader {
                     author,
                     content,
                     topics,
-                    null,
+                    variables,
                     originalSimId
                 );
             }

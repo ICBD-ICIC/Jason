@@ -1,24 +1,33 @@
+pinf(1).
+pmd(1).
+pad(1).
+popi(1).
+prd(1).
+state(neutral).
+
 /* ==========================================================
     CoNVaI Agent (Jason BDI)
 
     Agent states: neutral | infected | vaccinated
 
     Requires beliefs:
-        Pinf(pinf)
-        Pmd(pmd)
-        Pad(pad)
-        Popi(popi)
-        Prd(prd)
+        pinf(pinf)
+        pmd(pmd)
+        pad(pad)
+        popi(popi)
+        prd(prd)
         state(initial_state)
     Computes textual parameters:
-        Pnov
-        Prpl
-        Pnw
+        pnov
+        prpl
+        pnw
     Params in Public Profiles:
-        Pusr
+        pusr
    ========================================================== */
 
 read_history([]).
+
+!start.
 
 +!start: true <-
     updateFeed(true).
@@ -31,14 +40,14 @@ read_history([]).
 
 +!process_messages([]): true <- true.
 
-+!process_messages([Id|Rest]): true <-
-    messages_read(MR);
++!process_messages([Id|Rest]): 
+    messages_read(MR) & prd(Prd)
+<-
     MR1 = MR + 1;
     -+messages_read(MR1);
-    prd(Prd);
     Pread = Prd / MR1;
     ia.U(U1);
-    if (U1 < Pread) {
+    if (U1 <= Pread) {
         !process_single_message(Id)
     };
     !process_messages(Rest).
@@ -64,24 +73,24 @@ read_history([]).
 <-
     -+state(neutral);
     Max1 = 1 - Pnov;
-    ia.U(U1, Max1);
-    if_then_else(U1 <= Prpl,
+    ia.U(Max1, U1);
+    .if_then_else(U1 <= Prpl,
         {
             -+replying(CId, Id);
             readPublicProfile(Author);
             .wait(public_profile(Author, "pusr", Pusr));
             Max2 = 1 - Pusr - Pnw;
-            ia.U(U2, Max2);
-            ia.U(U3, Max2);
-            if_then_else(U2 <= Pinf,
+            ia.U(Max2, U2);
+            ia.U(Max2, U3);
+            .if_then_else(U2 <= Pinf,
                 { -+state(infected) },
-                { if_then_else(U3 <= Pmd,
+                { .if_then_else(U3 <= Pmd,
                     { -+state(vaccinated) },
-                    { true }
+                    { .skip }
                 )}
             )
         },
-        { true }
+        { .skip }
     ).
 
 /* Algorithm 4 */
@@ -91,42 +100,42 @@ read_history([]).
     readPublicProfile(Author);
     .wait(public_profile(Author, "pusr", Pusr));
     Max1 = 1 - Pnov - Pusr;
-    ia.U(U1, Max1);
-    if_then_else(U1 <= Prpl,
+    ia.U(Max1, U1);
+    .if_then_else(U1 <= Prpl,
         {
-            ia.U(U2);
-            ia.U(U3);
-            ia.U(U4);
+            ia.U(Max2, U2);
+            ia.U(Max3, U3);
+            ia.U(Max4, U4);
             .wait(message_var(Id, "state", Sk));
-            if_then_else((State == Sk) & (U2 <= Popi),
+            .if_then_else((State == Sk) & (U2 <= Popi),
                 {
                     -+replying(CId, Id)
                 },
                 {
-                    if_then_else(State \== Sk,
+                    .if_then_else(State \== Sk,
                         {
-                            if_then_else(U3 <= Pad,
+                            .if_then_else(U3 <= Pad,
                                 { 
                                     -+replying(CId, Id);
                                     -+state(Sk) 
                                 },
                                 {
-                                    if_then_else(U4 <= Popi,
+                                    .if_then_else(U4 <= Popi,
                                         { 
                                             -+replying(CId, Id);
                                             -+state(State)
                                         },
-                                        { true }
+                                        { .skip }
                                     )
                                 }
                             )
                         },
-                        { true }
+                        { .skip }
                     )
                 }
             )
         },
-        { true }
+        { .skip }
     ).
 
 /* f(state) */

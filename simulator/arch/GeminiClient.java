@@ -11,7 +11,7 @@ import com.google.genai.types.GenerateContentResponse;
  */
 public class GeminiClient {
 
-    public static final String MODEL = "gemini-2.0-flash";
+    public static final String MODEL = "gemini-2.5-flash";
 
     private static final int  MAX_RETRIES = 3;
     private static final long RETRY_DELAY = 1000L;

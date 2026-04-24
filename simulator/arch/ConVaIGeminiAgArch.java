@@ -1,7 +1,7 @@
 package arch;
 
 import jason.architecture.AgArch;
-import jason.asSyntax.Term;
+import jason.asSyntax.*;
 import lib.JasonToJavaTranslator;
 
 import java.util.*;
@@ -35,13 +35,14 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
      * Estimates Pnov, Prpl, and Pnw for {@code contentTerm} given the
      * agent's reading history ({@code pastMessagesTerm}).
      *
-     * @param contentTerm      Jason Term encoding the message text.
-     * @param pastMessagesTerm Jason Term encoding a list of past messages.
+     * @param contentStructure Jason structure expected to contain:
+     *                         - Term 0: content string
+     *                         - Term 1: list of past messages (strings)
      * @return Map with keys "pnov", "prpl", "pnw" (all doubles in [0, 1]).
      */
     @Override
-    public Map<String, Object> interpretContent(Term term) {
-        Structure s       = (Structure) term;
+    public Map<String, Object> interpretContent(Term contentStructure) {
+        Structure s       = (Structure) contentStructure;
         String content    = JasonToJavaTranslator.translateString(s.getTerm(0));
         List<String> past = JasonToJavaTranslator.translateTopics(s.getTerm(1));
 
