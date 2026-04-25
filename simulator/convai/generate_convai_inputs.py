@@ -426,16 +426,16 @@ def make_agent_probs_csv(thread_df: pd.DataFrame,
                          all_uids: set,
                          agent_map: dict) -> pd.DataFrame:
     """
-    Three-row compact format with a count column.
+    Three-row compact format with a _count column.
 
     Agents are ordered by their mapped name (convai_agent_N, sorted
     lexicographically — equivalent to sorting by N numerically since all
     names share the same prefix length).
 
-    Row 0 (before):  count = number of agents whose name is *less than*
+    Row 0 (before):  _count = number of agents whose name is *less than*
                      the initiator's name, state = neutral
-    Row 1 (seed):    count = 1, state = infected
-    Row 2 (after):   count = number of agents whose name is *greater than*
+    Row 1 (seed):    _count = 1, state = infected
+    Row 2 (after):   _count = number of agents whose name is *greater than*
                      the initiator's name, state = neutral
 
     pinf/pmd/pad/popi/prd are identical on all three rows.
@@ -470,14 +470,14 @@ def make_agent_probs_csv(thread_df: pd.DataFrame,
     }
 
     rows = [
-        {**base, "count": count_before, "state": "neutral"},
-        {**base, "count": 1,            "state": "infected"},
-        {**base, "count": count_after,  "state": "neutral"},
+        {**base, "_count": count_before, "state": "neutral"},
+        {**base, "_count": 1,            "state": "infected"},
+        {**base, "_count": count_after,  "state": "neutral"},
     ]
 
     return pd.DataFrame(rows,
                         columns=["pinf", "pmd", "pad", "popi", "prd",
-                                 "count", "state"])
+                                 "_count", "state"])
 
 
 
@@ -580,9 +580,11 @@ def main():
             thread_dir / f"agent_probs_{thread_id}.csv", index=False
         )
 
-        n_inf = (probs_df["state"] == "infected").sum()
-        n_vac = (probs_df["state"] == "vaccinated").sum()
-        n_neu = (probs_df["state"] == "neutral").sum()
+        counts = probs_df.groupby("state")["_count"].sum()
+        n_inf = counts.get("infected", 0)
+        n_vac = counts.get("vaccinated", 0)
+        n_neu = counts.get("neutral", 0)
+
         print(f"  [{conv_idx:3d}/{len(test_dfs)}] {thread_id} — "
               f"Inf={n_inf}, Vac={n_vac}, Neu={n_neu}")
 
