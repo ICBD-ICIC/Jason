@@ -9,6 +9,11 @@ function addType() {
   selectType(t.id);
 }
 
+/** Total agent count across all instance rows (respecting _count) */
+function totalInstances(t) {
+  return t.instances.reduce((s, inst) => s + (parseInt(inst._count) || 1), 0);
+}
+
 function deleteType(id, e) {
   e.stopPropagation();
   types = types.filter(t => t.id !== id);
@@ -28,11 +33,23 @@ function setCellVal(typeId, ri, col, val) {
   if (t?.instances[ri]) t.instances[ri][col] = val;
 }
 
+function setCountVal(typeId, ri, val) {
+  const t = types.find(t => t.id === typeId);
+  if (!t?.instances[ri]) return;
+  const n = parseInt(val);
+  t.instances[ri]._count = (isNaN(n) || n < 1) ? 1 : n;
+  renderSidebar(); // update pill count
+}
+
 function addRow(typeId, count) {
   const t = types.find(t => t.id === typeId);
   if (!t) return;
   const n = Math.max(1, parseInt(count) || 1);
-  for (let i = 0; i < n; i++) t.instances.push(Object.fromEntries(t.columns.map(c => [c, ''])));
+  for (let i = 0; i < n; i++) {
+    const inst = Object.fromEntries(t.columns.map(c => [c, '']));
+    inst._count = 1;
+    t.instances.push(inst);
+  }
   renderMain(); renderSidebar();
 }
 
@@ -84,8 +101,14 @@ async function loadAgentCsv(typeId, input) {
     const data = await fetch('/api/parse_csv', { method: 'POST', body: fd }).then(r => r.json());
     if (data.error) { showToast(data.error); return; }
     const t = types.find(t => t.id === typeId); if (!t) return;
-    data.columns.forEach(c => { if (!t.columns.includes(c)) t.columns.push(c); });
-    data.rows.forEach(row => t.instances.push(Object.fromEntries(t.columns.map(c => [c, row[c] ?? '']))));
+    // Support optional _count column in CSV
+    const userCols = data.columns.filter(c => c !== '_count');
+    userCols.forEach(c => { if (!t.columns.includes(c)) t.columns.push(c); });
+    data.rows.forEach(row => {
+      const inst = Object.fromEntries(t.columns.map(c => [c, row[c] ?? '']));
+      inst._count = parseInt(row._count) || 1;
+      t.instances.push(inst);
+    });
     renderMain(); renderSidebar();
   } catch (e) { showToast('Failed to parse CSV: ' + e.message); }
   input.value = '';
@@ -113,6 +136,7 @@ async function refreshPreview(typeId) {
 // ── HTML builders ─────────────────────────────────────────────────────────────
 
 function buildAgentEditor(t) {
+  const total = totalInstances(t);
   return `
     <div class="editor">
       <div class="ed-header">
@@ -162,14 +186,14 @@ function buildAgentEditor(t) {
       <div class="card">
         <div class="card-head">
           <div class="dot" style="background:#f0a500"></div>
-          <h4>Instances — ${t.instances.length} agent${t.instances.length !== 1 ? 's' : ''}</h4>
+          <h4>Instance Groups — ${t.instances.length} row${t.instances.length !== 1 ? 's' : ''}, <span style="color:var(--accent2)">${total} agent${total !== 1 ? 's' : ''} total</span></h4>
           <div class="card-head-actions">
             <button class="btn-sm" onclick="openAddCol(${t.id})">+ Column</button>
           </div>
         </div>
         <div class="table-toolbar">
-          <button class="btn-sm accent" onclick="addRow(${t.id}, $('#add-count-${t.id}').value)">+ Add Instance</button>
-          <label class="add-count-label" title="Number of instances to add">
+          <button class="btn-sm accent" onclick="addRow(${t.id}, $('#add-count-${t.id}').value)">+ Add Row</button>
+          <label class="add-count-label" title="Number of rows to add">
             <span class="add-count-prefix">×</span>
             <input type="number" id="add-count-${t.id}" class="add-count-input" value="1" min="1" max="1000"
               onkeydown="if(event.key==='Enter') addRow(${t.id}, this.value)">
@@ -179,7 +203,7 @@ function buildAgentEditor(t) {
         <div class="card-body">
           <div class="csv-zone">
             <input type="file" accept=".csv" onchange="loadAgentCsv(${t.id},this)">
-            Drop CSV or click — <em>columns = attributes, rows = agents</em>
+            Drop CSV or click — <em>columns = attributes, rows = groups · optional <code>_count</code> column</em>
           </div>
           ${buildInstancesTable(t)}
         </div>
@@ -189,14 +213,17 @@ function buildAgentEditor(t) {
 
 function buildInstancesTable(t) {
   if (!t.columns.length && !t.instances.length)
-    return `<div class="no-rows">No instances yet — click <strong>+ Add Instance</strong> or upload a CSV</div>`;
+    return `<div class="no-rows">No instance groups yet — click <strong>+ Add Row</strong> or upload a CSV</div>`;
+
+  const countHeader = `<th title="Number of agents in this group" style="width:90px">× Count</th>`;
 
   if (!t.columns.length) {
     return `<div class="tbl-wrap"><table class="data-table">
-      <thead><tr><th class="col-idx">#</th><th></th><th class="col-del"></th></tr></thead>
-      <tbody>${t.instances.map((_, ri) => `
+      <thead><tr><th class="col-idx">#</th>${countHeader}<th></th><th class="col-del"></th></tr></thead>
+      <tbody>${t.instances.map((inst, ri) => `
         <tr>
           <td class="td-idx">${ri + 1}</td>
+          <td>${buildCountInput(t.id, ri, inst._count)}</td>
           <td><span class="no-attr-msg">No attributes — use <strong>+ Column</strong> to define some.</span></td>
           <td><button class="btn-del-row" onclick="deleteRow(${t.id},${ri})">✕</button></td>
         </tr>`).join('')}
@@ -211,14 +238,29 @@ function buildInstancesTable(t) {
   const rows = t.instances.map((inst, ri) =>
     `<tr>
       <td class="td-idx">${ri + 1}</td>
+      <td>${buildCountInput(t.id, ri, inst._count)}</td>
       ${t.columns.map(c => `<td><input type="text" value="${esc(inst[c] ?? '')}" placeholder="—"
         oninput="setCellVal(${t.id},${ri},'${esc(c)}',this.value)"></td>`).join('')}
       <td><button class="btn-del-row" onclick="deleteRow(${t.id},${ri})">✕</button></td>
     </tr>`
-  ).join('') || `<tr><td colspan="${t.columns.length + 2}" class="no-rows">No instances yet</td></tr>`;
+  ).join('') || `<tr><td colspan="${t.columns.length + 3}" class="no-rows">No instance groups yet</td></tr>`;
 
   return `<div class="tbl-wrap"><table class="data-table">
-    <thead><tr><th class="col-idx">#</th>${headers}<th class="col-del"></th></tr></thead>
+    <thead><tr><th class="col-idx">#</th>${countHeader}${headers}<th class="col-del"></th></tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
+}
+
+function buildCountInput(typeId, ri, count) {
+  const val = parseInt(count) || 1;
+  const highlight = val > 1 ? 'style="color:var(--accent2);font-weight:600;border-color:rgba(61,255,208,.3);"' : '';
+  return `<input type="number" value="${val}" min="1"
+    title="Number of agents in this group"
+    ${highlight}
+    oninput="setCountVal(${typeId},${ri},this.value)"
+    style="background:var(--surface);border:1px solid var(--border);border-radius:4px;
+           font-family:var(--mono);font-size:.8rem;padding:4px 7px;width:80px;
+           -moz-appearance:textfield;"
+    onchange="this.style.color=parseInt(this.value)>1?'var(--accent2)':'';
+              this.style.borderColor=parseInt(this.value)>1?'rgba(61,255,208,.3)':'';">`;
 }

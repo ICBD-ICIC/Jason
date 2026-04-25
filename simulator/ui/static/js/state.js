@@ -11,13 +11,46 @@ let pendingColTypeId = null;
 const INIT_NAMES = ['messages.csv', 'network.csv', 'public_profiles.csv'];
 let initializers = {};
 
-/** Collect all agent instance names derived from defined types */
+/**
+ * Collect all agent instance names derived from defined types.
+ * Respects _count: a row with _count=3 expands to stem_N_1, stem_N_2, stem_N_3
+ * so that network/profiles editors show the actual agent names.
+ */
 function getAllAgentNames() {
-  return types.flatMap(t => {
-    if (!t.asl || !t.instances.length) return [];
+  const names = [];
+  const stemCounters = {};
+
+  for (const t of types) {
+    if (!t.asl || !t.instances.length) continue;
     const stem = t.asl.replace(/\.asl$/, '');
-    return t.instances.map((_, i) => `${stem}_${i + 1}`);
-  });
+
+    // Count total instances for this stem to decide whether to suffix
+    const stemTotal = t.instances.reduce((s, inst) => s + (parseInt(inst._count) || 1), 0);
+
+    for (let ri = 0; ri < t.instances.length; ri++) {
+      const inst  = t.instances[ri];
+      const count = parseInt(inst._count) || 1;
+
+      if (count === 1 && stemTotal === 1) {
+        // Only one instance total, no suffix
+        names.push(stem);
+      } else if (count === 1) {
+        // Single instance in this row — gets its own sequential name
+        stemCounters[stem] = (stemCounters[stem] || 0) + 1;
+        names.push(`${stem}_${stemCounters[stem]}`);
+      } else {
+        // Group row: expand count → stem_N_1 .. stem_N_count
+        // The group itself gets one sequential index, then _1.._count within it
+        stemCounters[stem] = (stemCounters[stem] || 0) + 1;
+        const groupIdx = stemCounters[stem];
+        for (let i = 1; i <= count; i++) {
+          names.push(`${stem}_${groupIdx}_${i}`);
+        }
+      }
+    }
+  }
+
+  return names;
 }
 
 // Boot: fetch server options, seed initializer state

@@ -25,7 +25,7 @@ public class Env extends Environment {
         try {
             MessageLoader.load(contentManager, "initializer/messages.csv");
             PublicProfileLoader.load(publicProfiles, "initializer/public_profiles.csv");
-            NetworkLoader.load(networkManager, "initializer/network.csv");
+            NetworkLoader.load(networkManager, this, "initializer/network.csv");
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize: " + e.getMessage(), e);
         }
