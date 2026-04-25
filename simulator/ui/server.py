@@ -155,7 +155,6 @@ def generate():
         logging_dst.write_text(logging_src.read_text(encoding="utf-8"), encoding="utf-8")
         gen_files.append(str(logging_dst.relative_to(BASE_DIR)))
 
-
     # ── Build network relationship maps from network.csv edges ────────────────
     network_edges   = initializers.get("network.csv", [])
     follows_map:    dict[str, set] = {}
@@ -168,14 +167,17 @@ def generate():
             follows_map.setdefault(frm, set()).add(to)
             followed_by_map.setdefault(to, set()).add(frm)
 
-    # ── Pre-count instances per stem (to decide whether to suffix with _N) ────
+    # ── Pre-count total instances per stem ────────────────────────────────────
+    # We need to know if a stem has more than one total agent to decide naming.
     stem_totals: dict[str, int] = {}
     for atype in agent_types:
         asl_src = atype.get("asl", "")
         if not asl_src:
             continue
         stem = Path(asl_src).stem
-        stem_totals[stem] = stem_totals.get(stem, 0) + len(atype.get("instances", []))
+        for inst in atype.get("instances", []):
+            count = max(1, int(inst.get("_count", 1) or 1))
+            stem_totals[stem] = stem_totals.get(stem, 0) + count
 
     # ── Agent .asl files ──────────────────────────────────────────────────────
     for tidx, atype in enumerate(agent_types):
@@ -195,18 +197,26 @@ def generate():
 
         original_content = src_path.read_text()
         stem = src_path.stem
+        multiple_total = stem_totals.get(stem, 1) > 1
 
         for inst in instances:
+            # _count: how many identical agents this row represents
+            count = max(1, int(inst.get("_count", 1) or 1))
+
+            # Build the instance data without _count
+            inst_data = {k: v for k, v in inst.items() if k != "_count"}
+
             stem_counter[stem] = stem_counter.get(stem, 0) + 1
-            # Only append _N if there are multiple instances of this type
-            if stem_totals.get(stem, 1) == 1:
+            row_idx = stem_counter[stem]
+
+            if not multiple_total:
+                # Only one agent total for this stem → no suffix
                 out_stem = stem
             else:
-                out_stem = f"{stem}_{stem_counter[stem]}"
+                out_stem = f"{stem}_{row_idx}"
 
-            out_path = out_agt_dir / f"{out_stem}.asl"
-
-            fact_block    = _build_fact_block(inst)
+            # Build belief/fact block for this row
+            fact_block    = _build_fact_block(inst_data)
             network_block = _build_network_fact_block(out_stem, follows_map, followed_by_map)
             combined_block = fact_block + network_block
 
@@ -217,14 +227,39 @@ def generate():
                 + original_content
             ) if combined_block else original_content
 
-            out_path.write_text(new_content, encoding="utf-8")
-            gen_files.append(str(out_path.relative_to(BASE_DIR)))
+            if count > 1:
+                # ── GROUP ROW: one .asl file, #count in mas2j ────────────────
+                # Network facts cannot be per-agent when grouped — omit them
+                # (network is defined via the initializer CSV instead)
+                group_fact_block = fact_block  # no network facts for grouped agents
+                group_content = (
+                    "/* === Auto-generated initial facts === */\n"
+                    + group_fact_block
+                    + "/* === End auto-generated facts === */\n\n"
+                    + original_content
+                ) if group_fact_block else original_content
 
-            clauses = []
-            if arch_cls: clauses.append(f"agentArchClass {arch_cls}")
-            if bb_cls:   clauses.append(f"beliefBaseClass {bb_cls}")
-            suffix = ("\n            " + "\n            ".join(clauses)) if clauses else ""
-            agent_lines.append(f"        {out_stem}{suffix};")
+                out_path = out_agt_dir / f"{out_stem}.asl"
+                out_path.write_text(group_content, encoding="utf-8")
+                gen_files.append(str(out_path.relative_to(BASE_DIR)))
+
+                clauses = []
+                if arch_cls: clauses.append(f"agentArchClass {arch_cls}")
+                if bb_cls:   clauses.append(f"beliefBaseClass {bb_cls}")
+                suffix = ("\n            " + "\n            ".join(clauses)) if clauses else ""
+                agent_lines.append(f"        {out_stem} #{count}{suffix};")
+
+            else:
+                # ── SINGLE ROW: one .asl file, no #count ─────────────────────
+                out_path = out_agt_dir / f"{out_stem}.asl"
+                out_path.write_text(new_content, encoding="utf-8")
+                gen_files.append(str(out_path.relative_to(BASE_DIR)))
+
+                clauses = []
+                if arch_cls: clauses.append(f"agentArchClass {arch_cls}")
+                if bb_cls:   clauses.append(f"beliefBaseClass {bb_cls}")
+                suffix = ("\n            " + "\n            ".join(clauses)) if clauses else ""
+                agent_lines.append(f"        {out_stem}{suffix};")
 
     if errors:
         return jsonify({"ok": False, "errors": errors}), 400
@@ -276,14 +311,6 @@ def generate():
 
 @app.route("/<path:folder>/agts")
 def visualize_agts(folder: str):
-    """
-    Serve the per-agent metrics visualisation.
-    URL:   http://localhost:5050/<folder>/agts
-    Reads: simulator/<folder>/logs/<agent>.jsonl  (one per agent)
-
-    Each JSONL line shape (produced by save_logs.java):
-        { "timestamp": <long_ms>, <var>: <value>, ... }
-    """
     safe_folder = _safe_folder_name(folder)
     logs_dir    = BASE_DIR / safe_folder / "logs"
 
@@ -294,7 +321,6 @@ def visualize_agts(folder: str):
         error = f"Logs directory not found: {logs_dir.relative_to(BASE_DIR)}"
     else:
         for jsonl_file in sorted(logs_dir.glob("*.jsonl")):
-            # skip the combined messages log used by arg_tree
             if jsonl_file.stem == "messages":
                 continue
             agent_name = jsonl_file.stem
@@ -321,30 +347,6 @@ def visualize_agts(folder: str):
 
 @app.route("/<path:folder>/arg_tree")
 def visualize(folder: str):
-    """
-    Serve the argument-tree visualisation for a simulation output folder.
-
-    URL:   http://localhost:5050/<folder>/arg_tree
-    Reads: simulator/<folder>/logs/messages.jsonl
-
-    Each JSONL line is expected to have the shape:
-        {
-          "message": {
-            "id": <int>,
-            "author": <str>,
-            "content": <str>,
-            "original": <int | null>,   # parent message id
-            "timestamp": <int>,
-            "reactions": [...]
-          },
-          "topics": [...],
-          "variables": {
-            "relation": <0 | 1 | -1>,   # 0=root, 1=pro, -1=con
-            ...                          # any extra per-scenario vars
-          }
-        }
-    """
-    # Sanitise the folder path so it cannot escape BASE_DIR
     safe_folder = _safe_folder_name(folder)
     log_path    = BASE_DIR / safe_folder / "logs" / "messages.jsonl"
 
@@ -372,11 +374,6 @@ def visualize(folder: str):
 
 @app.route("/<path:folder>/polarization")
 def visualize_polarization(folder: str):
-    """
-    Serve the polarization metrics visualisation.
-    URL:   http://localhost:5050/<folder>/polarization
-    Reads: simulator/<folder>/logs/messages.jsonl  (same format as arg_tree)
-    """
     safe_folder = _safe_folder_name(folder)
     log_path    = BASE_DIR / safe_folder / "logs" / "messages.jsonl"
 
@@ -456,7 +453,6 @@ def _build_fact_block(instance: dict) -> str:
         if not attr or not value:
             continue
         # Strip the ":label" suffix — allows multiple columns with the same functor
-        # e.g. "debate:1" and "debate:2" both emit debate(...).
         functor = attr.split(":")[0].strip()
         if not functor:
             continue
