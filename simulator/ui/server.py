@@ -94,8 +94,6 @@ def parse_csv():
     columns = [c.strip() for c in (reader.fieldnames or [])]
     return jsonify({"rows": rows, "columns": columns})
 
-import json
-
 @app.route("/api/parse_initializer_csv", methods=["POST"])
 def parse_initializer_csv():
     """Parse an uploaded initializer CSV (fixed schema, returned as row dicts)."""
@@ -112,14 +110,11 @@ def parse_initializer_csv():
         parsed_row = {}
         for col in schema:
             value = clean.get(col, "")
-
             if col == "variables":
                 try:
                     parsed_row[col] = value
                 except ValueError as e:
-                    return jsonify({
-                        "error": f"Row {row_idx}: {str(e)}"
-                    }), 400
+                    return jsonify({"error": f"Row {row_idx}: {str(e)}"}), 400
             else:
                 parsed_row[col] = value
         rows.append(parsed_row)
@@ -131,12 +126,11 @@ def generate():
     errors      = []
     gen_files   = []
     agent_lines = []
-    stem_counter: dict[str, int] = {}
 
-    mas_name      = (data.get("mas_name")      or DEFAULT_MAS_NAME).strip()
-    raw_folder    = (data.get("output_folder") or DEFAULT_OUTPUT_FOLDER).strip()
+    mas_name       = (data.get("mas_name")      or DEFAULT_MAS_NAME).strip()
+    raw_folder     = (data.get("output_folder") or DEFAULT_OUTPUT_FOLDER).strip()
     mind_inspector = bool(data.get("mind_inspector", False))
-    output_folder = _safe_folder_name(raw_folder)
+    output_folder  = _safe_folder_name(raw_folder)
 
     agent_types  = data.get("agent_types",  [])
     initializers = data.get("initializers", {})
@@ -148,7 +142,7 @@ def generate():
     out_agt_dir.mkdir(parents=True, exist_ok=True)
     out_init_dir.mkdir(parents=True, exist_ok=True)
 
-    # ── Copy logging.properties into the output folder ────────────────────────
+    # ── Copy logging.properties ───────────────────────────────────────────────
     logging_src = BASE_DIR / "logging.properties"
     if logging_src.exists():
         logging_dst = out_dir / "logging.properties"
@@ -156,8 +150,8 @@ def generate():
         gen_files.append(str(logging_dst.relative_to(BASE_DIR)))
 
     # ── Build network relationship maps from network.csv edges ────────────────
-    network_edges   = initializers.get("network.csv", [])
-    follows_map:    dict[str, set] = {}
+    network_edges    = initializers.get("network.csv", [])
+    follows_map:     dict[str, set] = {}
     followed_by_map: dict[str, set] = {}
 
     for edge in network_edges:
@@ -168,7 +162,6 @@ def generate():
             followed_by_map.setdefault(to, set()).add(frm)
 
     # ── Pre-count total instances per stem ────────────────────────────────────
-    # We need to know if a stem has more than one total agent to decide naming.
     stem_totals: dict[str, int] = {}
     for atype in agent_types:
         asl_src = atype.get("asl", "")
@@ -179,7 +172,16 @@ def generate():
             count = max(1, int(inst.get("_count", 1) or 1))
             stem_totals[stem] = stem_totals.get(stem, 0) + count
 
-    # ── Agent .asl files ──────────────────────────────────────────────────────
+    # ── Agent .asl files + mas2j lines ────────────────────────────────────────
+    # Strategy:
+    #   - One shared .asl file per stem (copied from source, no baked-in beliefs)
+    #   - Each agent gets its own line in mas2j with unique name and
+    #     per-agent beliefs injected via [ beliefs="..." ]
+    #   - Naming: stem_1, stem_2, ... stem_N  (sequential across all rows)
+
+    stem_counter: dict[str, int] = {}
+    written_stems: set[str] = set()
+
     for tidx, atype in enumerate(agent_types):
         asl_src   = atype.get("asl", "")
         arch_cls  = (atype.get("arch_class") or "").strip()
@@ -195,71 +197,48 @@ def generate():
             errors.append(f"Agent type {tidx}: '{asl_src}' not found in agt/.")
             continue
 
-        original_content = src_path.read_text()
-        stem = src_path.stem
+        stem           = src_path.stem
         multiple_total = stem_totals.get(stem, 1) > 1
 
-        for inst in instances:
-            # _count: how many identical agents this row represents
-            count = max(1, int(inst.get("_count", 1) or 1))
+        # Write the shared .asl once per stem — no beliefs baked in
+        if stem not in written_stems:
+            out_path = out_agt_dir / f"{stem}.asl"
+            out_path.write_text(src_path.read_text(), encoding="utf-8")
+            gen_files.append(str(out_path.relative_to(BASE_DIR)))
+            written_stems.add(stem)
 
-            # Build the instance data without _count
+        for inst in instances:
+            count     = max(1, int(inst.get("_count", 1) or 1))
             inst_data = {k: v for k, v in inst.items() if k != "_count"}
 
-            stem_counter[stem] = stem_counter.get(stem, 0) + 1
-            row_idx = stem_counter[stem]
+            # Build the shared belief string for all agents in this group row
+            belief_str = _build_belief_string(inst_data)
 
-            if not multiple_total:
-                # Only one agent total for this stem → no suffix
-                out_stem = stem
-            else:
-                out_stem = f"{stem}_{row_idx}"
+            # Expand every agent in this group into its own mas2j line
+            for _ in range(count):
+                stem_counter[stem] = stem_counter.get(stem, 0) + 1
+                idx = stem_counter[stem]
 
-            # Build belief/fact block for this row
-            fact_block    = _build_fact_block(inst_data)
-            network_block = _build_network_fact_block(out_stem, follows_map, followed_by_map)
-            combined_block = fact_block + network_block
+                agent_name = stem if not multiple_total else f"{stem}_{idx}"
 
-            new_content = (
-                "/* === Auto-generated initial facts === */\n"
-                + combined_block
-                + "/* === End auto-generated facts === */\n\n"
-                + original_content
-            ) if combined_block else original_content
+                # Per-agent network beliefs
+                network_str = _build_network_belief_string(
+                    agent_name, follows_map, followed_by_map
+                )
 
-            if count > 1:
-                # ── GROUP ROW: one .asl file, #count in mas2j ────────────────
-                # Network facts cannot be per-agent when grouped — omit them
-                # (network is defined via the initializer CSV instead)
-                group_fact_block = fact_block  # no network facts for grouped agents
-                group_content = (
-                    "/* === Auto-generated initial facts === */\n"
-                    + group_fact_block
-                    + "/* === End auto-generated facts === */\n\n"
-                    + original_content
-                ) if group_fact_block else original_content
-
-                out_path = out_agt_dir / f"{out_stem}.asl"
-                out_path.write_text(group_content, encoding="utf-8")
-                gen_files.append(str(out_path.relative_to(BASE_DIR)))
+                all_beliefs = ", ".join(b for b in [belief_str, network_str] if b)
+                beliefs_clause = f' [ beliefs="{all_beliefs}" ]' if all_beliefs else ""
 
                 clauses = []
                 if arch_cls: clauses.append(f"agentArchClass {arch_cls}")
                 if bb_cls:   clauses.append(f"beliefBaseClass {bb_cls}")
-                suffix = ("\n            " + "\n            ".join(clauses)) if clauses else ""
-                agent_lines.append(f"        {out_stem} #{count}{suffix};")
+                arch_suffix = (
+                    "\n            " + "\n            ".join(clauses)
+                ) if clauses else ""
 
-            else:
-                # ── SINGLE ROW: one .asl file, no #count ─────────────────────
-                out_path = out_agt_dir / f"{out_stem}.asl"
-                out_path.write_text(new_content, encoding="utf-8")
-                gen_files.append(str(out_path.relative_to(BASE_DIR)))
-
-                clauses = []
-                if arch_cls: clauses.append(f"agentArchClass {arch_cls}")
-                if bb_cls:   clauses.append(f"beliefBaseClass {bb_cls}")
-                suffix = ("\n            " + "\n            ".join(clauses)) if clauses else ""
-                agent_lines.append(f"        {out_stem}{suffix};")
+                agent_lines.append(
+                    f"        {agent_name}  {stem}{beliefs_clause}{arch_suffix};"
+                )
 
     if errors:
         return jsonify({"ok": False, "errors": errors}), 400
@@ -271,11 +250,9 @@ def generate():
             continue
 
         out_path = out_init_dir / csv_name
-
         with out_path.open("w", newline="", encoding="utf-8") as fh:
             writer = csv.DictWriter(fh, fieldnames=schema, extrasaction="ignore")
             writer.writeheader()
-
             for row_idx, row in enumerate(rows):
                 if "variables" in row:
                     raw = (row.get("variables") or "").strip()
@@ -287,7 +264,6 @@ def generate():
                             "ok": False,
                             "error": f"{csv_name} row {row_idx}: {str(e)}"
                         }), 400
-
                 writer.writerow(row)
         gen_files.append(str(out_path.relative_to(BASE_DIR)))
 
@@ -307,7 +283,7 @@ def generate():
         "mas2j":           mas2j,
     })
 
-# ── Visualisations ─────────────────────────────────────────────────────────────
+# ── Visualisations ────────────────────────────────────────────────────────────
 
 @app.route("/<path:folder>/agts")
 def visualize_agts(folder: str):
@@ -399,73 +375,80 @@ def visualize_polarization(folder: str):
         error         = error,
     )
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def parse_variables(value: str, row_idx: int):
     """
-    Parses a string like:
-    'public.likes=10;private.score=0.8'
-    into a nested dict.
+    Parses 'public.likes=10;private.score=0.8' into a nested dict.
     """
     if not value:
         return {}
-
     result = {}
-
-    pairs = value.split(";")
-    for pair in pairs:
+    for pair in value.split(";"):
         pair = pair.strip()
         if not pair:
             continue
-
         if "=" not in pair:
             raise ValueError(f"Invalid variable '{pair}' (missing '=')")
-
         key_path, raw_value = pair.split("=", 1)
         keys = [k.strip() for k in key_path.split(".") if k.strip()]
         if not keys:
             raise ValueError(f"Invalid key in '{pair}'")
-
         val = raw_value.strip()
         if val.lower() in ("true", "false"):
             val = val.lower() == "true"
         else:
             try:
-                if "." in val:
-                    val = float(val)
-                else:
-                    val = int(val)
+                val = float(val) if "." in val else int(val)
             except ValueError:
                 pass
-
         current = result
         for k in keys[:-1]:
             current = current.setdefault(k, {})
         current[keys[-1]] = val
-
     return result
 
-def _build_fact_block(instance: dict) -> str:
-    lines = []
+
+def _build_belief_string(instance: dict) -> str:
+    """
+    Build a comma-separated belief string for the mas2j [ beliefs="..." ] clause.
+    e.g. {"pepe": "num1", "prob": "0.3"} → 'pepe(num1), prob(0.3)'
+    """
+    parts = []
     for attr, value in instance.items():
         attr  = (attr  or "").strip()
         value = (value or "").strip()
         if not attr or not value:
             continue
-        # Strip the ":label" suffix — allows multiple columns with the same functor
         functor = attr.split(":")[0].strip()
         if not functor:
             continue
-        args = _parse_fact_args(value)
+        args     = _parse_fact_args(value)
         rendered = ", ".join(_render_arg(a) for a in args)
-        lines.append(f"{functor}({rendered}).")
-    return "\n".join(lines) + ("\n" if lines else "")
+        parts.append(f"{functor}({rendered})")
+    return ", ".join(parts)
+
+
+def _build_network_belief_string(
+    agent_name: str,
+    follows_map: dict[str, set],
+    followed_by_map: dict[str, set],
+) -> str:
+    """
+    Build network beliefs as a comma-separated string for [ beliefs="..." ].
+    """
+    parts = []
+    for target in sorted(follows_map.get(agent_name, [])):
+        escaped = target.replace('"', '\\"')
+        parts.append(f'follows("{escaped}")')
+    for source in sorted(followed_by_map.get(agent_name, [])):
+        escaped = source.replace('"', '\\"')
+        parts.append(f'followed_by("{escaped}")')
+    return ", ".join(parts)
 
 
 def _parse_fact_args(value: str) -> list[str]:
-    """
-    Robust CSV-style parser that respects quoted strings.
-    """
+    """Robust CSV-style parser that respects quoted strings."""
     reader = csv.reader(StringIO(value), skipinitialspace=True)
     return next(reader)
 
@@ -474,18 +457,13 @@ def _render_arg(arg: str) -> str:
     arg = arg.strip()
     if not arg:
         return '""'
-    # Already quoted strings from CSV
     if (arg.startswith('"') and arg.endswith('"')) or (arg.startswith("'") and arg.endswith("'")):
-        inner = arg[1:-1]
-        inner = inner.replace('"', '\\"')
+        inner = arg[1:-1].replace('"', '\\"')
         return f'"{inner}"'
-    # Numbers
     if _is_number(arg):
         return arg
-    # Atoms / variable names
     if re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', arg):
         return arg
-    # list-like
     if arg.startswith("[") and arg.endswith("]"):
         try:
             parsed = ast.literal_eval(arg)
@@ -494,24 +472,9 @@ def _render_arg(arg: str) -> str:
         except Exception:
             pass
         return f'"{arg}"'
-    # Dict-like
     if arg.startswith("{") and arg.endswith("}"):
         return f'"{arg}"'
-    # Fallback
-    inner_escaped = arg.replace('"', r'\"')
-    return f'"{inner_escaped}"'
-
-def _build_network_fact_block(
-    agent_name: str,
-    follows_map: dict[str, set],
-    followed_by_map: dict[str, set],
-) -> str:
-    lines = []
-    for target in sorted(follows_map.get(agent_name, [])):
-        lines.append(f'follows("{target.replace(chr(34), chr(92)+chr(34))}").')
-    for source in sorted(followed_by_map.get(agent_name, [])):
-        lines.append(f'followed_by("{source.replace(chr(34), chr(92)+chr(34))}").')
-    return "\n".join(lines) + ("\n" if lines else "")
+    return f'"{arg.replace(chr(34), chr(92)+chr(34))}"'
 
 
 def _is_number(s: str) -> bool:
@@ -520,6 +483,7 @@ def _is_number(s: str) -> bool:
         return True
     except ValueError:
         return False
+
 
 def _build_mas2j(
     mas_name: str,
@@ -530,7 +494,7 @@ def _build_mas2j(
 ) -> str:
     block = "\n".join(agent_lines)
     exec_ctrl = (
-        f"\n    executionControl: jason.control.ExecutionControlGUI\n"
+        "\n    executionControl: jason.control.ExecutionControlGUI\n"
         if mind_inspector else ""
     )
     return (
@@ -538,14 +502,14 @@ def _build_mas2j(
         f"    Jason Application File\n"
         f"    Auto-generated by Simulation Configurator\n*/\n\n"
         f"MAS {mas_name} {{\n"
-        f"    environment: {env_class}\n\n"
+        f"    environment: {env_class}\n"
         f"{exec_ctrl}\n"
         f"    agents:\n{block}\n\n"
         f"    aslSourcePath: \"{asl_source_path}\";\n}}\n"
     )
 
 
-# ── Entry point ──────────────────────────────────────────────────────────────
+# ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     print(f"Simulation Configurator  →  http://localhost:5050")

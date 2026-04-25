@@ -426,9 +426,19 @@ def make_agent_probs_csv(thread_df: pd.DataFrame,
                          all_uids: set,
                          agent_map: dict) -> pd.DataFrame:
     """
-    One row per user in the global network.
-    Only the source author starts as infected — everyone else is neutral.
-    Reactions and retweets are ground truth for evaluation, not simulation input.
+    Three-row compact format with a count column.
+
+    Agents are ordered by their mapped name (convai_agent_N, sorted
+    lexicographically — equivalent to sorting by N numerically since all
+    names share the same prefix length).
+
+    Row 0 (before):  count = number of agents whose name is *less than*
+                     the initiator's name, state = neutral
+    Row 1 (seed):    count = 1, state = infected
+    Row 2 (after):   count = number of agents whose name is *greater than*
+                     the initiator's name, state = neutral
+
+    pinf/pmd/pad/popi/prd are identical on all three rows.
     """
     source_rows = thread_df[thread_df["type_content"] == "source"]
     src_uid = ""
@@ -436,20 +446,38 @@ def make_agent_probs_csv(thread_df: pd.DataFrame,
         u = source_rows.iloc[0]["user"]
         if isinstance(u, dict):
             src_uid = get_uid(u)
- 
+
+    src_agent = agent_map.get(src_uid, "") if src_uid else ""
+
+    # Sort agent names the same way the simulator would see them
+    sorted_agents = sorted(agent_map[uid] for uid in all_uids)
+
+    if src_agent and src_agent in sorted_agents:
+        src_pos      = sorted_agents.index(src_agent)
+        count_before = src_pos                            # agents with name < src
+        count_after  = len(sorted_agents) - src_pos - 1  # agents with name > src
+    else:
+        # Fallback: initiator not found — assign all to "before", none after
+        count_before = len(sorted_agents)
+        count_after  = 0
+
+    base = {
+        "pinf": DEFAULT_PINF,
+        "pmd":  DEFAULT_PMD,
+        "pad":  DEFAULT_PAD,
+        "popi": DEFAULT_POPI,
+        "prd":  DEFAULT_PRD,
+    }
+
     rows = [
-        {
-            "pinf":  DEFAULT_PINF,
-            "pmd":   DEFAULT_PMD,
-            "pad":   DEFAULT_PAD,
-            "popi":  DEFAULT_POPI,
-            "prd":   DEFAULT_PRD,
-            "state": "infected" if uid == src_uid else "neutral",
-        }
-        for uid in sorted(all_uids)
+        {**base, "count": count_before, "state": "neutral"},
+        {**base, "count": 1,            "state": "infected"},
+        {**base, "count": count_after,  "state": "neutral"},
     ]
+
     return pd.DataFrame(rows,
-                        columns=["pinf", "pmd", "pad", "popi", "prd", "state"])
+                        columns=["pinf", "pmd", "pad", "popi", "prd",
+                                 "count", "state"])
 
 
 

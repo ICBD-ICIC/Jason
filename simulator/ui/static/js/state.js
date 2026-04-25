@@ -13,39 +13,36 @@ let initializers = {};
 
 /**
  * Collect all agent instance names derived from defined types.
- * Respects _count: a row with _count=3 expands to stem_N_1, stem_N_2, stem_N_3
- * so that network/profiles editors show the actual agent names.
+ * Each group row with _count=N expands into N individually-named agents:
+ *   stem_1, stem_2, ... stem_N  (sequential across all rows for the same stem)
+ * Single-stem-single-instance → no suffix.
  */
 function getAllAgentNames() {
   const names = [];
   const stemCounters = {};
 
+  // Pre-count total agents per stem to decide whether to use suffixes
+  const stemTotals = {};
   for (const t of types) {
     if (!t.asl || !t.instances.length) continue;
     const stem = t.asl.replace(/\.asl$/, '');
-
-    // Count total instances for this stem to decide whether to suffix
-    const stemTotal = t.instances.reduce((s, inst) => s + (parseInt(inst._count) || 1), 0);
-
-    for (let ri = 0; ri < t.instances.length; ri++) {
-      const inst  = t.instances[ri];
+    for (const inst of t.instances) {
       const count = parseInt(inst._count) || 1;
+      stemTotals[stem] = (stemTotals[stem] || 0) + count;
+    }
+  }
 
-      if (count === 1 && stemTotal === 1) {
-        // Only one instance total, no suffix
-        names.push(stem);
-      } else if (count === 1) {
-        // Single instance in this row — gets its own sequential name
+  for (const t of types) {
+    if (!t.asl || !t.instances.length) continue;
+    const stem = t.asl.replace(/\.asl$/, '');
+    const multipleTotal = (stemTotals[stem] || 1) > 1;
+
+    for (const inst of t.instances) {
+      const count = parseInt(inst._count) || 1;
+      for (let i = 0; i < count; i++) {
         stemCounters[stem] = (stemCounters[stem] || 0) + 1;
-        names.push(`${stem}_${stemCounters[stem]}`);
-      } else {
-        // Group row: expand count → stem_N_1 .. stem_N_count
-        // The group itself gets one sequential index, then _1.._count within it
-        stemCounters[stem] = (stemCounters[stem] || 0) + 1;
-        const groupIdx = stemCounters[stem];
-        for (let i = 1; i <= count; i++) {
-          names.push(`${stem}_${groupIdx}_${i}`);
-        }
+        const idx = stemCounters[stem];
+        names.push(multipleTotal ? `${stem}_${idx}` : stem);
       }
     }
   }
