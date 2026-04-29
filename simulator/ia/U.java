@@ -19,9 +19,15 @@ public class U extends DefaultInternalAction {
             throw new IllegalArgumentException("U expects 1 or 2 args");
         }
 
+        // If max <= 0, return 0 directly
+        if (max <= 0.0) {
+            return un.unifies(args[args.length - 1], ASSyntax.createNumber(0.0));
+        }
+
         double u;
+        Random rand = new Random();
         do {
-            u = new Random().nextDouble() * max;
+            u = rand.nextDouble() * max;
         } while (u == 0.0);
 
         return un.unifies(args[args.length - 1], ASSyntax.createNumber(u));

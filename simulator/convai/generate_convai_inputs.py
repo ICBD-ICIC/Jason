@@ -17,7 +17,7 @@ Per-thread files cover only the Ottawa Shooting test instances.
 Usage
 -----
     python generate_convai_inputs.py \
-        --pheme_path /path/to/pheme-rumour-scheme-dataset/threads/en \
+        --phpeme_ath /path/to/pheme-rumour-scheme-dataset/threads/en \
         --output_dir ./convai_outputs
 
 Column formats
@@ -413,7 +413,7 @@ def make_messages_csv(thread_df: pd.DataFrame, conversation_id: int,
             "author":    agent,
             "content":   text,
             "reactions": "",
-            "original":  0,
+            "original":  "",
             "topics":    "",
             "variables": variables,
         })

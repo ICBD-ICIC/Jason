@@ -13,13 +13,13 @@ public class PublicProfileLoader {
      *
      * Rules:
      * - agent, attribute: non-empty strings.
-     * - value: stored as String; may be empty.
-     * 
-     * @param publicProfiles the map used to save the pairs atribute-value for each agent
+     * - value: stored as Double if numeric, otherwise String; may be empty.
+     *
+     * @param publicProfiles the map used to save the pairs attribute-value for each agent
      * @param csvPath path to the CSV file to load, following the specified rules
      * @throws IOException if the file cannot be read, a row is malformed, or a referential constraint is violated
      */
-    public static void load(Map<String, Map<String, String>> publicProfiles, String csvPath) throws IOException {
+    public static void load(Map<String, Map<String, Object>> publicProfiles, String csvPath) throws IOException {
         Optional<Table> result = CsvLoader.load(csvPath, List.of("agent", "attribute", "value"));
         if (result.isEmpty()) return;
         Table table = result.get();
@@ -35,11 +35,21 @@ public class PublicProfileLoader {
             if (attribute == null || attribute.isBlank())
                 throw new IOException("Row " + rowIdx + ": 'attribute' is missing or blank.");
 
-            String value = row.isMissing("value") ? "" : row.getString("value").trim();
+            String raw = row.isMissing("value") ? "" : row.getString("value").trim();
+            Object value = parseValue(raw);
 
             publicProfiles
                 .computeIfAbsent(agent, k -> new LinkedHashMap<>())
                 .put(attribute, value);
+        }
+    }
+
+    private static Object parseValue(String raw) {
+        if (raw == null || raw.isEmpty()) return raw;
+        try {
+            return Double.parseDouble(raw);
+        } catch (NumberFormatException e) {
+            return raw;
         }
     }
 }

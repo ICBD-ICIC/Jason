@@ -149,18 +149,6 @@ def generate():
         logging_dst.write_text(logging_src.read_text(encoding="utf-8"), encoding="utf-8")
         gen_files.append(str(logging_dst.relative_to(BASE_DIR)))
 
-    # ── Build network relationship maps from network.csv edges ────────────────
-    network_edges    = initializers.get("network.csv", [])
-    follows_map:     dict[str, set] = {}
-    followed_by_map: dict[str, set] = {}
-
-    for edge in network_edges:
-        frm = (edge.get("from") or "").strip()
-        to  = (edge.get("to")   or "").strip()
-        if frm and to:
-            follows_map.setdefault(frm, set()).add(to)
-            followed_by_map.setdefault(to, set()).add(frm)
-
     # ── Pre-count total instances per stem ────────────────────────────────────
     stem_totals: dict[str, int] = {}
     for atype in agent_types:
@@ -173,12 +161,6 @@ def generate():
             stem_totals[stem] = stem_totals.get(stem, 0) + count
 
     # ── Agent .asl files + mas2j lines ────────────────────────────────────────
-    # Strategy:
-    #   - One shared .asl file per stem (copied from source, no baked-in beliefs)
-    #   - Each agent gets its own line in mas2j with unique name and
-    #     per-agent beliefs injected via [ beliefs="..." ]
-    #   - Naming: stem_1, stem_2, ... stem_N  (sequential across all rows)
-
     stem_counter: dict[str, int] = {}
     written_stems: set[str] = set()
 
@@ -211,23 +193,14 @@ def generate():
             count     = max(1, int(inst.get("_count", 1) or 1))
             inst_data = {k: v for k, v in inst.items() if k != "_count"}
 
-            # Build the shared belief string for all agents in this group row
             belief_str = _build_belief_string(inst_data)
+            beliefs_clause = f' [ beliefs="{belief_str}" ]' if belief_str else ""
 
-            # Expand every agent in this group into its own mas2j line
             for _ in range(count):
                 stem_counter[stem] = stem_counter.get(stem, 0) + 1
                 idx = stem_counter[stem]
 
                 agent_name = stem if not multiple_total else f"{stem}_{idx}"
-
-                # Per-agent network beliefs
-                network_str = _build_network_belief_string(
-                    agent_name, follows_map, followed_by_map
-                )
-
-                all_beliefs = ", ".join(b for b in [belief_str, network_str] if b)
-                beliefs_clause = f' [ beliefs="{all_beliefs}" ]' if all_beliefs else ""
 
                 clauses = []
                 if arch_cls: clauses.append(f"agentArchClass {arch_cls}")
@@ -379,12 +352,33 @@ def visualize_polarization(folder: str):
 
 def parse_variables(value: str, row_idx: int):
     """
-    Parses 'public.likes=10;private.score=0.8' into a nested dict.
+    Parses the variables field into a nested dict.
+
+    Accepts two formats (auto-detected):
+
+    1. JSON object  — e.g.  {"public": {"conversation_id": 1, "state": "infected"}}
+    2. Dot-path pairs — e.g.  public.likes=10;private.score=0.8
+
+    Both formats can appear in the same CSV; detection is per-cell.
     """
     if not value:
         return {}
+
+    stripped = value.strip()
+
+    # ── JSON format ───────────────────────────────────────────────────────────
+    if stripped.startswith("{"):
+        try:
+            parsed = json.loads(stripped)
+            if not isinstance(parsed, dict):
+                raise ValueError(f"Row {row_idx}: JSON variables must be an object, got {type(parsed).__name__}")
+            return parsed
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Row {row_idx}: invalid JSON in variables field: {exc}") from exc
+
+    # ── Dot-path format (original behaviour) ─────────────────────────────────
     result = {}
-    for pair in value.split(";"):
+    for pair in stripped.split(";"):
         pair = pair.strip()
         if not pair:
             continue
@@ -426,24 +420,6 @@ def _build_belief_string(instance: dict) -> str:
         args     = _parse_fact_args(value)
         rendered = ", ".join(_render_arg(a) for a in args)
         parts.append(f"{functor}({rendered})")
-    return ", ".join(parts)
-
-
-def _build_network_belief_string(
-    agent_name: str,
-    follows_map: dict[str, set],
-    followed_by_map: dict[str, set],
-) -> str:
-    """
-    Build network beliefs as a comma-separated string for [ beliefs="..." ].
-    """
-    parts = []
-    for target in sorted(follows_map.get(agent_name, [])):
-        escaped = target.replace('"', '\\"')
-        parts.append(f'follows("{escaped}")')
-    for source in sorted(followed_by_map.get(agent_name, [])):
-        escaped = source.replace('"', '\\"')
-        parts.append(f'followed_by("{escaped}")')
     return ", ".join(parts)
 
 

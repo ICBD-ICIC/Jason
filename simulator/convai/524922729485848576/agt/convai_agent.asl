@@ -1,6 +1,6 @@
 /* ==========================================================
     CoNVaI Agent (Jason BDI)
-    Rodríguez-García et al. (2025) - "Simulating Misinformation
+    RodrÃ­guez-GarcÃ­a et al. (2025) - "Simulating Misinformation
     Diffusion on Social Media Through CoNVaI"
 
     Implements Definition 6 (CoNVaI-agent): <S, O, Uin, g, f, per, s0>
@@ -38,7 +38,7 @@
         anew        Start a new conversation (not yet implemented;
                     a_new condition is never true with current g)
         areply(c)   Reply to conversation c - requires Replying flag
-                    set during g and state ≠ neutral
+                    set during g and state â‰  neutral
         askip       Do nothing
 
     -- Algorithms implemented ----------------------------------
@@ -115,6 +115,7 @@ read_history([]).
 +!read_sc(Id, Author, Content, CId, [pnov(Pnov), prpl(Prpl), pnw(Pnw)]): 
     pinf(Pinf) & pmd(Pmd)
 <-
+    -+state(neutral);
     Max1 = 1 - Pnov;
     ia.U(Max1, U1);
     ia.save_logs([u(U1), prpl(Prpl)]);
@@ -134,12 +135,8 @@ read_history([]).
         } elif (U3 <= Pmd) {
             ia.save_logs([state(vaccinated)]);
             -+state(vaccinated)
-        } else {
-            -+state(neutral);
-            ia.save_logs([state(neutral)]);
         }
     } else { 
-        -+state(neutral);
         ia.save_logs([state(neutral)]);
     }.
 
@@ -196,8 +193,7 @@ read_history([]).
     ia.save_logs([info("Waiting for content generation.")]);
     ia.createContent(Topics, PromptParams, GeneratedContent);
     ia.save_logs([info("Finished content generation.")]);
-    comment(Id, Topics, Variables, GeneratedContent);
-    +in_conversation(CId).
+    comment(Id, Topics, Variables, GeneratedContent).
 
 /* a_new condition is never true with current g */
 

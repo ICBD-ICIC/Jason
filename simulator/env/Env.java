@@ -18,7 +18,7 @@ public class Env extends Environment {
     // private final ContentManager contentManager = new DefaultContentManager(networkManager);
     private final ContentManager contentManager = new CoNVaIContentManager(networkManager);
     private final KnowledgeManager knowledgeManager = new DefaultKnowledgeManager();
-    private final Map<String, Map<String, String>> publicProfiles = new HashMap<>();
+    private final Map<String, Map<String, Object>> publicProfiles = new HashMap<>();
 
     @Override
     public void init(String[] args) {
@@ -169,13 +169,13 @@ public class Env extends Environment {
 
     private boolean readPublicProfile(String agent, Structure action) {
         String requestedAgent = JasonToJavaTranslator.translateString(action.getTerm(0));
-        Map<String, String> profile = publicProfiles.get(requestedAgent);
+        Map<String, Object> profile = publicProfiles.get(requestedAgent);
         if (profile != null) {
             profile.forEach((attribute, value) ->
                 addPercept(agent, createLiteral("public_profile",
                     createString(requestedAgent),
                     createString(attribute),
-                    createString(value)
+                    JavaToJasonTranslator.objectToTerm(value)
                 ))
             );
         }
