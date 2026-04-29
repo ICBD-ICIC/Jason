@@ -50,6 +50,15 @@
 
 read_history([]).
 
+// --- Cycle / idle tracking ---
+cycle(0).
+max_cycles(1000).
+max_cycles_reached(false).
+
+idle_cycles(0).
+inactivity_limit(60).
+idle_limit_reached(false).
+
 !start.
 
 +!start: true <-
@@ -61,18 +70,55 @@ read_history([]).
 +feed_order([]): true <-
     ia.save_logs([info("Feed is empty. Waiting before restart.")]);
     .wait(1000);
-    .abolish(feed_order(_));         
+    .abolish(feed_order(_));
+    !end_cycle(false);
     +restart.
 
 +feed_order(Ids): true <-
-    -feed_order(Ids);          
+    -feed_order(Ids);
     -+messages_read(0);
     ia.save_logs([info("Started processing messages.")]);
     !process_messages(Ids);
     ia.save_logs([info("Finished processing messages. Deciding on actions.")]);
-    !act;
+    !act(WasActive);
     ia.save_logs([info("Finished deciding and executing actions.")]);
+    !end_cycle(WasActive);
     +restart.
+
++!end_cycle(WasActive):
+    cycle(C) & idle_cycles(IC) & inactivity_limit(X) & max_cycles(T) &
+    idle_limit_reached(IdleLimitReached) & max_cycles_reached(MaxReached)
+<-
+    C1 = C + 1;
+    -+cycle(C1);
+    if (WasActive) {
+        -+idle_cycles(0);
+        if (IdleLimitReached) {
+            // Agent came back to life: retract idle declaration
+            ia.save_logs([info("Agent became active again after idle limit."), cycle(C1)]);
+            -+idle_limit_reached(false);
+            .my_name(Me);
+            .send(convai_monitor, tell, still_active(Me))
+        }
+    } else {
+        IC1 = IC + 1;
+        -+idle_cycles(IC1);
+        ia.save_logs([idle_cycles(IC1), cycle(C1)]);
+        if (IC1 > X & not IdleLimitReached) {
+            ia.save_logs([info("Idle limit reached. Notifying monitor."), cycle(C1)]);
+            -+idle_limit_reached(true);
+            .my_name(Me);
+            .send(convai_monitor, tell, idle_limit_reached(Me))
+        }
+    };
+
+    if (C1 > T & not MaxReached) {
+        ia.save_logs([info("Max cycles reached. Notifying monitor."), cycle(C1)]);
+        -+max_cycles_reached(true);
+        .my_name(Me);
+        .send(convai_monitor, tell, max_cycles_reached(Me))
+    }.
+
 
 +restart: true <-
     -restart;
@@ -81,7 +127,7 @@ read_history([]).
 
 +!process_messages([]): true <- true.
 
-+!process_messages([Id|Rest]): 
++!process_messages([Id|Rest]):
     messages_read(MR) & prd(Prd)
 <-
     MR1 = MR + 1;
@@ -91,7 +137,7 @@ read_history([]).
     ia.save_logs([u(U1), pread(Pread)]);
     if (U1 <= Pread) {
         ia.save_logs([info("Decided to read message."), message_id(Id)]);
-        !process_single_message(Id);
+        !process_single_message(Id)
     };
     !process_messages(Rest).
 
@@ -101,24 +147,24 @@ read_history([]).
     ia.save_logs([info("Got all information for message. Waiting for interpretation.")]);
     ia.interpretContent(content(Content, PastMessages), Interpretation);
     ia.save_logs([interpretation(Interpretation)]);
-    if(in_conversation(CId)) {
+    if (in_conversation(CId)) {
         ia.save_logs([info("Message is part of a known conversation. Processing with ReadMs.")]);
-        !read_ms(Id, Author, Content, CId, Interpretation);
+        !read_ms(Id, Author, Content, CId, Interpretation)
     } else {
         ia.save_logs([info("Message is not part of a known conversation. Processing with ReadSc.")]);
-        !read_sc(Id, Author, Content, CId, Interpretation);
+        !read_sc(Id, Author, Content, CId, Interpretation)
     };
     -read_history(PastMessages);
     +read_history([Content | PastMessages]).
 
 /* Algorithm 3 */
-+!read_sc(Id, Author, Content, CId, [pnov(Pnov), prpl(Prpl), pnw(Pnw)]): 
++!read_sc(Id, Author, Content, CId, [pnov(Pnov), prpl(Prpl), pnw(Pnw)]):
     pinf(Pinf) & pmd(Pmd)
 <-
     Max1 = 1 - Pnov;
     ia.U(Max1, U1);
     ia.save_logs([u(U1), prpl(Prpl)]);
-    if(U1 <= Prpl) {
+    if (U1 <= Prpl) {
         ia.save_logs([info("Decided to engage with the message.")]);
         -+replying(CId, Id);
         readPublicProfile(Author);
@@ -130,21 +176,21 @@ read_history([]).
         ia.save_logs([u(U3), pmd(Pmd)]);
         if (U2 <= Pinf) {
             ia.save_logs([state(infected)]);
-            -+state(infected) 
+            -+state(infected)
         } elif (U3 <= Pmd) {
             ia.save_logs([state(vaccinated)]);
             -+state(vaccinated)
         } else {
             -+state(neutral);
-            ia.save_logs([state(neutral)]);
+            ia.save_logs([state(neutral)])
         }
-    } else { 
+    } else {
         -+state(neutral);
-        ia.save_logs([state(neutral)]);
+        ia.save_logs([state(neutral)])
     }.
 
 /* Algorithm 4 */
-+!read_ms(Id, Author, Content, CId, [pnov(Pnov), prpl(Prpl), pnw(Pnw)]): 
++!read_ms(Id, Author, Content, CId, [pnov(Pnov), prpl(Prpl), pnw(Pnw)]):
     state(State) & popi(Popi) & pad(Pad)
 <-
     readPublicProfile(Author);
@@ -154,7 +200,6 @@ read_history([]).
     ia.save_logs([u(U1), prpl(Prpl)]);
     if (U1 <= Prpl) {
         ia.save_logs([info("Decided to engage with the message.")]);
-        -+replying(CId, Id);
         .wait(message_var(Id, "state", Sk));
         Max2 = 1 - Pnov - Pusr;
         ia.U(Max2, U2);
@@ -177,19 +222,20 @@ read_history([]).
                     -+replying(CId, Id);
                     -+state(State)
                 } else {
-                    ia.save_logs([info("No reply.")]);
+                    ia.save_logs([info("No reply.")])
                 }
             }
         } else {
-            ia.save_logs([info("No reply.")]);
+            ia.save_logs([info("No reply.")])
         }
     } else {
-        ia.save_logs([info("Decided not to engage with the message.")]);
+        ia.save_logs([info("Decided not to engage with the message.")])
     }.
 
-/* f(state) */
-/* a_reply(c) */
-+!act: replying(CId, Id) & state(State) & message(Id, _, Content, _, _) & State \== neutral <-
+/* f(state) — returns WasActive via unification */
++!act(true):
+    replying(CId, Id) & state(State) & message(Id, _, Content, _, _) & State \== neutral
+<-
     Topics = [];
     PromptParams = [content(Content), state(State)];
     Variables = [public(state(State), conversation_id(CId))];
@@ -199,8 +245,5 @@ read_history([]).
     comment(Id, Topics, Variables, GeneratedContent);
     +in_conversation(CId).
 
-/* a_new condition is never true with current g */
-
-/* a_skip */
-+!act: true <- 
++!act(false): true <-
     ia.save_logs([info("Skipping action.")]).
