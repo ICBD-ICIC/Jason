@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ folder }} · Epidemic Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/epidemic.css') }}">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+</head>
+<body>
+
+<header class="hdr">
+  <div class="logo">sim<span>/</span>visualizer</div>
+  <div class="hdr-sep"></div>
+  <span class="hdr-folder">{{ folder }}</span>
+  <div class="hdr-spacer"></div>
+  <div class="hdr-count" id="hdr-count"
+       style="font-family:var(--mono);font-size:.75rem;color:var(--sub)"></div>
+</header>
+
+{% if error %}
+<div class="err-wrap">
+  <div class="err-box">
+    <div class="err-icon">⚠</div>
+    <div class="err-title">Could not load agent logs</div>
+    <div class="err-msg">{{ error }}</div>
+  </div>
+</div>
+{% else %}
+
+<div class="stats-bar" id="stats-bar"></div>
+
+<div class="agts-body">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <div class="sb-section">
+        <span class="sb-label">Current State</span>
+        <div class="state-cards" id="state-cards"></div>
+      </div>
+
+      <div class="sb-divider"></div>
+
+      <div class="sb-section">
+        <span class="sb-label">Playback</span>
+        <button class="play-btn" id="play-btn" onclick="togglePlay()">▶ Play</button>
+        <div class="speed-row">
+          <span style="font-family:var(--mono);font-size:.62rem;color:var(--muted);flex-shrink:0">Speed:</span>
+          <button class="speed-btn" data-speed="500" onclick="setSpeed(500)">0.5×</button>
+          <button class="speed-btn active" data-speed="200" onclick="setSpeed(200)">1×</button>
+          <button class="speed-btn" data-speed="80" onclick="setSpeed(80)">2.5×</button>
+          <button class="speed-btn" data-speed="30" onclick="setSpeed(30)">5×</button>
+        </div>
+      </div>
+
+      <div class="sb-divider"></div>
+
+      <div class="sb-section">
+        <span class="sb-label">Time step</span>
+        <div class="time-scrubber">
+          <div class="scrub-track" id="scrub-track">
+            <div class="scrub-fill" id="scrub-fill" style="width:100%"></div>
+            <div class="scrub-thumb" id="scrub-thumb" style="left:100%"></div>
+          </div>
+          <div class="scrub-labels">
+            <span id="scrub-lbl-lo"></span>
+            <span id="scrub-lbl-hi"></span>
+          </div>
+          <div class="scrub-current" id="scrub-current">—</div>
+        </div>
+      </div>
+
+      <div class="sb-divider"></div>
+
+      <div class="sb-section">
+        <span class="sb-label">Legend</span>
+        <div class="legend-strip" style="padding:0;border:none;flex-direction:column;gap:8px;">
+          <div class="leg-item"><div class="leg-dot" style="background:#3a4055"></div>Neutral (susceptible)</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#f5604a"></div>Infected</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#2de89a"></div>Vaccinated</div>
+        </div>
+      </div>
+
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="chart-area">
+
+    <!-- Step badge + metrics -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <div class="dot" style="background:var(--accent)"></div>
+        <span class="chart-title">Epidemic Metrics</span>
+        <span class="step-badge" id="step-badge">Step — / —</span>
+      </div>
+      <div class="metric-strip" id="metrics-tiles"></div>
+    </div>
+
+    <!-- Stacked area: population over time -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <div class="dot" style="background:var(--accent2)"></div>
+        <span class="chart-title">Population States Over Time</span>
+        <span class="chart-sub">click chart to jump to step</span>
+      </div>
+      <div class="chart-body" style="height:260px">
+        <canvas id="stacked-canvas"></canvas>
+      </div>
+      <div class="legend-strip">
+        <div class="leg-item"><div class="leg-dot" style="background:#3a4055"></div>Neutral</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#f5604a"></div>Infected</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#2de89a"></div>Vaccinated</div>
+      </div>
+    </div>
+
+    <!-- Two-col: pie + growth rate -->
+    <div class="chart-row">
+
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="dot" style="background:#f0a500"></div>
+          <span class="chart-title">State Distribution</span>
+          <span class="chart-sub">at current step</span>
+        </div>
+        <div class="chart-body" style="height:220px">
+          <canvas id="pie-canvas"></canvas>
+        </div>
+        <div class="legend-strip">
+          <div class="leg-item"><div class="leg-dot" style="background:#3a4055"></div>Neutral</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#f5604a"></div>Infected</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#2de89a"></div>Vaccinated</div>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="dot" style="background:#f5604a"></div>
+          <span class="chart-title">New Cases per Step</span>
+          <span class="chart-sub">Δ infections &amp; vaccinations</span>
+        </div>
+        <div class="chart-body" style="height:220px">
+          <canvas id="growth-canvas"></canvas>
+        </div>
+        <div class="legend-strip">
+          <div class="leg-item"><div class="leg-dot" style="background:#f5604a"></div>New infected</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#2de89a"></div>New vaccinated</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Transition table + agent dot grid -->
+    <div class="chart-row">
+
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="dot" style="background:var(--accent)"></div>
+          <span class="chart-title">State Transitions</span>
+          <span class="chart-sub">all time, all agents</span>
+        </div>
+        <div class="chart-body" style="padding:10px 0">
+          <table class="trans-table">
+            <thead>
+              <tr>
+                <th style="padding-left:12px">Transition</th>
+                <th>Count</th>
+              </tr>
+            </thead>
+            <tbody id="trans-tbody">
+              <tr><td colspan="2" style="padding:16px;color:var(--muted);font-size:.8rem;text-align:center">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="dot" style="background:var(--accent2)"></div>
+          <span class="chart-title">Agent State Map</span>
+          <span class="chart-sub">one dot per agent · updates with step</span>
+        </div>
+        <div class="dot-grid-wrap">
+          <div id="agent-dot-grid"></div>
+        </div>
+      </div>
+
+    </div>
+
+  </div><!-- /chart-area -->
+</div><!-- /agts-body -->
+
+<script>
+const AGENTS_DATA = {{ agents_json | safe }};
+const FOLDER      = {{ folder_json | safe }};
+</script>
+<script src="{{ url_for('static', filename='js/epidemic.js') }}"></script>
+
+{% endif %}
+</body>
+</html>

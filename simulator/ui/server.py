@@ -258,6 +258,41 @@ def generate():
 
 # ── Visualisations ────────────────────────────────────────────────────────────
 
+@app.route("/<path:folder>/epidemic")
+def visualize_epidemic(folder: str):
+    safe_folder = _safe_folder_name(folder)
+    logs_dir    = BASE_DIR / safe_folder / "logs"
+
+    agents_data: dict[str, list] = {}
+    error = None
+
+    if not logs_dir.exists():
+        error = f"Logs directory not found: {logs_dir.relative_to(BASE_DIR)}"
+    else:
+        for jsonl_file in sorted(logs_dir.glob("*.jsonl")):
+            if jsonl_file.stem == "messages":
+                continue
+            agent_name = jsonl_file.stem
+            rows: list[dict] = []
+            try:
+                for line in jsonl_file.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if line:
+                        rows.append(json.loads(line))
+            except Exception as exc:
+                error = f"Failed to parse {jsonl_file.name}: {exc}"
+                break
+            if rows:
+                agents_data[agent_name] = rows
+
+    return render_template(
+        "epidemic.html",
+        folder      = safe_folder,
+        folder_json = json.dumps(safe_folder),
+        agents_json = json.dumps(agents_data),
+        error       = error,
+    )
+
 @app.route("/<path:folder>/agts")
 def visualize_agts(folder: str):
     safe_folder = _safe_folder_name(folder)
