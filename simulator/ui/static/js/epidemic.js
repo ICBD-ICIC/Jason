@@ -492,7 +492,9 @@ let netNodes = [];   // current D3 node objects (persisted for stable layout)
 let netEdges = [];   // current D3 link objects
 
 // Full edge list from CSV — stored as sets of string pairs
-let fullAdjacency = {};   // name → Set of neighbours
+let fullAdjacency = {};   // name → Set of nodes this agent follows (outgoing)
+let fullAdjacencyFollowers = {}; // name → Set of nodes that follow this agent (incoming)
+
 
 function initNetworkGraph() {
   const svgEl = document.getElementById('net-svg');
@@ -512,9 +514,9 @@ function initNetworkGraph() {
   for (const { source, target } of NETWORK_DATA.edges) {
     const s = String(source), t = String(target);
     if (!fullAdjacency[s]) fullAdjacency[s] = new Set();
-    if (!fullAdjacency[t]) fullAdjacency[t] = new Set();
-    fullAdjacency[s].add(t);
-    fullAdjacency[t].add(s);
+    fullAdjacency[s].add(t);                              // s follows t
+    if (!fullAdjacencyFollowers[t]) fullAdjacencyFollowers[t] = new Set();
+    fullAdjacencyFollowers[t].add(s);                     // t is followed by s
   }
 
   // Set up SVG + zoom
@@ -582,23 +584,24 @@ function updateNetworkGraph(ts) {
   // Active nodes: infected + vaccinated agents
   const activeSet = new Set(agentNames.filter(n => stateMap[n] !== 'neutral'));
 
-  // Neighbour set: neutral agents directly connected to an active node
+  // find agents that follow the active nodes (incoming edges)
   const neighbourSet = new Set();
   if (showNeutral) {
     for (const active of activeSet) {
-      const nbrs = fullAdjacency[active] || new Set();
-      for (const nbr of nbrs) {
-        if (!activeSet.has(nbr)) neighbourSet.add(nbr);
+      for (const { source, target } of NETWORK_DATA.edges) {
+        if (String(target) === active && !activeSet.has(String(source))) {
+          neighbourSet.add(String(source));  // source follows active → show it
+        }
       }
     }
   }
 
   const visibleSet = new Set([...activeSet, ...neighbourSet]);
 
-  // Edges: only between visible nodes, where at least one end is active
+  // edges where source follows an active target
   const visibleEdges = NETWORK_DATA.edges.filter(({ source, target }) => {
     const s = String(source), t = String(target);
-    return visibleSet.has(s) && visibleSet.has(t) && (activeSet.has(s) || activeSet.has(t));
+    return visibleSet.has(s) && activeSet.has(t);  // follower → infected/vaccinated
   });
 
   // Update stat
