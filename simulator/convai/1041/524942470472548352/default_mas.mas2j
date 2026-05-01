@@ -2091,8 +2091,7 @@ MAS default_mas {
             agentArchClass arch.CoNVaIGeminiAgArch;
         convai_agent_1041  convai_agent [ beliefs="agent(convai_agent_999), pinf(0.1), pmd(0.1), pad(0.1), popi(0.15), prd(0.2), state(neutral)" ]
             agentArchClass arch.CoNVaIGeminiAgArch;
-        convai_monitor  convai_monitor [ beliefs="total_agents(1041)" ]
-            agentArchClass arch.CoNVaIFullGeminiAgArch;
+        convai_monitor  convai_monitor [ beliefs="total_agents(1041)" ];
 
     aslSourcePath: "./agt";
 }
