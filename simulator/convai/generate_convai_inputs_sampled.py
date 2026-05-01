@@ -17,7 +17,7 @@ participants reach --num_agents (approximate).
 
 Usage
 -----
-    python generate_convai_inputs_sampled.py \
+    python generate_convai_inputs.py \
         --pheme_path /path/to/pheme-rumour-scheme-dataset/threads/en \
         --output_dir ./convai_outputs \
         --num_agents 500 \
@@ -35,11 +35,19 @@ public_profiles.csv
 
 messages_<thread_id>.csv
     author,content,reactions,original,topics,variables
-    convai_agent_X,<tweet_text>,,0,,{"public":{"conversation_id":<int>,"state":"<state>"}}
+    convai_agent_X,<tweet_text>,,0,<topic>,{"public":{"conversation_id":<int>,"state":"<state>"}}
 
 agent_probs_<thread_id>.csv
-    pinf,pmd,pad,popi,prd,state
-    <float>,...,<infected|vaccinated|neutral>
+    agent,pinf,pmd,pad,popi,prd,state
+    <float>,...,<infected|neutral>
+
+    State assignment (simplified):
+        source author (initiator) -> infected
+        ALL other agents          -> neutral   (regardless of thread activity)
+
+    Each agent receives a unique random combination drawn from the 288
+    CoNVaI parameter combinations defined in Table 4 of the Supplementary
+    Material, so this file has one row per agent (plus a header).
 
 Network construction (mirrors the notebook exactly)
     Base graph: all who-follows-whom.dat files across every thread and theme
@@ -53,19 +61,10 @@ Network construction (mirrors the notebook exactly)
 Agent mapping
     Built once from all users across the full dataset, sorted by uid for
     determinism.  convai_agent_1, convai_agent_2, … convai_agent_N.
-
-State mapping (Section 5.2 of the paper)
-    source tweet                    -> infected
-    retweet                         -> infected
-    reaction agreed/underspecified  -> infected
-    reaction disagreed/denied       -> vaccinated
-    users absent from this thread   -> neutral
-
-Parameter defaults (mid-range of Table 4, Supplementary Material)
-    PINF=0.10  PMD=0.05  PAD=0.10  POPI=0.15  PRD=0.25
 """
 
 import argparse
+import itertools
 import json
 import math
 import os
@@ -78,15 +77,32 @@ import pandas as pd
 import io
 
 # ---------------------------------------------------------------------------
-# CoNVaI default parameters (Table 4, Supplementary Material)
+# CoNVaI parameter grid  (Table 4, Supplementary Material — 288 combinations)
 # ---------------------------------------------------------------------------
-DEFAULT_PINF = 0.10
-DEFAULT_PMD  = 0.05
-DEFAULT_PAD  = 0.10
-DEFAULT_POPI = 0.15
-DEFAULT_PRD  = 0.25
+PARAM_GRID = list(itertools.product(
+    [0.05, 0.10, 0.15],        # pinf
+    [0.05, 0.10],              # pmd
+    [0.05, 0.10, 0.15],        # pad
+    [0.10, 0.15, 0.20, 0.25],  # popi
+    [0.10, 0.20, 0.30, 0.40],  # prd
+))
+assert len(PARAM_GRID) == 288, f"Expected 288 combinations, got {len(PARAM_GRID)}"
 
 FINFL = 0.1   # user influence scaling factor (Section 4.1)
+
+# ---------------------------------------------------------------------------
+# PHEME-9 folder name → human-readable topic label
+# ---------------------------------------------------------------------------
+TOPIC_MAP = {
+    "charliehebdo":      "Charlie Hebdo Attack",
+    "ebola-essien":      "Ebola Essien Rumour",
+    "ferguson":          "Ferguson Unrest",
+    "germanwings-crash": "Germanwings Crash",
+    "ottawashooting":    "Ottawa Shooting",
+    "prince-toronto":    "Prince Toronto",
+    "putinmissing":      "Putin Missing",
+    "sydneysiege":       "Sydney Siege",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -103,15 +119,6 @@ def calculate_alpha(median_val: float) -> float:
     if median_val <= 0:
         return 1.0
     return -math.log(0.5) / median_val
-
-
-def annotation_to_state(type_content: str, support: str) -> str:
-    """Map tweet type + support annotation to CoNVaI state (Section 5.2)."""
-    if type_content in ("source", "retweet"):
-        return "infected"
-    if str(support).lower() in ("disagreed", "denied"):
-        return "vaccinated"
-    return "infected"
 
 
 def get_uid(user_dict: dict) -> str:
@@ -131,6 +138,18 @@ def get_thread_uids(thread_df: pd.DataFrame) -> set:
     return uids
 
 
+def get_source_uid(thread_df: pd.DataFrame) -> str | None:
+    """Return the UID of the thread initiator (source tweet author), or None."""
+    source_rows = thread_df[thread_df["type_content"] == "source"]
+    if source_rows.empty:
+        return None
+    u = source_rows.iloc[0]["user"]
+    if not isinstance(u, dict):
+        return None
+    uid = get_uid(u)
+    return uid if uid else None
+
+
 # ---------------------------------------------------------------------------
 # Load PHEME-9 dataset
 # ---------------------------------------------------------------------------
@@ -144,7 +163,6 @@ def load_pheme(pheme_path: Path):
     """
     ann_dir = pheme_path.parent.parent / "annotations"
 
-    # Load combined annotation file, skip comment lines starting with #
     with open(ann_dir / "en-scheme-annotations.json", "r", encoding="utf-8") as f:
         lines = [l for l in f if not l.strip().startswith("#")]
 
@@ -154,11 +172,7 @@ def load_pheme(pheme_path: Path):
         dtype={"tweetid": "int64", "threadid": "int64"},
     )
 
-    # Sources: where tweetid == threadid
     annotation_sources = ann_all[ann_all["tweetid"] == ann_all["threadid"]].copy()
-
-    # Replies: where tweetid != threadid
-    # Rename 'support' to 'responsetype-vs-source' to match what the rest of the script expects
     annotation_replies = ann_all[ann_all["tweetid"] != ann_all["threadid"]].copy()
     annotation_replies = annotation_replies.rename(
         columns={"support": "responsetype-vs-source"}
@@ -169,7 +183,6 @@ def load_pheme(pheme_path: Path):
         if (pheme_path / f).is_dir()
     ])
 
-    # Thread-level metadata from annotation.json
     an_lookup = {}
     for theme in list_themes:
         path_el = pheme_path / theme
@@ -196,7 +209,6 @@ def load_pheme(pheme_path: Path):
             if not src_files:
                 continue
 
-            # ---- source tweet ----
             src_df = pd.read_json(src_files[0], lines=True,
                                   dtype={"id": "int64"})
             src_id = int(src_df["id"].iloc[0])
@@ -209,7 +221,6 @@ def load_pheme(pheme_path: Path):
             )
             rows = [src_df]
 
-            # ---- reactions ----
             if reac_dir.exists():
                 reac_files = list(reac_dir.iterdir())
                 reac_list = []
@@ -239,7 +250,6 @@ def load_pheme(pheme_path: Path):
                     reactions["support"] = reactions["id"].apply(_get_support)
                     rows.append(reactions)
 
-            # ---- retweets ----
             if rt_file.exists():
                 try:
                     rt_df = pd.read_json(rt_file, lines=True,
@@ -269,18 +279,6 @@ def load_pheme(pheme_path: Path):
 
 def sample_threads_by_agents(list_dfs: list, num_agents: int,
                               seed: int) -> list:
-    """
-    Randomly shuffle all threads (using `seed`) and greedily add them until
-    the number of distinct user IDs seen so far reaches or exceeds
-    `num_agents`.  Returns the selected subset as a list of DataFrames.
-
-    The final thread that tips the count over the threshold IS included, so
-    the actual agent count may be slightly above `num_agents` — hence
-    "approximation".
-
-    If the entire dataset has fewer unique users than `num_agents`, all
-    threads are returned with a warning.
-    """
     rng = random.Random(seed)
     shuffled = list_dfs[:]
     rng.shuffle(shuffled)
@@ -295,7 +293,6 @@ def sample_threads_by_agents(list_dfs: list, num_agents: int,
         if len(seen_uids) >= num_agents:
             break
     else:
-        # Loop completed without hitting target — dataset exhausted
         print(
             f"[WARN] Dataset exhausted with only {len(seen_uids):,} unique "
             f"agents (target was {num_agents:,}). Using all threads.",
@@ -316,24 +313,8 @@ def sample_threads_by_agents(list_dfs: list, num_agents: int,
 
 def build_adjacency(pheme_path: Path, list_dfs: list,
                     sampled_uids: set | None = None) -> dict:
-    """
-    Returns {uid: set(neighbour_uids)}.
-
-    Mirrors the notebook exactly:
-    1. Concatenate all who-follows-whom.dat files across every thread and
-       theme into one edge list (follower_id followed_id per line) — this
-       reproduces the followers_info_adding.graphml base graph.
-    2. Augment with G_full logic: for every thread, if a participant has no
-       existing path to the source author, add a directed edge
-       participant -> source_author.
-
-    If `sampled_uids` is provided, only edges where *both* endpoints belong
-    to that set are kept in the returned adjacency dict.  This scopes
-    network.csv to the sampled agents when --num_agents is used.
-    """
     import networkx as nx
 
-    # ---- Step 1: read all who-follows-whom.dat files ----
     G = nx.DiGraph()
     list_themes = sorted([
         f for f in os.listdir(pheme_path) if (pheme_path / f).is_dir()
@@ -360,7 +341,7 @@ def build_adjacency(pheme_path: Path, list_dfs: list,
           f"{G.number_of_nodes():,} nodes, {G.number_of_edges():,} edges "
           f"({dat_count:,} lines read)")
 
-    # ---- Step 2: G_full augmentation (notebook logic) ----
+    # G_full augmentation
     for df in list_dfs:
         source_rows = df[df["type_content"] == "source"]
         if source_rows.empty:
@@ -372,8 +353,7 @@ def build_adjacency(pheme_path: Path, list_dfs: list,
         if not src_uid:
             continue
 
-        total_conv = df  # all participants in this thread
-        for _, row in total_conv.iterrows():
+        for _, row in df.iterrows():
             u = row.get("user")
             if not isinstance(u, dict):
                 continue
@@ -390,7 +370,6 @@ def build_adjacency(pheme_path: Path, list_dfs: list,
     print(f"[INFO] After G_full augmentation: "
           f"{G.number_of_nodes():,} nodes, {G.number_of_edges():,} edges")
 
-    # Convert to adj dict, optionally restricting to sampled_uids
     adj = {}
     for u, v in G.edges():
         u, v = str(u), str(v)
@@ -407,16 +386,11 @@ def build_adjacency(pheme_path: Path, list_dfs: list,
 
 
 # ---------------------------------------------------------------------------
-# Compute Pusr globally across the full dataset  (Section 4.1)
+# Compute Pusr globally  (Section 4.1)
 # ---------------------------------------------------------------------------
 
 def compute_pusr(list_dfs: list) -> dict:
-    """
-    Returns {uid: pusr_value}.
-    Pusr(u) = FINFL * Infl(u)
-    Infl(u) = 0.4*sc(followers/followees) + 0.4*sc(listed_count) + 0.2*verified
-    Alpha values derived from the median across ALL users (cross-event).
-    """
+    """Returns {uid: pusr_value}."""
     records = {}
     for df in list_dfs:
         for _, row in df.iterrows():
@@ -456,11 +430,6 @@ def compute_pusr(list_dfs: list) -> dict:
 # ---------------------------------------------------------------------------
 
 def build_agent_map(all_uids: set) -> dict:
-    """
-    Returns {uid: 'convai_agent_N'} for every user in the full dataset.
-    Sorted by uid for determinism so the same dataset always produces the
-    same mapping.
-    """
     return {uid: f"convai_agent_{i+1}"
             for i, uid in enumerate(sorted(all_uids))}
 
@@ -471,7 +440,10 @@ def build_agent_map(all_uids: set) -> dict:
 
 def make_messages_csv(thread_df: pd.DataFrame, conversation_id: int,
                       agent_map: dict) -> pd.DataFrame:
-    """One row per source tweet (the simulation seed)."""
+    """
+    One row per source tweet (the simulation seed).
+    The initiator's state is always 'infected'.
+    """
     rows = []
     for _, row in thread_df[thread_df["type_content"] == "source"].iterrows():
         u = row.get("user")
@@ -480,16 +452,20 @@ def make_messages_csv(thread_df: pd.DataFrame, conversation_id: int,
         uid    = get_uid(u)
         agent  = agent_map.get(uid, uid)
         text   = str(row.get("text", "")).replace("\n", " ").replace("\r", " ")
-        state  = annotation_to_state("source", row.get("support", "underspecified"))
+
+        raw_theme = str(row.get("theme", ""))
+        topic     = TOPIC_MAP.get(raw_theme, raw_theme)
+
+        # Initiator is always infected
         variables = json.dumps({
-            "public": {"conversation_id": conversation_id, "state": state}
+            "public": {"conversation_id": conversation_id, "state": "infected"}
         })
         rows.append({
             "author":    agent,
             "content":   text,
             "reactions": "",
             "original":  "",
-            "topics":    "",
+            "topics":    topic,
             "variables": variables,
         })
     return pd.DataFrame(rows,
@@ -499,60 +475,51 @@ def make_messages_csv(thread_df: pd.DataFrame, conversation_id: int,
 
 def make_agent_probs_csv(thread_df: pd.DataFrame,
                          all_uids: set,
-                         agent_map: dict) -> pd.DataFrame:
+                         agent_map: dict,
+                         rng: random.Random) -> pd.DataFrame:
     """
-    Three-row compact format with a _count column.
+    One row per agent (ordered by agent name).
 
-    Agents are ordered by their mapped name (convai_agent_N, sorted
-    lexicographically — equivalent to sorting by N numerically since all
-    names share the same prefix length).
+    State assignment:
+        source author (thread initiator) -> infected
+        ALL other agents                 -> neutral
 
-    Row 0 (before):  _count = number of agents whose name is *less than*
-                     the initiator's name, state = neutral
-    Row 1 (seed):    _count = 1, state = infected
-    Row 2 (after):   _count = number of agents whose name is *greater than*
-                     the initiator's name, state = neutral
+    Each agent is assigned a random combination drawn *with replacement* from
+    the 288 CoNVaI parameter combinations (PARAM_GRID).
 
-    pinf/pmd/pad/popi/prd are identical on all three rows.
+    Columns: agent, pinf, pmd, pad, popi, prd, state
     """
-    source_rows = thread_df[thread_df["type_content"] == "source"]
-    src_uid = ""
-    if not source_rows.empty:
-        u = source_rows.iloc[0]["user"]
-        if isinstance(u, dict):
-            src_uid = get_uid(u)
+    # Identify the single initiator UID for this thread
+    initiator_uid = get_source_uid(thread_df)
 
-    src_agent = agent_map.get(src_uid, "") if src_uid else ""
-
-    # Sort agent names the same way the simulator would see them
     sorted_agents = sorted(agent_map[uid] for uid in all_uids)
+    agent_to_uid  = {v: k for k, v in agent_map.items()}
 
-    if src_agent and src_agent in sorted_agents:
-        src_pos      = sorted_agents.index(src_agent)
-        count_before = src_pos                            # agents with name < src
-        count_after  = len(sorted_agents) - src_pos - 1  # agents with name > src
-    else:
-        # Fallback: initiator not found — assign all to "before", none after
-        count_before = len(sorted_agents)
-        count_after  = 0
+    rows = []
+    for agent_name in sorted_agents:
+        uid = agent_to_uid[agent_name]
 
-    base = {
-        "pinf": DEFAULT_PINF,
-        "pmd":  DEFAULT_PMD,
-        "pad":  DEFAULT_PAD,
-        "popi": DEFAULT_POPI,
-        "prd":  DEFAULT_PRD,
-    }
+        # Only the initiator is infected; everyone else starts neutral
+        if uid == initiator_uid:
+            state = "infected"
+        else:
+            state = "neutral"
 
-    rows = [
-        {**base, "_count": count_before, "state": "neutral"},
-        {**base, "_count": 1,            "state": "infected"},
-        {**base, "_count": count_after,  "state": "neutral"},
-    ]
+        pinf, pmd, pad, popi, prd = rng.choice(PARAM_GRID)
+
+        rows.append({
+            "agent": agent_name,
+            "pinf":  pinf,
+            "pmd":   pmd,
+            "pad":   pad,
+            "popi":  popi,
+            "prd":   prd,
+            "state": state,
+        })
 
     return pd.DataFrame(rows,
-                        columns=["pinf", "pmd", "pad", "popi", "prd",
-                                 "_count", "state"])
+                        columns=["agent", "pinf", "pmd", "pad",
+                                 "popi", "prd", "state"])
 
 
 # ---------------------------------------------------------------------------
@@ -569,14 +536,14 @@ def main():
                         help="Root directory for output files.")
     parser.add_argument("--num_agents", type=int, default=None,
                         help=(
-                            "Approximate number of unique agents to include "
-                            "in the per-thread output files. Threads are "
-                            "drawn at random (controlled by --seed) until "
-                            "the cumulative unique-participant count reaches "
-                            "this value. If omitted, all threads are used."
+                            "Approximate number of unique agents to include. "
+                            "Threads are drawn at random (--seed) until the "
+                            "cumulative unique-participant count reaches this "
+                            "value. If omitted, all threads are used."
                         ))
     parser.add_argument("--seed", type=int, default=42,
-                        help="Random seed for thread sampling (default: 42).")
+                        help="Random seed for thread sampling and parameter "
+                             "assignment (default: 42).")
     args = parser.parse_args()
 
     pheme_path = Path(args.pheme_path)
@@ -586,12 +553,12 @@ def main():
         print(f"[ERROR] PHEME path not found: {pheme_path}", file=sys.stderr)
         sys.exit(1)
 
-    # ------------------------------------------------------------------ load
+    rng = random.Random(args.seed)
+
     print("[INFO] Loading PHEME dataset…")
     list_dfs = load_pheme(pheme_path)
     print(f"[INFO] Loaded {len(list_dfs)} threads across all events.")
 
-    # ----------------------------------------- select threads for output
     if args.num_agents is not None:
         print(f"[INFO] Sampling threads to reach ≈{args.num_agents:,} agents "
               f"(seed={args.seed})…")
@@ -602,7 +569,6 @@ def main():
         print("[INFO] --num_agents not set; using all threads.")
         selected_dfs = list_dfs
 
-    # ---- derive the sampled UID set (used to scope network + profiles) ----
     sampled_uids: set | None = None
     if args.num_agents is not None:
         sampled_uids = set()
@@ -610,7 +576,6 @@ def main():
             sampled_uids |= get_thread_uids(df)
         print(f"[INFO] Sampled UID set: {len(sampled_uids):,} unique agents.")
 
-    # --------------------------------------------------- adjacency list
     print("[INFO] Building adjacency list…")
     adj = build_adjacency(pheme_path, list_dfs, sampled_uids=sampled_uids)
     all_uids = (
@@ -621,13 +586,11 @@ def main():
     print(f"[INFO] Network: {len(all_uids):,} nodes, "
           f"{sum(len(v) for v in adj.values()):,} edges")
 
-    # --------------------------------------------------- agent mapping
     print("[INFO] Building agent name mapping…")
     agent_map = build_agent_map(all_uids)
     print(f"[INFO] Agent map: {len(agent_map):,} users → convai_agent_1 … "
           f"convai_agent_{len(agent_map)}")
 
-    # --------------------------------------------------- user influences
     print("[INFO] Computing user influence scores…")
     pusr_lookup = compute_pusr(selected_dfs)
     print(f"[INFO] Pusr computed for {len(pusr_lookup):,} users.")
@@ -636,7 +599,6 @@ def main():
     thread_dir = output_dir / "news_sources_corr"
     thread_dir.mkdir(parents=True, exist_ok=True)
 
-    # -------------------------------------------------------------- network.csv
     print("[INFO] Writing network.csv…")
     with open(output_dir / "network.csv", "w", encoding="utf-8") as f:
         f.write("from,to,weight\n")
@@ -648,7 +610,6 @@ def main():
     n_edges = sum(len(v) for v in adj.values())
     print(f"[INFO] network.csv written ({n_edges:,} edges).")
 
-    # ------------------------------------------------- public_profiles.csv
     print("[INFO] Writing public_profiles.csv…")
     profiles_df = pd.DataFrame(
         [{"agent":     agent_map.get(uid, uid),
@@ -660,34 +621,42 @@ def main():
     profiles_df.to_csv(output_dir / "public_profiles.csv", index=False)
     print(f"[INFO] public_profiles.csv written ({len(profiles_df):,} rows).")
 
-    # ------------------------------------------------- per-thread files
     print(f"[INFO] Writing per-thread files for {len(selected_dfs)} threads…")
     for conv_idx, thread_df in enumerate(selected_dfs, start=1):
         thread_id = str(thread_df["thread_from"].iloc[0])
+        theme     = str(thread_df["theme"].iloc[0])
+        topic     = TOPIC_MAP.get(theme, theme)
 
         messages_df = make_messages_csv(thread_df, conv_idx, agent_map)
         messages_df.to_csv(
             thread_dir / f"messages_{thread_id}.csv", index=False
         )
 
-        probs_df = make_agent_probs_csv(thread_df, all_uids, agent_map)
+        probs_df = make_agent_probs_csv(
+            thread_df, all_uids, agent_map, rng
+        )
         probs_df.to_csv(
             thread_dir / f"agent_probs_{thread_id}.csv", index=False
         )
 
-        counts = probs_df.groupby("state")["_count"].sum()
-        n_inf = counts.get("infected", 0)
-        n_vac = counts.get("vaccinated", 0)
-        n_neu = counts.get("neutral", 0)
+        state_counts = probs_df["state"].value_counts()
+        n_inf = state_counts.get("infected", 0)
+        n_neu = state_counts.get("neutral",  0)
 
-        theme = str(thread_df["theme"].iloc[0])
         print(f"  [{conv_idx:3d}/{len(selected_dfs)}] {thread_id} "
-              f"({theme}) — Inf={n_inf}, Vac={n_vac}, Neu={n_neu}")
+              f"({topic}) — "
+              f"Inf={n_inf} (initiator only), Neu={n_neu}, "
+              f"total_agents={len(probs_df)}")
 
     print(f"\n[DONE] Outputs written to: {output_dir.resolve()}")
     print(f"  Global : network.csv, public_profiles.csv")
     print(f"  Threads: news_sources_corr/messages_<id>.csv + "
           f"agent_probs_<id>.csv  ({len(selected_dfs)} files each)")
+    print(f"\n  State rule: initiator -> infected, all others -> neutral")
+    print(f"  agent_probs format: one row per agent, columns = "
+          f"agent,pinf,pmd,pad,popi,prd,state")
+    print(f"  Each agent's parameters drawn at random from "
+          f"{len(PARAM_GRID)} combinations (seed={args.seed}).")
 
 
 if __name__ == "__main__":

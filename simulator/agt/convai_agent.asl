@@ -78,11 +78,9 @@ idle_limit_reached(false).
     -feed_order(Ids);
     -+messages_read(0);
     ia.save_logs([info("Started processing messages.")]);
-    !process_messages(Ids);
-    ia.save_logs([info("Finished processing messages. Deciding on actions.")]);
-    !act(WasActive);
-    ia.save_logs([info("Finished deciding and executing actions.")]);
-    !end_cycle(WasActive);
+    !process_messages(Ids, 0, ActCount);
+    ia.save_logs([info("Finished processing messages.")]);
+    !end_cycle(ActCount > 0);
     +restart.
 
 +!end_cycle(WasActive):
@@ -125,21 +123,23 @@ idle_limit_reached(false).
     .abolish(feed_order(_));
     !start.
 
-+!process_messages([]): true <- true.
++!process_messages([], ActCount, ActCount): true <- true.
 
-+!process_messages([Id|Rest]):
++!process_messages([Id|Rest], ActSoFar, ActFinal):
     messages_read(MR) & prd(Prd)
 <-
     MR1 = MR + 1;
     -+messages_read(MR1);
     Pread = Prd / MR1;
     ia.U(U1);
-    ia.save_logs([u(U1), pread(Pread)]);
     if (U1 <= Pread) {
-        ia.save_logs([info("Decided to read message."), message_id(Id)]);
-        !process_single_message(Id)
+        !process_single_message(Id);
+        !act(ActedNow)
+    } else {
+        ActedNow = false
     };
-    !process_messages(Rest).
+    if (ActedNow) { ActNext = ActSoFar + 1 } else { ActNext = ActSoFar };
+    !process_messages(Rest, ActNext, ActFinal).
 
 +!process_single_message(Id): read_history(PastMessages) <-
     .wait(message(Id, Author, Content, Original, Timestamp));
@@ -147,15 +147,19 @@ idle_limit_reached(false).
     ia.save_logs([info("Got all information for message. Waiting for interpretation.")]);
     ia.interpretContent(content(Content, PastMessages), Interpretation);
     ia.save_logs([interpretation(Interpretation)]);
-    if (in_conversation(CId)) {
+    if (known_conversation(CId)) {
         ia.save_logs([info("Message is part of a known conversation. Processing with ReadMs.")]);
         !read_ms(Id, Author, Content, CId, Interpretation)
     } else {
         ia.save_logs([info("Message is not part of a known conversation. Processing with ReadSc.")]);
         !read_sc(Id, Author, Content, CId, Interpretation)
     };
+    +known_conversation(CId);
     -read_history(PastMessages);
     +read_history([Content | PastMessages]).
+
++known_conversation(CId): true <-
+    ia.save_logs([info("Now agent is aware of the conversation."), conversation_id(CId)]).
 
 /* Algorithm 3 */
 +!read_sc(Id, Author, Content, CId, [pnov(Pnov), prpl(Prpl), pnw(Pnw)]):
@@ -232,18 +236,19 @@ idle_limit_reached(false).
         ia.save_logs([info("Decided not to engage with the message.")])
     }.
 
-/* f(state) — returns WasActive via unification */
-+!act(true):
+/* f(state) */
++!act(ActedNow):
     replying(CId, Id) & state(State) & message(Id, _, Content, _, _) & State \== neutral
 <-
+    ActedNow = true;
     Topics = [];
     PromptParams = [content(Content), state(State)];
     Variables = [public(state(State), conversation_id(CId))];
     ia.save_logs([info("Waiting for content generation.")]);
     ia.createContent(Topics, PromptParams, GeneratedContent);
     ia.save_logs([info("Finished content generation.")]);
-    comment(Id, Topics, Variables, GeneratedContent);
-    +in_conversation(CId).
+    comment(Id, Topics, Variables, GeneratedContent).
 
-+!act(false): true <-
++!act(ActedNow): true <-
+    ActedNow = false;
     ia.save_logs([info("Skipping action.")]).
