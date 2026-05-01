@@ -1,5 +1,5 @@
 """
-generate_convai_inputs.py
+generate_convai_inputs_original.py
 =========================
 Reads the PHEME-9 dataset and produces simulator input files matching the
 real ABSS_CoNVaI Input_Simulator format:
@@ -17,8 +17,9 @@ Per-thread files cover only the Ottawa Shooting test instances.
 Usage
 -----
     python generate_convai_inputs_original.py \
-        --phpeme_ath /path/to/pheme-rumour-scheme-dataset/threads/en \
-        --output_dir ./convai_outputs
+        --pheme_path /path/to/pheme-rumour-scheme-dataset \
+        --output_dir ./convai_outputs \
+        --seed 42
 
 Column formats
 --------------
@@ -32,11 +33,19 @@ public_profiles.csv
 
 messages_<thread_id>.csv
     author,content,reactions,original,topics,variables
-    convai_agent_X,<tweet_text>,,0,,{"public":{"conversation_id":<int>,"state":"<state>"}}
+    convai_agent_X,<tweet_text>,,0,<topic>,{"public":{"conversation_id":<int>,"state":"<state>"}}
 
 agent_probs_<thread_id>.csv
-    pinf,pmd,pad,popi,prd,state
-    <float>,...,<infected|vaccinated|neutral>
+    agent,pinf,pmd,pad,popi,prd,state
+    <agent_name>,<float>,...,<infected|neutral>
+
+    State assignment:
+        source author (initiator) -> infected
+        ALL other agents          -> neutral
+
+    Each agent receives a unique random combination drawn from the 288
+    CoNVaI parameter combinations defined in Table 4 of the Supplementary
+    Material, so this file has one row per agent (plus a header).
 
 Network construction (mirrors the notebook exactly)
     Base graph: all who-follows-whom.dat files across every thread and theme
@@ -53,19 +62,18 @@ Agent mapping
 
 State mapping (Section 5.2 of the paper)
     source tweet                    -> infected
-    retweet                         -> infected
-    reaction agreed/underspecified  -> infected
-    reaction disagreed/denied       -> vaccinated
-    users absent from this thread   -> neutral
+    all other agents                -> neutral
 
-Parameter defaults (mid-range of Table 4, Supplementary Material)
-    PINF=0.10  PMD=0.05  PAD=0.10  POPI=0.15  PRD=0.25
+Parameter defaults (Table 4, Supplementary Material — 288 combinations)
+    Each agent is assigned a random combination drawn with replacement.
 """
 
 import argparse
+import itertools
 import json
 import math
 import os
+import random
 import sys
 from pathlib import Path
 
@@ -74,16 +82,30 @@ import pandas as pd
 import io
 
 # ---------------------------------------------------------------------------
-# CoNVaI default parameters (Table 4, Supplementary Material)
+# CoNVaI parameter grid  (Table 4, Supplementary Material — 288 combinations)
 # ---------------------------------------------------------------------------
-DEFAULT_PINF = 0.10
-DEFAULT_PMD  = 0.05
-DEFAULT_PAD  = 0.10
-DEFAULT_POPI = 0.15
-DEFAULT_PRD  = 0.25
+PARAM_GRID = list(itertools.product(
+    [0.05, 0.10, 0.15],
+    [0.05, 0.10],
+    [0.05, 0.10, 0.15],
+    [0.10, 0.15, 0.20, 0.25],
+    [0.10, 0.20, 0.30, 0.40],
+))
+assert len(PARAM_GRID) == 288
 
 FINFL      = 0.1        # user influence scaling factor (Section 4.1)
 TEST_EVENT = "ottawashooting"
+
+TOPIC_MAP = {
+    "charliehebdo":      "Charlie Hebdo Attack",
+    "ebola-essien":      "Ebola Essien Rumour",
+    "ferguson":          "Ferguson Unrest",
+    "germanwings-crash": "Germanwings Crash",
+    "ottawashooting":    "Ottawa Shooting",
+    "prince-toronto":    "Prince Toronto",
+    "putinmissing":      "Putin Missing",
+    "sydneysiege":       "Sydney Siege",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -102,33 +124,37 @@ def calculate_alpha(median_val: float) -> float:
     return -math.log(0.5) / median_val
 
 
-def annotation_to_state(type_content: str, support: str) -> str:
-    """Map tweet type + support annotation to CoNVaI state (Section 5.2)."""
-    if type_content in ("source", "retweet"):
-        return "infected"
-    if str(support).lower() in ("disagreed", "denied"):
-        return "vaccinated"
-    return "infected"
-
-
 def get_uid(user_dict: dict) -> str:
     """Extract user ID string from a Twitter user dict."""
     return str(user_dict.get("id_str", user_dict.get("id", "")))
+
+
+def get_source_uid(thread_df: pd.DataFrame) -> str | None:
+    """Return the UID of the thread initiator (source tweet author), or None."""
+    source_rows = thread_df[thread_df["type_content"] == "source"]
+    if source_rows.empty:
+        return None
+    u = source_rows.iloc[0]["user"]
+    if not isinstance(u, dict):
+        return None
+    uid = get_uid(u)
+    return uid if uid else None
 
 
 # ---------------------------------------------------------------------------
 # Load PHEME-9 dataset
 # ---------------------------------------------------------------------------
 
-def load_pheme(pheme_path: Path):
+def load_pheme(pheme_path: Path, ann_dir: Path):
     """
+    pheme_path : .../threads/en
+    ann_dir    : .../annotations
+
     Returns list_dfs: list of per-thread DataFrames covering all themes.
     Each DataFrame has columns:
         id, user, text, type_content, support, thread_from, theme,
         misinformation, true, is_rumour
     """
-    ann_dir = pheme_path.parent.parent / "annotations"
-
     # Load combined annotation file, skip comment lines starting with #
     with open(ann_dir / "en-scheme-annotations.json", "r", encoding="utf-8") as f:
         lines = [l for l in f if not l.strip().startswith("#")]
@@ -402,19 +428,22 @@ def make_messages_csv(thread_df: pd.DataFrame, conversation_id: int,
         u = row.get("user")
         if not isinstance(u, dict):
             continue
-        uid    = get_uid(u)
-        agent  = agent_map.get(uid, uid)
-        text   = str(row.get("text", "")).replace("\n", " ").replace("\r", " ")
-        state  = annotation_to_state("source", row.get("support", "underspecified"))
+        uid       = get_uid(u)
+        agent     = agent_map.get(uid, uid)
+        text      = str(row.get("text", "")).replace("\n", " ").replace("\r", " ")
+        raw_theme = str(row.get("theme", ""))
+        topic     = TOPIC_MAP.get(raw_theme, raw_theme)
+
+        # Initiator is always infected
         variables = json.dumps({
-            "public": {"conversation_id": conversation_id, "state": state}
+            "public": {"conversation_id": conversation_id, "state": "infected"}
         })
         rows.append({
             "author":    agent,
             "content":   text,
             "reactions": "",
             "original":  "",
-            "topics":    "",
+            "topics":    topic,
             "variables": variables,
         })
     return pd.DataFrame(rows,
@@ -424,61 +453,42 @@ def make_messages_csv(thread_df: pd.DataFrame, conversation_id: int,
 
 def make_agent_probs_csv(thread_df: pd.DataFrame,
                          all_uids: set,
-                         agent_map: dict) -> pd.DataFrame:
+                         agent_map: dict,
+                         rng: random.Random) -> pd.DataFrame:
     """
-    Three-row compact format with a _count column.
+    One row per agent (ordered by agent name).
 
-    Agents are ordered by their mapped name (convai_agent_N, sorted
-    lexicographically — equivalent to sorting by N numerically since all
-    names share the same prefix length).
+    State assignment:
+        source author (thread initiator) -> infected
+        ALL other agents                 -> neutral
 
-    Row 0 (before):  _count = number of agents whose name is *less than*
-                     the initiator's name, state = neutral
-    Row 1 (seed):    _count = 1, state = infected
-    Row 2 (after):   _count = number of agents whose name is *greater than*
-                     the initiator's name, state = neutral
+    Each agent is assigned a random combination drawn *with replacement* from
+    the 288 CoNVaI parameter combinations (PARAM_GRID).
 
-    pinf/pmd/pad/popi/prd are identical on all three rows.
+    Columns: agent, pinf, pmd, pad, popi, prd, state
     """
-    source_rows = thread_df[thread_df["type_content"] == "source"]
-    src_uid = ""
-    if not source_rows.empty:
-        u = source_rows.iloc[0]["user"]
-        if isinstance(u, dict):
-            src_uid = get_uid(u)
-
-    src_agent = agent_map.get(src_uid, "") if src_uid else ""
-
-    # Sort agent names the same way the simulator would see them
+    initiator_uid = get_source_uid(thread_df)
     sorted_agents = sorted(agent_map[uid] for uid in all_uids)
+    agent_to_uid  = {v: k for k, v in agent_map.items()}
 
-    if src_agent and src_agent in sorted_agents:
-        src_pos      = sorted_agents.index(src_agent)
-        count_before = src_pos                            # agents with name < src
-        count_after  = len(sorted_agents) - src_pos - 1  # agents with name > src
-    else:
-        # Fallback: initiator not found — assign all to "before", none after
-        count_before = len(sorted_agents)
-        count_after  = 0
-
-    base = {
-        "pinf": DEFAULT_PINF,
-        "pmd":  DEFAULT_PMD,
-        "pad":  DEFAULT_PAD,
-        "popi": DEFAULT_POPI,
-        "prd":  DEFAULT_PRD,
-    }
-
-    rows = [
-        {**base, "_count": count_before, "state": "neutral"},
-        {**base, "_count": 1,            "state": "infected"},
-        {**base, "_count": count_after,  "state": "neutral"},
-    ]
+    rows = []
+    for agent_name in sorted_agents:
+        uid   = agent_to_uid[agent_name]
+        state = "infected" if uid == initiator_uid else "neutral"
+        pinf, pmd, pad, popi, prd = rng.choice(PARAM_GRID)
+        rows.append({
+            "agent": agent_name,
+            "pinf":  pinf,
+            "pmd":   pmd,
+            "pad":   pad,
+            "popi":  popi,
+            "prd":   prd,
+            "state": state,
+        })
 
     return pd.DataFrame(rows,
-                        columns=["pinf", "pmd", "pad", "popi", "prd",
-                                 "_count", "state"])
-
+                        columns=["agent", "pinf", "pmd", "pad",
+                                 "popi", "prd", "state"])
 
 
 # ---------------------------------------------------------------------------
@@ -490,24 +500,37 @@ def main():
         description="Generate CoNVaI simulator input files from PHEME-9."
     )
     parser.add_argument("--pheme_path", required=True,
-                        help="Path to threads/en inside the PHEME-9 release.")
+                        help="Root path of the PHEME-9 dataset "
+                             "(e.g. /path/to/pheme-rumour-scheme-dataset).")
     parser.add_argument("--output_dir", default="./convai_outputs",
                         help="Root directory for output files.")
     parser.add_argument("--test_event", default=TEST_EVENT,
                         help=f"Event name to treat as test set "
                              f"(default: {TEST_EVENT}).")
+    parser.add_argument("--seed", type=int, default=42,
+                        help="Random seed for parameter assignment (default: 42).")
     args = parser.parse_args()
 
-    pheme_path = Path(args.pheme_path)
+    # Derive sub-paths from the dataset root
+    root_path  = Path(args.pheme_path)
+    pheme_path = root_path / "threads" / "en"
+    ann_dir    = root_path / "annotations"
     output_dir = Path(args.output_dir)
 
-    if not pheme_path.exists():
-        print(f"[ERROR] PHEME path not found: {pheme_path}", file=sys.stderr)
-        sys.exit(1)
+    for p, label in [
+        (root_path,  "root"),
+        (pheme_path, "threads/en"),
+        (ann_dir,    "annotations"),
+    ]:
+        if not p.exists():
+            print(f"[ERROR] {label} path not found: {p}", file=sys.stderr)
+            sys.exit(1)
+
+    rng = random.Random(args.seed)
 
     # ------------------------------------------------------------------ load
     print("[INFO] Loading PHEME dataset…")
-    list_dfs = load_pheme(pheme_path)
+    list_dfs = load_pheme(pheme_path, ann_dir)
     print(f"[INFO] Loaded {len(list_dfs)} threads across all events.")
 
     test_dfs = [df for df in list_dfs
@@ -569,29 +592,35 @@ def main():
     print("[INFO] Writing per-thread files…")
     for conv_idx, thread_df in enumerate(test_dfs, start=1):
         thread_id = str(thread_df["thread_from"].iloc[0])
+        theme     = str(thread_df["theme"].iloc[0])
+        topic     = TOPIC_MAP.get(theme, theme)
 
         messages_df = make_messages_csv(thread_df, conv_idx, agent_map)
         messages_df.to_csv(
             thread_dir / f"messages_{thread_id}.csv", index=False
         )
 
-        probs_df = make_agent_probs_csv(thread_df, all_uids, agent_map)
+        probs_df = make_agent_probs_csv(thread_df, all_uids, agent_map, rng)
         probs_df.to_csv(
             thread_dir / f"agent_probs_{thread_id}.csv", index=False
         )
 
-        counts = probs_df.groupby("state")["_count"].sum()
-        n_inf = counts.get("infected", 0)
-        n_vac = counts.get("vaccinated", 0)
-        n_neu = counts.get("neutral", 0)
-
-        print(f"  [{conv_idx:3d}/{len(test_dfs)}] {thread_id} — "
-              f"Inf={n_inf}, Vac={n_vac}, Neu={n_neu}")
+        state_counts = probs_df["state"].value_counts()
+        n_inf = state_counts.get("infected", 0)
+        n_neu = state_counts.get("neutral",  0)
+        print(f"  [{conv_idx:3d}/{len(test_dfs)}] {thread_id} "
+              f"({topic}) — Inf={n_inf}, Neu={n_neu}, "
+              f"total_agents={len(probs_df)}")
 
     print(f"\n[DONE] Outputs written to: {output_dir.resolve()}")
     print(f"  Global : network.csv, public_profiles.csv")
     print(f"  Threads: news_sources_corr/messages_<id>.csv + "
           f"agent_probs_<id>.csv  ({len(test_dfs)} files each)")
+    print(f"\n  State rule: initiator -> infected, all others -> neutral")
+    print(f"  agent_probs format: one row per agent, columns = "
+          f"agent,pinf,pmd,pad,popi,prd,state")
+    print(f"  Each agent's parameters drawn at random from "
+          f"{len(PARAM_GRID)} combinations (seed={args.seed}).")
 
 
 if __name__ == "__main__":
