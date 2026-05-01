@@ -2,8 +2,8 @@
     CoNVaI Monitor Agent
 
     Termination conditions:
-        1. Hard cap:   every agent has reported max_cycles_reached
-        2. Inactivity: every agent has reported idle_limit_reached
+        1. Hard cap:   N/2+1 agents have reported max_cycles_reached
+        2. Inactivity: N/2+1 agents have reported idle_limit_reached
                        and none have since sent still_active
 
     The monitor reacts to three events sent by agents:
@@ -21,7 +21,7 @@
             Added to cycle_done set. Never retracted since
             cycles only go forward.
 
-    Termination fires when either set contains all known agents.
+    Termination fires when either set contains N/2+1 agents (majority).
 
     Parameters:
         total_agents(N) - total number of agents in the simulation
@@ -53,13 +53,14 @@
     .findall(A, cycle_done(A), CycleDone);
     IdleCount  = .length(IdleDone);
     CycleCount = .length(CycleDone);
-    ia.save_logs([idle_done(IdleCount), cycle_done(CycleCount), total(N)]);
+    Threshold  = (N / 2) + 1;
+    ia.save_logs([idle_done(IdleCount), cycle_done(CycleCount), total(N), threshold(Threshold)]);
 
-    if (CycleCount >= N) {
-        ia.save_logs([info("Termination: all agents reached max cycles.")]);
+    if (CycleCount >= Threshold) {
+        ia.save_logs([info("Termination: majority of agents reached max cycles.")]);
         .stopMAS
-    } elif (IdleCount >= N) {
-        ia.save_logs([info("Termination: all agents reached idle limit.")]);
+    } elif (IdleCount >= Threshold) {
+        ia.save_logs([info("Termination: majority of agents reached idle limit.")]);
         .stopMAS
     } else {
         ia.save_logs([info("Termination conditions not yet met. Waiting.")])
