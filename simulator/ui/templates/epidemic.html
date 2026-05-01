@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/epidemic.css') }}">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 </head>
 <body>
 
@@ -153,6 +154,52 @@
 
     </div>
 
+    <!-- ── Active Network Graph ──────────────────────────────────────────────── -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <div class="dot" style="background:#f0a500"></div>
+        <span class="chart-title">Active Spread Network</span>
+        <span class="chart-sub">infected &amp; vaccinated + their neighbours</span>
+      </div>
+      <div class="net-controls">
+        <label class="net-toggle">
+          <input type="checkbox" id="net-show-neutral" checked>
+          Show susceptible neighbours
+        </label>
+        <label class="net-toggle">
+          <input type="checkbox" id="net-show-labels">
+          Agent labels
+        </label>
+        <label class="net-toggle">
+          <input type="checkbox" id="net-freeze-layout" checked>
+          Freeze layout
+        </label>
+        <span class="net-zoom-hint">scroll to zoom · drag to pan</span>
+        <span class="net-stat" id="net-stat">— nodes · — edges</span>
+      </div>
+      <div class="net-wrap">
+        <svg id="net-svg"></svg>
+        <div class="net-empty" id="net-empty" style="display:none"></div>
+      </div>
+      <div class="legend-strip">
+        <div class="leg-item"><div class="leg-dot" style="background:#f5604a"></div>Infected</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#2de89a"></div>Vaccinated</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#3a4055;border:1px solid #5b6080"></div>Susceptible neighbour</div>
+        <div class="leg-item">
+          <svg width="22" height="10" style="flex-shrink:0">
+            <line x1="0" y1="5" x2="22" y2="5" stroke="#f5604a" stroke-width="1.5" stroke-dasharray="4,2" opacity=".7"/>
+          </svg>
+          Edge to infected
+        </div>
+        <div class="leg-item">
+          <svg width="22" height="10" style="flex-shrink:0">
+            <line x1="0" y1="5" x2="22" y2="5" stroke="#2de89a" stroke-width="1.5" stroke-dasharray="4,2" opacity=".7"/>
+          </svg>
+          Edge to vaccinated
+        </div>
+      </div>
+    </div>
+
     <!-- Transition table + agent dot grid -->
     <div class="chart-row">
 
@@ -194,8 +241,9 @@
 </div><!-- /agts-body -->
 
 <script>
-const AGENTS_DATA = {{ agents_json | safe }};
-const FOLDER      = {{ folder_json | safe }};
+const AGENTS_DATA  = {{ agents_json | safe }};
+const FOLDER       = {{ folder_json | safe }};
+const NETWORK_DATA = {{ network_json | safe }};  {# {edges: [{source, target}], loaded: bool, error?: str} #}
 </script>
 <script src="{{ url_for('static', filename='js/epidemic.js') }}"></script>
 

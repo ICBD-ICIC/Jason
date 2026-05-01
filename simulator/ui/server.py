@@ -285,12 +285,30 @@ def visualize_epidemic(folder: str):
             if rows:
                 agents_data[agent_name] = rows
 
+    # ── Load network.csv ──────────────────────────────────────────────────────
+    network_data: dict = {"edges": [], "loaded": False}
+    network_csv = BASE_DIR / safe_folder / "initializer" / "network.csv"
+    if network_csv.exists():
+        try:
+            edges = []
+            with network_csv.open(encoding="utf-8-sig") as fh:
+                reader = csv.DictReader(fh)
+                for row in reader:
+                    src = (row.get("from") or row.get("source") or "").strip()
+                    tgt = (row.get("to")   or row.get("target") or "").strip()
+                    if src and tgt:
+                        edges.append({"source": src, "target": tgt})
+            network_data = {"edges": edges, "loaded": True}
+        except Exception as exc:
+            network_data = {"edges": [], "loaded": False, "error": str(exc)}
+
     return render_template(
         "epidemic.html",
-        folder      = safe_folder,
-        folder_json = json.dumps(safe_folder),
-        agents_json = json.dumps(agents_data),
-        error       = error,
+        folder       = safe_folder,
+        folder_json  = json.dumps(safe_folder),
+        agents_json  = json.dumps(agents_data),
+        network_json = json.dumps(network_data),
+        error        = error,
     )
 
 @app.route("/<path:folder>/agts")
