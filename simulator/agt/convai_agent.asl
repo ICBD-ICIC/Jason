@@ -145,14 +145,15 @@ idle_limit_reached(false).
     .wait(message(Id, Author, Content, Original, Timestamp));
     .wait(message_var(Id, "conversation_id", CId));
     ia.save_logs([info("Got all information for message. Waiting for interpretation.")]);
-    ia.interpretContent(content(Content, PastMessages), Interpretation);
-    ia.save_logs([interpretation(Interpretation)]);
+    ia.interpretContent(content(Content, PastMessages), [pnov(Pnov), prpl(Prpl), pnw(Pnw), topics(Topics)]);
+    ia.save_logs([info("Interpretation complete."), pnov(Pnov), prpl(Prpl), pnw(Pnw), topics(Topics)]);
+    -+message_topics(Id, Topics);
     if (known_conversation(CId)) {
         ia.save_logs([info("Message is part of a known conversation. Processing with ReadMs.")]);
-        !read_ms(Id, Author, Content, CId, Interpretation)
+        !read_ms(Id, Author, Content, CId, pnov(Pnov), prpl(Prpl), pnw(Pnw))
     } else {
         ia.save_logs([info("Message is not part of a known conversation. Processing with ReadSc.")]);
-        !read_sc(Id, Author, Content, CId, Interpretation)
+        !read_sc(Id, Author, Content, CId, pnov(Pnov), prpl(Prpl), pnw(Pnw))
     };
     +known_conversation(CId);
     -read_history(PastMessages);
@@ -162,7 +163,7 @@ idle_limit_reached(false).
     ia.save_logs([info("Now agent is aware of the conversation."), conversation_id(CId)]).
 
 /* Algorithm 3 */
-+!read_sc(Id, Author, Content, CId, [pnov(Pnov), prpl(Prpl), pnw(Pnw)]):
++!read_sc(Id, Author, Content, CId, pnov(Pnov), prpl(Prpl), pnw(Pnw)):
     pinf(Pinf) & pmd(Pmd)
 <-
     Max1 = 1 - Pnov;
@@ -194,7 +195,7 @@ idle_limit_reached(false).
     }.
 
 /* Algorithm 4 */
-+!read_ms(Id, Author, Content, CId, [pnov(Pnov), prpl(Prpl), pnw(Pnw)]):
++!read_ms(Id, Author, Content, CId, pnov(Pnov), prpl(Prpl), pnw(Pnw)):
     state(State) & popi(Popi) & pad(Pad)
 <-
     readPublicProfile(Author);
@@ -238,16 +239,16 @@ idle_limit_reached(false).
 
 /* f(state) */
 +!act(ActedNow):
-    replying(CId, Id) & state(State) & message(Id, _, Content, _, _) & State \== neutral
+    replying(CId, Id) & state(State) & message(Id, _, Content, _, _) & message_topics(Id, Topics) & State \== neutral
 <-
     ActedNow = true;
-    Topics = [];
     PromptParams = [content(Content), state(State)];
     Variables = [public(state(State), conversation_id(CId))];
     ia.save_logs([info("Waiting for content generation.")]);
     ia.createContent(Topics, PromptParams, GeneratedContent);
     ia.save_logs([info("Finished content generation.")]);
-    comment(Id, Topics, Variables, GeneratedContent).
+    comment(Id, Topics, Variables, GeneratedContent);
+    -message_topics(Id, _).
 
 +!act(ActedNow): true <-
     ActedNow = false;
