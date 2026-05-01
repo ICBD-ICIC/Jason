@@ -99,9 +99,28 @@ async function loadInitCsvUpload(name, input) {
   try {
     const data = await fetch('/api/parse_initializer_csv', { method: 'POST', body: fd }).then(r => r.json());
     if (data.error) { showToast(data.error); return; }
-    initializers[name].rows = data.rows;
-    renderMain(); renderInitNav();
-    if (name === 'network.csv') setTimeout(() => { drawNetPreview(); initNetVirtScroll(); }, 80);
+
+    // Clear first, render the empty shell immediately so UI isn't stuck
+    initializers[name].rows = [];
+    renderMain();
+    renderInitNav();
+
+    // Push rows in chunks, yielding between each to keep UI responsive
+    const CHUNK = 3000;
+    for (let i = 0; i < data.rows.length; i += CHUNK) {
+      initializers[name].rows.push(...data.rows.slice(i, i + CHUNK));
+      renderInitNav(); // update row count in sidebar as we go
+      await new Promise(r => setTimeout(r, 0));
+    }
+
+    // Final render now that all rows are loaded
+    renderMain();
+    renderInitNav();
+    if (name === 'network.csv') {
+      setTimeout(() => { _setupResizeHandle(); initNetVirtScroll(); }, 80);
+      // Defer the expensive canvas draw until after the UI settles
+      setTimeout(() => drawNetPreview(), 300);
+    }
   } catch (e) { showToast('Failed to parse CSV: ' + e.message); }
   input.value = '';
 }

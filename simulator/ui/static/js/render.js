@@ -32,9 +32,13 @@ function selectInit(name) {
 function renderMain() {
   const panel = $('#main-panel');
 
-  if (activeTypeId !== null) {
+ if (activeTypeId !== null) {
     const t = types.find(t => t.id === activeTypeId);
-    if (t) { panel.innerHTML = buildAgentEditor(t); return; }
+    if (t) {
+      panel.innerHTML = buildAgentEditor(t);
+      setTimeout(() => initAgentVirtScroll(t.id), 0);
+      return;
+    }
   }
 
   if (activeInit) {

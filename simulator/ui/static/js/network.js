@@ -1,6 +1,9 @@
 // network.js — network editor: topology generator, manual mode, canvas preview
 
 // ── Topology registry ─────────────────────────────────────────────────────────
+let _netPreviewCache = null; // { rowsLength, nodeSet, nodes }
+
+function _invalidateNetPreviewCache() { _netPreviewCache = null; }
 
 const TOPOLOGIES = [
   {
@@ -308,6 +311,7 @@ function renderNetVirtRows(scrollTop) {
 
 function deleteNetRow(ri) {
   initializers['network.csv'].rows.splice(ri, 1);
+  _invalidateNetPreviewCache();
   renderInitNav();
   const h4 = $('#net-edge-tbody')?.closest('.card')?.querySelector('h4');
   if (h4) h4.textContent = `Edges — ${initializers['network.csv'].rows.length} total`;
@@ -376,6 +380,7 @@ function buildTopoParamsForm(topo) {
 
 function addNetworkRow() {
   initializers['network.csv'].rows.push({ from: '', to: '', weight: '' });
+  _invalidateNetPreviewCache();
   renderMain(); renderInitNav();
   setTimeout(() => { _setupResizeHandle(); drawNetPreview(); initNetVirtScroll(); }, 60);
 }
@@ -384,12 +389,14 @@ function clearNetRows() {
   const rows = initializers['network.csv'].rows;
   if (!rows.length || !confirm(`Delete all ${rows.length} edges?`)) return;
   initializers['network.csv'].rows = [];
+  _invalidateNetPreviewCache();
   renderMain(); renderInitNav();
   setTimeout(() => { _setupResizeHandle(); drawNetPreview(); initNetVirtScroll(); }, 60);
 }
 
 function sortEdgesAlpha() {
   initializers['network.csv'].rows.sort((a, b) => (a.from + a.to).localeCompare(b.from + b.to));
+  _invalidateNetPreviewCache();
   renderMain();
   setTimeout(() => { _setupResizeHandle(); drawNetPreview(); initNetVirtScroll(); }, 60);
 }
@@ -400,6 +407,7 @@ function generateTopology() {
   const existing = initializers['network.csv'].rows.length;
   if (existing && !confirm(`Replace the existing ${existing} edges?`)) return;
   initializers['network.csv'].rows = generateEdges(agents);
+  _invalidateNetPreviewCache();
   netView.positions = null;
   renderInitNav(); renderMain();
   setTimeout(() => { _setupResizeHandle(); netResetView(); drawNetPreview(); initNetVirtScroll(); }, 80);
@@ -522,10 +530,13 @@ function _drawFrame() {
   ctx.fillStyle = '#0a0c10'; ctx.fillRect(0, 0, W, H);
 
   const st      = initializers['network.csv'];
-  const known   = new Set(getAllAgentNames());
-  const nodeSet = new Set([...known]);
-  for (const r of st.rows) { if (r.from) nodeSet.add(r.from); if (r.to) nodeSet.add(r.to); }
-  const nodes = [...nodeSet];
+  const known = new Set(getAllAgentNames());
+  if (!_netPreviewCache || _netPreviewCache.rowsLength !== st.rows.length) {
+    const nodeSet = new Set([...known]);
+    for (const r of st.rows) { if (r.from) nodeSet.add(r.from); if (r.to) nodeSet.add(r.to); }
+    _netPreviewCache = { rowsLength: st.rows.length, nodes: [...nodeSet] };
+  }
+  const nodes = _netPreviewCache.nodes;
 
   if (!nodes.length) {
     ctx.fillStyle = '#7a82a0'; ctx.font = '12px DM Sans,sans-serif';
