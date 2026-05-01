@@ -130,6 +130,7 @@ def generate():
     mas_name       = (data.get("mas_name")      or DEFAULT_MAS_NAME).strip()
     raw_folder     = (data.get("output_folder") or DEFAULT_OUTPUT_FOLDER).strip()
     mind_inspector = bool(data.get("mind_inspector", False))
+    silent_logging = bool(data.get("silent_logging", False))
     output_folder  = _safe_folder_name(raw_folder)
 
     agent_types  = data.get("agent_types",  [])
@@ -142,12 +143,12 @@ def generate():
     out_agt_dir.mkdir(parents=True, exist_ok=True)
     out_init_dir.mkdir(parents=True, exist_ok=True)
 
-    # ── Copy logging.properties ───────────────────────────────────────────────
-    logging_src = BASE_DIR / "logging.properties"
-    if logging_src.exists():
-        logging_dst = out_dir / "logging.properties"
-        logging_dst.write_text(logging_src.read_text(encoding="utf-8"), encoding="utf-8")
-        gen_files.append(str(logging_dst.relative_to(BASE_DIR)))
+    # ── Copy / generate logging.properties ───────────────────────────────────────
+    logging_dst = BASE_DIR / "logging.properties"
+    logging_dst.write_text(
+        _build_logging_properties(silent=silent_logging), encoding="utf-8"
+    )
+    gen_files.append(str(logging_dst.relative_to(BASE_DIR)))
 
     # ── Pre-count total instances per stem ────────────────────────────────────
     stem_totals: dict[str, int] = {}
@@ -402,6 +403,75 @@ def visualize_polarization(folder: str):
     )
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _build_logging_properties(silent: bool = False) -> str:
+    if silent:
+        return """\
+# Only log to file
+handlers = java.util.logging.FileHandler
+
+.level = ALL
+
+############################################################
+# FileHandler configuration
+############################################################
+java.util.logging.FileHandler.pattern = ./mas.log
+java.util.logging.FileHandler.limit = 500000
+java.util.logging.FileHandler.count = 1
+java.util.logging.FileHandler.formatter = java.util.logging.SimpleFormatter
+java.util.logging.FileHandler.level = INFO
+
+############################################################
+# Disable console/GUI logging
+############################################################
+java.util.logging.ConsoleHandler.level = OFF
+jason.runtime.MASConsoleLogHandler.level = OFF
+
+############################################################
+# Silence other verbose loggers
+############################################################
+java.level = OFF
+javax.level = OFF
+sun.level = OFF
+jade.level = OFF
+"""
+    return """\
+# Use both FileHandler and ConsoleHandler
+handlers = java.util.logging.FileHandler, jason.runtime.MASConsoleLogHandler
+
+.level = ALL
+
+############################################################
+# FileHandler configuration
+############################################################
+java.util.logging.FileHandler.pattern = ./mas.log
+java.util.logging.FileHandler.limit = 500000
+java.util.logging.FileHandler.count = 1
+java.util.logging.FileHandler.formatter = java.util.logging.SimpleFormatter
+java.util.logging.FileHandler.level = INFO
+
+############################################################
+# ConsoleHandler configuration
+############################################################
+java.util.logging.ConsoleHandler.level = INFO
+java.util.logging.ConsoleHandler.formatter = jason.runtime.MASConsoleLogFormatter
+
+############################################################
+# Jason MAS specific handler
+############################################################
+jason.runtime.MASConsoleLogHandler.level = INFO
+jason.runtime.MASConsoleLogHandler.formatter = jason.runtime.MASConsoleLogFormatter
+jason.runtime.MASConsoleLogHandler.tabbed = false
+jason.runtime.MASConsoleLogHandler.colors = true
+
+############################################################
+# Silence other verbose loggers
+############################################################
+java.level = OFF
+javax.level = OFF
+sun.level = OFF
+jade.level = OFF
+"""
 
 def parse_variables(value: str, row_idx: int):
     """
