@@ -27,12 +27,18 @@ function selectType(id) {
 function selectInit(name) {
   activeInit = name; activeTypeId = null;
   renderInitNav(); renderMain();
+  if (name === 'network.csv') {
+    setTimeout(() => { drawNetPreview(); _setupResizeHandle(); initNetVirtScroll(); }, 50);
+  } else {
+    // Boot virtual scroll for generic initializers (messages.csv, public_profiles.csv, …)
+    setTimeout(() => initInitVirtScroll(name), 0);
+  }
 }
 
 function renderMain() {
   const panel = $('#main-panel');
 
- if (activeTypeId !== null) {
+  if (activeTypeId !== null) {
     const t = types.find(t => t.id === activeTypeId);
     if (t) {
       panel.innerHTML = buildAgentEditor(t);
@@ -45,6 +51,8 @@ function renderMain() {
     panel.innerHTML = buildInitEditor(activeInit);
     if (activeInit === 'network.csv') {
       setTimeout(() => { drawNetPreview(); _setupResizeHandle(); initNetVirtScroll(); }, 50);
+    } else {
+      setTimeout(() => initInitVirtScroll(activeInit), 0);
     }
     return;
   }
