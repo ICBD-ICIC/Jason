@@ -144,7 +144,7 @@ def generate():
     out_init_dir.mkdir(parents=True, exist_ok=True)
 
     # ── Copy / generate logging.properties ───────────────────────────────────────
-    logging_dst = BASE_DIR / "logging.properties"
+    logging_dst = out_dir / "logging.properties"
     logging_dst.write_text(
         _build_logging_properties(silent=silent_logging), encoding="utf-8"
     )

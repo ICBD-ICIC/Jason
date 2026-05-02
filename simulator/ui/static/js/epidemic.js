@@ -6,10 +6,14 @@ const STATES      = ['neutral', 'vaccinated', 'infected'];
 const STATE_COLOR = { neutral: '#3a4055', vaccinated: '#2de89a', infected: '#f5604a' };
 const STATE_LABEL = { neutral: 'Neutral', vaccinated: 'Vaccinated', infected: 'Infected' };
 
+// State index for canvas rendering
+const STATE_IDX = { neutral: 0, vaccinated: 1, infected: 2 };
+
 // ── Parse agent timelines ─────────────────────────────────────────────────────
 const agentNames = Object.keys(AGENTS_DATA);
 const N = agentNames.length;
 
+// Build sorted transition list per agent — same as before
 const agentTimelines = {};
 for (const name of agentNames) {
   const rows = AGENTS_DATA[name] || [];
@@ -25,8 +29,7 @@ for (const name of agentNames) {
 
 const allTimestamps = new Set();
 for (const name of agentNames) {
-  const rows = AGENTS_DATA[name] || [];
-  for (const row of rows) {
+  for (const row of AGENTS_DATA[name] || []) {
     if (row.timestamp != null) allTimestamps.add(row.timestamp);
   }
 }
@@ -42,22 +45,54 @@ const steps = subsample(sortedTimestamps, MAX_STEPS);
 const tMin = steps[0] ?? 0;
 const tMax = steps[steps.length - 1] ?? 1;
 
-// ── State at each step ────────────────────────────────────────────────────────
+// ── PERF: Binary-search getStateAt instead of linear scan ────────────────────
 function getStateAt(name, ts) {
   const tl = agentTimelines[name];
   if (!tl || !tl.length) return 'neutral';
-  let state = 'neutral';
-  for (const { timestamp, state: s } of tl) {
-    if (timestamp <= ts) state = s;
-    else break;
+  // Binary search for last entry with timestamp <= ts
+  let lo = 0, hi = tl.length - 1, result = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >>> 1;
+    if (tl[mid].timestamp <= ts) { result = mid; lo = mid + 1; }
+    else hi = mid - 1;
   }
-  return state;
+  return result === -1 ? 'neutral' : tl[result].state;
 }
 
-const stateCounts = steps.map(ts => {
+// ── PERF: Pre-build per-agent state snapshots for all steps ──────────────────
+// agentStepStates[agentIdx][stepIdx] = state string
+// This turns repeated getStateAt calls during playback into O(1) lookups.
+const agentStepStates = new Array(N);
+for (let ai = 0; ai < N; ai++) {
+  const name = agentNames[ai];
+  const tl   = agentTimelines[name];
+  const snap = new Array(steps.length);
+  let tlIdx  = -1;          // last tl entry applied
+  let cur    = 'neutral';
+  let nextTlIdx = 0;
+
+  for (let si = 0; si < steps.length; si++) {
+    const ts = steps[si];
+    // Advance timeline pointer while next entry is still <= ts
+    while (nextTlIdx < tl.length && tl[nextTlIdx].timestamp <= ts) {
+      cur = tl[nextTlIdx].state;
+      nextTlIdx++;
+    }
+    snap[si] = cur;
+  }
+  agentStepStates[ai] = snap;
+}
+
+// Fast lookup — replaces getStateAt for known step indices
+function getStateAtStep(agentIdx, stepIdx) {
+  return agentStepStates[agentIdx][stepIdx];
+}
+
+// ── Precompute state counts using snapshot array ──────────────────────────────
+const stateCounts = steps.map((_, si) => {
   const counts = { neutral: 0, vaccinated: 0, infected: 0 };
-  for (const name of agentNames) {
-    const s = getStateAt(name, ts);
+  for (let ai = 0; ai < N; ai++) {
+    const s = agentStepStates[ai][si];
     counts[s] = (counts[s] || 0) + 1;
   }
   return counts;
@@ -85,7 +120,7 @@ function init() {
   buildPieChart();
   buildGrowthChart();
   buildTransitionsTable();
-  buildAgentDotGrid();
+  buildAgentDotGrid();   // now canvas-based
   buildScrubber();
   initNetworkGraph();
   updateToStep(steps.length - 1);
@@ -329,21 +364,79 @@ function buildTransitionsTable() {
   }).join('');
 }
 
-// ── Agent dot grid ────────────────────────────────────────────────────────────
+// ── PERF: Canvas-based agent dot grid ─────────────────────────────────────────
+// Replaces 14k DOM elements with a single <canvas> draw call per step.
+
+let dotCanvas = null;
+let dotCtx    = null;
+// Pre-parse colors once as RGB arrays for fast canvas fillStyle setting
+const STATE_RGB = {
+  neutral:    [58,  64,  85],
+  vaccinated: [45, 232, 154],
+  infected:   [245, 96,  74],
+};
+
 function buildAgentDotGrid() {
-  const grid = document.getElementById('agent-dot-grid');
-  if (!grid) return;
-  grid.innerHTML = agentNames.map((name, i) =>
-    `<div class="agent-dot-cell neutral" id="dot-${i}" title="${name}" data-name="${name}"></div>`
-  ).join('');
+  const wrap = document.getElementById('agent-dot-grid');
+  if (!wrap) return;
+
+  // Replace the wrap contents with a canvas
+  wrap.innerHTML = '';
+  dotCanvas = document.createElement('canvas');
+  dotCanvas.style.display = 'block';
+  wrap.appendChild(dotCanvas);
+
+  // Initial draw will happen via updateDotGrid
 }
 
-function updateDotGrid(ts) {
-  for (let i = 0; i < agentNames.length; i++) {
-    const el = document.getElementById(`dot-${i}`);
-    if (!el) continue;
-    const s = getStateAt(agentNames[i], ts);
-    el.className = `agent-dot-cell ${s}`;
+function updateDotGrid(stepIdx) {
+  if (!dotCanvas) return;
+  const wrap = dotCanvas.parentElement;
+  if (!wrap) return;
+
+  const DOT  = 9;   // dot width/height in px
+  const GAP  = 3;   // gap between dots
+  const CELL = DOT + GAP;
+
+  const wrapW = wrap.clientWidth || 400;
+  const cols  = Math.max(1, Math.floor((wrapW + GAP) / CELL));
+  const rows  = Math.ceil(N / cols);
+
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = cols * CELL - GAP;
+  const cssH = rows * CELL - GAP;
+
+  dotCanvas.style.width  = cssW + 'px';
+  dotCanvas.style.height = cssH + 'px';
+  dotCanvas.width        = Math.round(cssW * dpr);
+  dotCanvas.height       = Math.round(cssH * dpr);
+
+  const ctx = dotCanvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, cssW, cssH);
+
+  // Draw all dots in one pass, batched by state color to minimize fillStyle changes
+  // First pass: group agent indices by state at this step
+  const groups = { neutral: [], vaccinated: [], infected: [] };
+  for (let ai = 0; ai < N; ai++) {
+    const s = agentStepStates[ai][stepIdx] || 'neutral';
+    groups[s].push(ai);
+  }
+
+  for (const [state, indices] of Object.entries(groups)) {
+    if (!indices.length) continue;
+    const [r, g, b] = STATE_RGB[state];
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    ctx.beginPath();
+    for (const ai of indices) {
+      const col = ai % cols;
+      const row = Math.floor(ai / cols);
+      const x   = col * CELL;
+      const y   = row * CELL;
+      // Rounded rect (DOT×DOT, radius 2)
+      ctx.roundRect(x, y, DOT, DOT, 2);
+    }
+    ctx.fill();
   }
 }
 
@@ -371,12 +464,12 @@ function buildMetricsPanel(stepIdx) {
   if (!container) return;
 
   container.innerHTML = [
-    { label: 'Infected now', val: inf.toLocaleString(), sub: ((inf/N)*100).toFixed(1)+'% of pop', cls: inf > 0 ? 'neg' : 'neu' },
+    { label: 'Infected now',   val: inf.toLocaleString(),  sub: ((inf/N)*100).toFixed(1)+'% of pop', cls: inf > 0 ? 'neg' : 'neu' },
     { label: 'Vaccinated now', val: vacc.toLocaleString(), sub: ((vacc/N)*100).toFixed(1)+'% of pop', cls: vacc > 0 ? 'pos' : 'neu' },
-    { label: 'Susceptible', val: neu.toLocaleString(), sub: ((neu/N)*100).toFixed(1)+'% of pop', cls: 'neu' },
+    { label: 'Susceptible',    val: neu.toLocaleString(),  sub: ((neu/N)*100).toFixed(1)+'% of pop', cls: 'neu' },
     { label: 'Peak infections', val: peak.toLocaleString(), sub: peakTime, cls: 'neg' },
-    { label: 'Attack rate', val: attackRate+'%', sub: 'infected or vacc', cls: parseFloat(attackRate) > 50 ? 'neg' : parseFloat(attackRate) > 20 ? 'neu' : 'pos' },
-    { label: 'Growth (Δ)', val: growthRate, sub: 'vs prev step', cls: (growthRate.startsWith('+') || growthRate.startsWith('∞')) ? 'neg' : 'pos' },
+    { label: 'Attack rate',    val: attackRate+'%', sub: 'infected or vacc', cls: parseFloat(attackRate) > 50 ? 'neg' : parseFloat(attackRate) > 20 ? 'neu' : 'pos' },
+    { label: 'Growth (Δ)',     val: growthRate, sub: 'vs prev step', cls: (growthRate.startsWith('+') || growthRate.startsWith('∞')) ? 'neg' : 'pos' },
   ].map(t => `
     <div class="metric-tile">
       <div class="metric-tile-label">${t.label}</div>
@@ -429,7 +522,7 @@ function updateToStep(idx) {
 
   updateStateCards(counts);
   updatePieChart(counts);
-  updateDotGrid(ts);
+  updateDotGrid(currentStep);   // pass step index, not timestamp
   updateScrubber(currentStep);
   updateStepBadge(currentStep);
   buildMetricsPanel(currentStep);
@@ -481,20 +574,15 @@ function fmtDateTime(ms) {
 // ── Network Graph (D3 force-directed) ────────────────────────────────────────
 // ════════════════════════════════════════════════════════════════════════════════
 
-// Build adjacency structures from NETWORK_DATA
-// NETWORK_DATA = { edges: [{source, target}], loaded: bool, error?: str }
-
 let netSvg = null;
 let netSim = null;
-let netG   = null;   // main group (pan/zoom target)
+let netG   = null;
 let netZoom = null;
-let netNodes = [];   // current D3 node objects (persisted for stable layout)
-let netEdges = [];   // current D3 link objects
+let netNodes = [];
+let netEdges = [];
 
-// Full edge list from CSV — stored as sets of string pairs
-let fullAdjacency = {};   // name → Set of nodes this agent follows (outgoing)
-let fullAdjacencyFollowers = {}; // name → Set of nodes that follow this agent (incoming)
-
+let fullAdjacency = {};
+let fullAdjacencyFollowers = {};
 
 function initNetworkGraph() {
   const svgEl = document.getElementById('net-svg');
@@ -510,16 +598,14 @@ function initNetworkGraph() {
     return;
   }
 
-  // Build adjacency map
   for (const { source, target } of NETWORK_DATA.edges) {
     const s = String(source), t = String(target);
     if (!fullAdjacency[s]) fullAdjacency[s] = new Set();
-    fullAdjacency[s].add(t);                              // s follows t
+    fullAdjacency[s].add(t);
     if (!fullAdjacencyFollowers[t]) fullAdjacencyFollowers[t] = new Set();
-    fullAdjacencyFollowers[t].add(s);                     // t is followed by s
+    fullAdjacencyFollowers[t].add(s);
   }
 
-  // Set up SVG + zoom
   netSvg = d3.select(svgEl);
   netG   = netSvg.append('g').attr('class', 'net-root');
 
@@ -528,26 +614,23 @@ function initNetworkGraph() {
     .on('zoom', e => netG.attr('transform', e.transform));
   netSvg.call(netZoom);
 
-  // Arrow marker defs
   const defs = netSvg.append('defs');
   ['infected', 'vaccinated', 'neutral'].forEach(state => {
-  defs.append('marker')
-      .attr('id', `arrow-${state}`)
-      .attr('viewBox', '0 -4 8 8')
-      .attr('refX', 18).attr('refY', 0)
-      .attr('markerWidth', 5).attr('markerHeight', 5)
-      .attr('orient', 'auto')
-      .append('path')
-        .attr('d', 'M0,-4L8,0L0,4')
-        .attr('fill', STATE_COLOR[state])
-        .attr('opacity', 0.6);
+    defs.append('marker')
+        .attr('id', `arrow-${state}`)
+        .attr('viewBox', '0 -4 8 8')
+        .attr('refX', 18).attr('refY', 0)
+        .attr('markerWidth', 5).attr('markerHeight', 5)
+        .attr('orient', 'auto')
+        .append('path')
+          .attr('d', 'M0,-4L8,0L0,4')
+          .attr('fill', STATE_COLOR[state])
+          .attr('opacity', 0.6);
   });
 
-  // Edge + node groups (edges behind nodes)
   netG.append('g').attr('class', 'net-links');
   netG.append('g').attr('class', 'net-nodes');
 
-  // Force simulation — created once, nodes/links replaced each update
   netSim = d3.forceSimulation()
     .force('link', d3.forceLink().id(d => d.id).distance(60).strength(0.4))
     .force('charge', d3.forceManyBody().strength(-120))
@@ -555,17 +638,13 @@ function initNetworkGraph() {
     .alphaDecay(0.04)
     .on('tick', netTick);
 
-  // Controls
   document.getElementById('net-show-neutral').addEventListener('change', () => updateNetworkGraph(steps[currentStep]));
   document.getElementById('net-show-labels').addEventListener('change', () => {
     netG.selectAll('.net-label').style('display', document.getElementById('net-show-labels').checked ? null : 'none');
   });
   document.getElementById('net-freeze-layout').addEventListener('change', e => {
-    if (e.target.checked) {
-      netSim.alphaTarget(0).stop();
-    } else {
-      netSim.alphaTarget(0.05).restart();
-    }
+    if (e.target.checked) netSim.alphaTarget(0).stop();
+    else netSim.alphaTarget(0.05).restart();
   });
 }
 
@@ -575,40 +654,32 @@ function updateNetworkGraph(ts) {
   const showNeutral = document.getElementById('net-show-neutral')?.checked ?? true;
   const showLabels  = document.getElementById('net-show-labels')?.checked ?? false;
 
-  // Current state map for all agents
+  // Use binary-search getStateAt for network graph (arbitrary ts, not snapped to step)
   const stateMap = {};
-  for (const name of agentNames) {
-    stateMap[name] = getStateAt(name, ts);
-  }
+  for (const name of agentNames) stateMap[name] = getStateAt(name, ts);
 
-  // Active nodes: infected + vaccinated agents
   const activeSet = new Set(agentNames.filter(n => stateMap[n] !== 'neutral'));
 
-  // find agents that follow the active nodes (incoming edges)
   const neighbourSet = new Set();
   if (showNeutral) {
     for (const active of activeSet) {
       for (const { source, target } of NETWORK_DATA.edges) {
-        if (String(target) === active && !activeSet.has(String(source))) {
-          neighbourSet.add(String(source));  // source follows active → show it
-        }
+        if (String(target) === active && !activeSet.has(String(source)))
+          neighbourSet.add(String(source));
       }
     }
   }
 
   const visibleSet = new Set([...activeSet, ...neighbourSet]);
 
-  // edges where source follows an active target
   const visibleEdges = NETWORK_DATA.edges.filter(({ source, target }) => {
     const s = String(source), t = String(target);
-    return visibleSet.has(s) && activeSet.has(t);  // follower → infected/vaccinated
+    return visibleSet.has(s) && activeSet.has(t);
   });
 
-  // Update stat
   const statEl = document.getElementById('net-stat');
   if (statEl) statEl.innerHTML = `<span>${visibleSet.size}</span> nodes · <span>${visibleEdges.length}</span> edges`;
 
-  // Empty state
   const emptyEl = document.getElementById('net-empty');
   if (!visibleSet.size) {
     if (emptyEl) { emptyEl.style.display = 'flex'; emptyEl.textContent = 'No infected or vaccinated agents at this step.'; }
@@ -619,7 +690,6 @@ function updateNetworkGraph(ts) {
   }
   if (emptyEl) emptyEl.style.display = 'none';
 
-  // Build node list — reuse existing positions for stability
   const oldNodeMap = new Map(netNodes.map(n => [n.id, n]));
   const newNodeData = [...visibleSet].map(id => {
     const old = oldNodeMap.get(id);
@@ -629,13 +699,11 @@ function updateNetworkGraph(ts) {
   });
   netNodes = newNodeData;
 
-  // Build link list
   const nodeIds = new Set(netNodes.map(n => n.id));
   netEdges = visibleEdges
     .map(({ source, target }) => ({ source: String(source), target: String(target) }))
     .filter(e => nodeIds.has(e.source) && nodeIds.has(e.target));
 
-  // ── D3 data join — Links ──────────────────────────────────────────────────
   const linkSel = netG.select('.net-links')
     .selectAll('line')
     .data(netEdges, d => `${d.source}-${d.target}`);
@@ -646,26 +714,22 @@ function updateNetworkGraph(ts) {
     .attr('stroke-width', 1.2)
     .attr('stroke-opacity', 0.55)
     .attr('marker-end', d => {
-        const srcState = stateMap[String(d.source)] || stateMap[String(d.source?.id)] || 'neutral';
-        const tgtState = stateMap[String(d.target)] || stateMap[String(d.target?.id)] || 'neutral';
-        const activeState = srcState !== 'neutral' ? srcState : tgtState;
-        return `url(#arrow-${activeState})`;
+      const srcState = stateMap[String(d.source)] || stateMap[String(d.source?.id)] || 'neutral';
+      const tgtState = stateMap[String(d.target)] || stateMap[String(d.target?.id)] || 'neutral';
+      return `url(#arrow-${srcState !== 'neutral' ? srcState : tgtState})`;
     });
 
   const linkMerge = linkEnter.merge(linkSel);
-
-  // Colour edges by the "active" end's state
   linkMerge.each(function(d) {
     const srcState = stateMap[String(d.source?.id ?? d.source)] || 'neutral';
     const tgtState = stateMap[String(d.target?.id ?? d.target)] || 'neutral';
     const activeState = srcState !== 'neutral' ? srcState : tgtState;
     d3.select(this)
-        .attr('stroke', STATE_COLOR[activeState] || '#5b8df6')
-        .attr('stroke-dasharray', activeState === 'neutral' ? '2,3' : '4,3')
-        .attr('marker-end', `url(#arrow-${activeState})`);
-    });
+      .attr('stroke', STATE_COLOR[activeState] || '#5b8df6')
+      .attr('stroke-dasharray', activeState === 'neutral' ? '2,3' : '4,3')
+      .attr('marker-end', `url(#arrow-${activeState})`);
+  });
 
-  // ── D3 data join — Nodes ──────────────────────────────────────────────────
   const nodeSel = netG.select('.net-nodes')
     .selectAll('g.net-node')
     .data(netNodes, d => d.id);
@@ -682,49 +746,32 @@ function updateNetworkGraph(ts) {
       .on('drag', (event, d) => { d.fx = event.x; d.fy = event.y; })
       .on('end', (event, d) => {
         if (!event.active) netSim.alphaTarget(0);
-        const freeze = document.getElementById('net-freeze-layout')?.checked;
-        if (!freeze) { d.fx = null; d.fy = null; }
+        if (!document.getElementById('net-freeze-layout')?.checked) { d.fx = null; d.fy = null; }
       })
     );
 
-  nodeEnter.append('circle')
-    .attr('r', d => d.isNeighbour ? 6 : 9)
-    .attr('stroke-width', 2);
-
-  nodeEnter.append('text')
-    .attr('class', 'net-label')
-    .attr('x', 12).attr('y', 4)
-    .attr('font-family', 'Space Mono, monospace')
-    .attr('font-size', '9px')
-    .attr('pointer-events', 'none');
-
-  // Tooltip
+  nodeEnter.append('circle').attr('r', d => d.isNeighbour ? 6 : 9).attr('stroke-width', 2);
+  nodeEnter.append('text').attr('class', 'net-label').attr('x', 12).attr('y', 4)
+    .attr('font-family', 'Space Mono, monospace').attr('font-size', '9px').attr('pointer-events', 'none');
   nodeEnter.append('title');
 
   const nodeMerge = nodeEnter.merge(nodeSel);
-
   nodeMerge.select('circle')
     .attr('r', d => d.isNeighbour ? 6 : 9)
     .attr('fill', d => STATE_COLOR[d.state] + (d.isNeighbour ? '55' : 'cc'))
     .attr('stroke', d => STATE_COLOR[d.state]);
-
   nodeMerge.select('text')
     .text(d => d.id)
     .style('display', showLabels ? null : 'none')
     .attr('fill', d => d.isNeighbour ? '#5b6080' : '#ccd6f0');
-
   nodeMerge.select('title')
     .text(d => `${d.id} · ${STATE_LABEL[d.state]}${d.isNeighbour ? ' (neighbour)' : ''}`);
 
-  // ── Update simulation ─────────────────────────────────────────────────────
   const svgEl = document.getElementById('net-svg');
   const W = svgEl.clientWidth  || 600;
   const H = svgEl.clientHeight || 460;
 
-  netSim
-    .nodes(netNodes)
-    .force('link').links(netEdges);
-
+  netSim.nodes(netNodes).force('link').links(netEdges);
   netSim
     .force('center', d3.forceCenter(W / 2, H / 2))
     .force('x', d3.forceX(W / 2).strength(0.03))
@@ -734,7 +781,6 @@ function updateNetworkGraph(ts) {
   if (!freeze) {
     netSim.alpha(0.4).restart();
   } else {
-    // Gently warm up just enough to place new nodes
     netSim.alpha(0.15).restart();
     setTimeout(() => netSim.alphaTarget(0).stop(), 1500);
   }
@@ -742,11 +788,8 @@ function updateNetworkGraph(ts) {
 
 function netTick() {
   netG.select('.net-links').selectAll('line')
-    .attr('x1', d => d.source.x)
-    .attr('y1', d => d.source.y)
-    .attr('x2', d => d.target.x)
-    .attr('y2', d => d.target.y);
-
+    .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+    .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
   netG.select('.net-nodes').selectAll('g.net-node')
     .attr('transform', d => `translate(${d.x},${d.y})`);
 }

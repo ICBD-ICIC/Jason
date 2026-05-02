@@ -305,9 +305,13 @@ def sample_threads_by_agents(list_dfs: list, num_agents: int,
 # ---------------------------------------------------------------------------
 
 def build_adjacency(pheme_path: Path, list_dfs: list,
+                    augmentation_dfs: list | None = None,
                     sampled_uids: set | None = None) -> dict:
     import networkx as nx
 
+    if augmentation_dfs is None:
+        augmentation_dfs = list_dfs
+        
     G = nx.DiGraph()
     list_themes = sorted([
         f for f in os.listdir(pheme_path) if (pheme_path / f).is_dir()
@@ -335,7 +339,7 @@ def build_adjacency(pheme_path: Path, list_dfs: list,
           f"({dat_count:,} lines read)")
 
     # G_full augmentation
-    for df in list_dfs:
+    for df in augmentation_dfs:
         source_rows = df[df["type_content"] == "source"]
         if source_rows.empty:
             continue
@@ -373,15 +377,9 @@ def build_adjacency(pheme_path: Path, list_dfs: list,
         print(f"[INFO] Computing reachability between {len(sampled_uids_str):,} "
               f"sampled agents over the full graph…")
 
-        for i, src in enumerate(sorted(sampled_uids_str), start=1):
-            if src not in G:
-                continue
-            reachable_sampled = nx.descendants(G, src) & sampled_uids_str
-            if reachable_sampled:
-                adj[src] = reachable_sampled
-            if i % 100 == 0 or i == len(sampled_uids_str):
-                print(f"  … {i:,}/{len(sampled_uids_str):,} nodes processed",
-                      flush=True)
+        for u, v in G.edges():
+            if str(u) in sampled_uids_str and str(v) in sampled_uids_str:
+                adj.setdefault(str(u), set()).add(str(v))
 
         n_edges = sum(len(vs) for vs in adj.values())
         print(f"[INFO] Reachability-based sampled network: "
@@ -581,7 +579,9 @@ def main():
         print(f"[INFO] Sampled UID set: {len(sampled_uids):,} unique agents.")
 
     print("[INFO] Building adjacency list…")
-    adj = build_adjacency(pheme_path, list_dfs, sampled_uids=sampled_uids)
+    adj = build_adjacency(pheme_path, list_dfs, 
+                          augmentation_dfs=selected_dfs,
+                          sampled_uids=sampled_uids)
     all_uids = (
         sampled_uids
         if sampled_uids is not None
