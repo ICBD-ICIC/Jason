@@ -59,7 +59,11 @@ idle_cycles(0).
 inactivity_limit(60).
 idle_limit_reached(false).
 
+!save_state.
 !start.
+
++!save_state: state(State) <-
+    ia.save_logs([state(State)]).
 
 +!start: true <-
     updateFeed(true).

@@ -468,7 +468,10 @@ def make_agent_probs_csv(thread_df: pd.DataFrame,
     Columns: agent, pinf, pmd, pad, popi, prd, state
     """
     initiator_uid = get_source_uid(thread_df)
-    sorted_agents = sorted(agent_map[uid] for uid in all_uids)
+    sorted_agents = sorted(
+        (agent_map[uid] for uid in all_uids),
+        key=lambda a: int(a.split("_")[-1])
+    )
     agent_to_uid  = {v: k for k, v in agent_map.items()}
 
     rows = []

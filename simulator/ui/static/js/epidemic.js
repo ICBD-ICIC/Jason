@@ -45,6 +45,8 @@ const steps = subsample(sortedTimestamps, MAX_STEPS);
 const tMin = steps[0] ?? 0;
 const tMax = steps[steps.length - 1] ?? 1;
 
+let netStateMap = {};
+
 // ── PERF: Binary-search getStateAt instead of linear scan ────────────────────
 function getStateAt(name, ts) {
   const tl = agentTimelines[name];
@@ -598,12 +600,22 @@ function initNetworkGraph() {
     return;
   }
 
-  for (const { source, target } of NETWORK_DATA.edges) {
-    const s = String(source), t = String(target);
-    if (!fullAdjacency[s]) fullAdjacency[s] = new Set();
-    fullAdjacency[s].add(t);
-    if (!fullAdjacencyFollowers[t]) fullAdjacencyFollowers[t] = new Set();
-    fullAdjacencyFollowers[t].add(s);
+  // FIXED: edges are { from, to } meaning from-agent follows to-agent.
+  // Build adjacency: followees[follower] = Set of agents they follow.
+  // Build reverse:  followers[followee] = Set of agents that follow them.
+  fullAdjacency = {};          // follower → Set<followee>
+  fullAdjacencyFollowers = {}; // followee → Set<follower>
+
+  for (const edge of NETWORK_DATA.edges) {
+    // Support both { from, to } and legacy { source, target }
+    const follower = String(edge.from ?? edge.source);
+    const followee = String(edge.to   ?? edge.target);
+
+    if (!fullAdjacency[follower])          fullAdjacency[follower]          = new Set();
+    if (!fullAdjacencyFollowers[followee]) fullAdjacencyFollowers[followee] = new Set();
+
+    fullAdjacency[follower].add(followee);
+    fullAdjacencyFollowers[followee].add(follower);
   }
 
   netSvg = d3.select(svgEl);
@@ -615,16 +627,18 @@ function initNetworkGraph() {
   netSvg.call(netZoom);
 
   const defs = netSvg.append('defs');
-  ['infected', 'vaccinated', 'neutral'].forEach(state => {
+  ['infected', 'vaccinated', 'neutral', 'susceptible'].forEach(state => {
     defs.append('marker')
         .attr('id', `arrow-${state}`)
         .attr('viewBox', '0 -4 8 8')
-        .attr('refX', 18).attr('refY', 0)
-        .attr('markerWidth', 5).attr('markerHeight', 5)
+        .attr('refX', 8)
+        .attr('refY', 0)
+        .attr('markerWidth', 5)
+        .attr('markerHeight', 5)
         .attr('orient', 'auto')
         .append('path')
           .attr('d', 'M0,-4L8,0L0,4')
-          .attr('fill', STATE_COLOR[state])
+          .attr('fill', state === 'susceptible' ? '#f5a623' : STATE_COLOR[state] ?? '#5b8df6')
           .attr('opacity', 0.6);
   });
 
@@ -638,9 +652,11 @@ function initNetworkGraph() {
     .alphaDecay(0.04)
     .on('tick', netTick);
 
-  document.getElementById('net-show-neutral').addEventListener('change', () => updateNetworkGraph(steps[currentStep]));
+  document.getElementById('net-show-neutral').addEventListener('change',
+    () => updateNetworkGraph(steps[currentStep]));
   document.getElementById('net-show-labels').addEventListener('change', () => {
-    netG.selectAll('.net-label').style('display', document.getElementById('net-show-labels').checked ? null : 'none');
+    netG.selectAll('.net-label')
+        .style('display', document.getElementById('net-show-labels').checked ? null : 'none');
   });
   document.getElementById('net-freeze-layout').addEventListener('change', e => {
     if (e.target.checked) netSim.alphaTarget(0).stop();
@@ -651,38 +667,78 @@ function initNetworkGraph() {
 function updateNetworkGraph(ts) {
   if (!netSim || !netSvg) return;
 
-  const showNeutral = document.getElementById('net-show-neutral')?.checked ?? true;
-  const showLabels  = document.getElementById('net-show-labels')?.checked ?? false;
+  const showLabels = document.getElementById('net-show-labels')?.checked ?? false;
 
-  // Use binary-search getStateAt for network graph (arbitrary ts, not snapped to step)
-  const stateMap = {};
-  for (const name of agentNames) stateMap[name] = getStateAt(name, ts);
+  // ── 1. Snapshot current state for every agent ──────────────────────────────
+  netStateMap = {};
+  for (const name of agentNames) netStateMap[name] = getStateAt(name, ts);
 
-  const activeSet = new Set(agentNames.filter(n => stateMap[n] !== 'neutral'));
+  // ── 2. Classify nodes ──────────────────────────────────────────────────────
+  // Active = infected or vaccinated
+  const activeSet = new Set(agentNames.filter(n =>
+    netStateMap[n] === 'infected' || netStateMap[n] === 'vaccinated'
+  ));
 
-  const neighbourSet = new Set();
-  if (showNeutral) {
-    for (const active of activeSet) {
-      for (const { source, target } of NETWORK_DATA.edges) {
-        if (String(target) === active && !activeSet.has(String(source)))
-          neighbourSet.add(String(source));
-      }
+  // FIXED: A neutral node is susceptible if it *follows* (from→to) at least
+  // one active node — i.e. it appears as a follower of an active node.
+  const susceptibleSet = new Set();
+  for (const activeId of activeSet) {
+    // Who follows this active node?
+    const followers = fullAdjacencyFollowers[activeId];
+    if (!followers) continue;
+    for (const follower of followers) {
+      if (!activeSet.has(follower)) susceptibleSet.add(follower);
     }
   }
 
-  const visibleSet = new Set([...activeSet, ...neighbourSet]);
+  // ── 3. Decide which nodes are visible ─────────────────────────────────────
+  // Always show: all active nodes + all susceptible nodes.
+  // (The "show neutral" toggle no longer has a role for susceptibles since
+  //  susceptibility IS the criterion; you can repurpose it if desired.)
+  const visibleSet = new Set([...activeSet, ...susceptibleSet]);
 
-  const visibleEdges = NETWORK_DATA.edges.filter(({ source, target }) => {
-    const s = String(source), t = String(target);
-    return visibleSet.has(s) && activeSet.has(t);
-  });
+  // ── 4. Decide which edges are visible ─────────────────────────────────────
+  // Show an edge (follower → followee) when:
+  //   (a) BOTH endpoints are active  — edges within the active cluster
+  //   (b) follower is susceptible AND followee is active  — the exposure edge
+  // Arrow direction mirrors the follow relationship: follower → followee.
+  const visibleEdges = [];
+  for (const edge of NETWORK_DATA.edges) {
+    const follower = String(edge.from ?? edge.source);
+    const followee = String(edge.to   ?? edge.target);
 
+    const followerActive      = activeSet.has(follower);
+    const followeeActive      = activeSet.has(followee);
+    const followerSusceptible = susceptibleSet.has(follower);
+
+    // Case (a): both active
+    if (followerActive && followeeActive) {
+      visibleEdges.push({ follower, followee });
+      continue;
+    }
+    // Case (b): susceptible follower → active followee (the exposure link)
+    if (followerSusceptible && followeeActive) {
+      visibleEdges.push({ follower, followee });
+    }
+    // Edges where the followee is susceptible and follower is active are NOT
+    // shown — following an infected node creates exposure, not the reverse.
+  }
+
+  // ── 5. Stats banner ────────────────────────────────────────────────────────
   const statEl = document.getElementById('net-stat');
-  if (statEl) statEl.innerHTML = `<span>${visibleSet.size}</span> nodes · <span>${visibleEdges.length}</span> edges`;
+  if (statEl) {
+    statEl.innerHTML =
+      `<span>${activeSet.size}</span> active · ` +
+      `<span>${susceptibleSet.size}</span> susceptible · ` +
+      `<span>${visibleEdges.length}</span> edges`;
+  }
 
   const emptyEl = document.getElementById('net-empty');
   if (!visibleSet.size) {
-    if (emptyEl) { emptyEl.style.display = 'flex'; emptyEl.textContent = 'No infected or vaccinated agents at this step.'; }
+    if (emptyEl) {
+      emptyEl.style.display = 'flex';
+      emptyEl.textContent = 'No infected or vaccinated agents at this step.';
+    }
     netG.select('.net-links').selectAll('*').remove();
     netG.select('.net-nodes').selectAll('*').remove();
     netSim.stop();
@@ -690,19 +746,24 @@ function updateNetworkGraph(ts) {
   }
   if (emptyEl) emptyEl.style.display = 'none';
 
+  // ── 6. Build node data, preserving x/y positions ──────────────────────────
   const oldNodeMap = new Map(netNodes.map(n => [n.id, n]));
-  const newNodeData = [...visibleSet].map(id => {
+  netNodes = [...visibleSet].map(id => {
     const old = oldNodeMap.get(id);
+    const state = activeSet.has(id) ? netStateMap[id] : 'susceptible';
     return old
-      ? { ...old, state: stateMap[id] || 'neutral', isNeighbour: neighbourSet.has(id) }
-      : { id, state: stateMap[id] || 'neutral', isNeighbour: neighbourSet.has(id) };
+      ? { ...old, state, isSusceptible: susceptibleSet.has(id) }
+      : { id,     state, isSusceptible: susceptibleSet.has(id) };
   });
-  netNodes = newNodeData;
 
   const nodeIds = new Set(netNodes.map(n => n.id));
+  // Store as { source: follower, target: followee } so D3 link force resolves them
   netEdges = visibleEdges
-    .map(({ source, target }) => ({ source: String(source), target: String(target) }))
-    .filter(e => nodeIds.has(e.source) && nodeIds.has(e.target));
+    .filter(e => nodeIds.has(e.follower) && nodeIds.has(e.followee))
+    .map(e => ({ source: e.follower, target: e.followee }));
+
+  // ── 7. Render links ────────────────────────────────────────────────────────
+  const SUSCEPTIBLE_COLOR = '#f5a623';
 
   const linkSel = netG.select('.net-links')
     .selectAll('line')
@@ -712,24 +773,27 @@ function updateNetworkGraph(ts) {
 
   const linkEnter = linkSel.enter().append('line')
     .attr('stroke-width', 1.2)
-    .attr('stroke-opacity', 0.55)
-    .attr('marker-end', d => {
-      const srcState = stateMap[String(d.source)] || stateMap[String(d.source?.id)] || 'neutral';
-      const tgtState = stateMap[String(d.target)] || stateMap[String(d.target?.id)] || 'neutral';
-      return `url(#arrow-${srcState !== 'neutral' ? srcState : tgtState})`;
-    });
+    .attr('stroke-opacity', 0.55);
 
   const linkMerge = linkEnter.merge(linkSel);
+
   linkMerge.each(function(d) {
-    const srcState = stateMap[String(d.source?.id ?? d.source)] || 'neutral';
-    const tgtState = stateMap[String(d.target?.id ?? d.target)] || 'neutral';
-    const activeState = srcState !== 'neutral' ? srcState : tgtState;
+    // After simulation runs, d.source/d.target become node objects
+    const followeeId    = typeof d.target === 'object' ? d.target.id : String(d.target);
+    const followeeState = activeSet.has(followeeId) ? netStateMap[followeeId] : 'susceptible';
+    const strokeColor   = activeSet.has(followeeId)
+      ? (STATE_COLOR[followeeState] ?? '#5b8df6')
+      : SUSCEPTIBLE_COLOR;
+
     d3.select(this)
-      .attr('stroke', STATE_COLOR[activeState] || '#5b8df6')
-      .attr('stroke-dasharray', activeState === 'neutral' ? '2,3' : '4,3')
-      .attr('marker-end', `url(#arrow-${activeState})`);
+      .attr('stroke',           strokeColor)
+      .attr('stroke-dasharray', susceptibleSet.has(
+        typeof d.source === 'object' ? d.source.id : String(d.source)
+      ) ? '4,3' : null)
+      .attr('marker-end', `url(#arrow-${followeeState})`);
   });
 
+  // ── 8. Render nodes ────────────────────────────────────────────────────────
   const nodeSel = netG.select('.net-nodes')
     .selectAll('g.net-node')
     .data(netNodes, d => d.id);
@@ -746,27 +810,43 @@ function updateNetworkGraph(ts) {
       .on('drag', (event, d) => { d.fx = event.x; d.fy = event.y; })
       .on('end', (event, d) => {
         if (!event.active) netSim.alphaTarget(0);
-        if (!document.getElementById('net-freeze-layout')?.checked) { d.fx = null; d.fy = null; }
+        if (!document.getElementById('net-freeze-layout')?.checked) {
+          d.fx = null; d.fy = null;
+        }
       })
     );
 
-  nodeEnter.append('circle').attr('r', d => d.isNeighbour ? 6 : 9).attr('stroke-width', 2);
-  nodeEnter.append('text').attr('class', 'net-label').attr('x', 12).attr('y', 4)
-    .attr('font-family', 'Space Mono, monospace').attr('font-size', '9px').attr('pointer-events', 'none');
+  nodeEnter.append('circle').attr('stroke-width', 2);
+  nodeEnter.append('text')
+    .attr('class', 'net-label')
+    .attr('x', 12).attr('y', 4)
+    .attr('font-family', 'Space Mono, monospace')
+    .attr('font-size', '9px')
+    .attr('pointer-events', 'none');
   nodeEnter.append('title');
 
   const nodeMerge = nodeEnter.merge(nodeSel);
+
   nodeMerge.select('circle')
-    .attr('r', d => d.isNeighbour ? 6 : 9)
-    .attr('fill', d => STATE_COLOR[d.state] + (d.isNeighbour ? '55' : 'cc'))
-    .attr('stroke', d => STATE_COLOR[d.state]);
+    .attr('r', d => d.isSusceptible ? 6 : 9)
+    .attr('fill', d => {
+      if (d.isSusceptible) return SUSCEPTIBLE_COLOR + '55';
+      return STATE_COLOR[d.state] + 'cc';
+    })
+    .attr('stroke', d => d.isSusceptible ? SUSCEPTIBLE_COLOR : STATE_COLOR[d.state]);
+
   nodeMerge.select('text')
     .text(d => d.id)
     .style('display', showLabels ? null : 'none')
-    .attr('fill', d => d.isNeighbour ? '#5b6080' : '#ccd6f0');
-  nodeMerge.select('title')
-    .text(d => `${d.id} · ${STATE_LABEL[d.state]}${d.isNeighbour ? ' (neighbour)' : ''}`);
+    .attr('fill', d => d.isSusceptible ? '#a08030' : '#ccd6f0');
 
+  nodeMerge.select('title')
+    .text(d => {
+      const role = d.isSusceptible ? 'susceptible' : STATE_LABEL[d.state] ?? d.state;
+      return `${d.id} · ${role}`;
+    });
+
+  // ── 9. Restart simulation ──────────────────────────────────────────────────
   const svgEl = document.getElementById('net-svg');
   const W = svgEl.clientWidth  || 600;
   const H = svgEl.clientHeight || 460;
@@ -786,10 +866,61 @@ function updateNetworkGraph(ts) {
   }
 }
 
+// netTick stays exactly the same, but update the state lookup for susceptibles:
 function netTick() {
   netG.select('.net-links').selectAll('line')
-    .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
-    .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+    .each(function(d) {
+      const sx = d.source.x, sy = d.source.y;
+      const tx = d.target.x, ty = d.target.y;
+      const dx = tx - sx, dy = ty - sy;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+
+      const targetR   = d.target.isSusceptible ? 6 : 9;
+      const sourceR   = d.source.isSusceptible ? 6 : 9;
+      const ARROW_PAD = 5;
+      const tOff = (targetR + ARROW_PAD) / len;
+      const sOff = sourceR / len;
+
+      // Arrow color follows the followee (target)
+      const followeeState = d.target.isSusceptible ? 'susceptible'
+        : (netStateMap[d.target.id] || 'neutral');
+
+      d3.select(this)
+        .attr('x1', sx + dx * sOff)
+        .attr('y1', sy + dy * sOff)
+        .attr('x2', tx - dx * tOff)
+        .attr('y2', ty - dy * tOff)
+        .attr('marker-end', `url(#arrow-${followeeState})`);
+    });
+
+  netG.select('.net-nodes').selectAll('g.net-node')
+    .attr('transform', d => `translate(${d.x},${d.y})`);
+}
+
+function netTick() {
+  netG.select('.net-links').selectAll('line')
+    .each(function(d) {
+      const sx = d.source.x, sy = d.source.y;
+      const tx = d.target.x, ty = d.target.y;
+      const dx = tx - sx, dy = ty - sy;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+
+      // Pull endpoint back to circle circumference + 4px for arrowhead
+      const targetR  = d.target.isNeighbour ? 6 : 9;
+      const sourceR  = d.source.isNeighbour ? 6 : 9;
+      const ARROW_PAD = 5;   // extra gap so head doesn't overlap fill
+      const tOff = (targetR + ARROW_PAD) / len;
+      const sOff = sourceR / len;
+
+      const tgtState = netStateMap[d.target.id] || 'neutral';
+      d3.select(this)
+        .attr('x1', sx + dx * sOff)
+        .attr('y1', sy + dy * sOff)
+        .attr('x2', tx - dx * tOff)
+        .attr('y2', ty - dy * tOff)
+        .attr('marker-end', `url(#arrow-${tgtState})`);
+    });
+
   netG.select('.net-nodes').selectAll('g.net-node')
     .attr('transform', d => `translate(${d.x},${d.y})`);
 }
