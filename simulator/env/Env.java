@@ -5,6 +5,7 @@ import static jason.asSyntax.ASSyntax.*;
 import jason.environment.Environment;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 import lib.JasonToJavaTranslator;
 import lib.JavaToJasonTranslator;
@@ -18,7 +19,7 @@ public class Env extends Environment {
     // private final ContentManager contentManager = new DefaultContentManager(networkManager);
     private final ContentManager contentManager = new CoNVaIContentManager(networkManager);
     private final KnowledgeManager knowledgeManager = new DefaultKnowledgeManager();
-    private final Map<String, Map<String, Object>> publicProfiles = new HashMap<>();
+    private final Map<String, Map<String, Object>> publicProfiles = new ConcurrentHashMap<>();
 
     @Override
     public void init(String[] args) {

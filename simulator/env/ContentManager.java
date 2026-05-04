@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.concurrent.ConcurrentHashMap;
 
 public abstract class ContentManager {
 
@@ -39,6 +40,8 @@ public abstract class ContentManager {
 
     private static final String       LOG_FILE = "logs/messages.jsonl";
     private static final ObjectMapper mapper   = new ObjectMapper();
+
+    private static final Object LOG_LOCK = new Object();
 
     public ContentManager(NetworkManager networkManager) {
         this.networkManager = networkManager;
@@ -139,9 +142,7 @@ public abstract class ContentManager {
     private void save_logs(Message message, MessageCreationParams params) {
         try {
             File dir = new File("logs");
-            if (!dir.exists()) {
-                dir.mkdirs();
-            }
+            if (!dir.exists()) dir.mkdirs();
 
             Map<String, Object> log = new LinkedHashMap<>();
 
@@ -163,13 +164,14 @@ public abstract class ContentManager {
             }
             msg.put("reactions", reactionsList);
             log.put("message",   msg);
-
             log.put("topics",    params.topics());
             log.put("variables", params.variables());
 
-            try (FileWriter file = new FileWriter(LOG_FILE, true)) {
-                file.write(mapper.writeValueAsString(log));
-                file.write(System.lineSeparator());
+            synchronized (LOG_LOCK) {
+                try (FileWriter file = new FileWriter(LOG_FILE, true)) {
+                    file.write(mapper.writeValueAsString(log));
+                    file.write(System.lineSeparator());
+                }
             }
         } catch (IOException e) {
             System.err.println("[ContentManager] Logging failed: " + e.getMessage());

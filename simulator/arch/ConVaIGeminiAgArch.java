@@ -27,7 +27,7 @@ import java.util.*;
  */
 public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
 
-    private final GeminiClient gemini = new GeminiClient();
+    private static final GeminiClient gemini = new GeminiClient();
 
     // ----------------------------------------------------------------
     // SocialAgArch — interpretContent

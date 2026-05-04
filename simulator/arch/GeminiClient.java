@@ -2,34 +2,34 @@ package arch;
 
 import com.google.genai.Client;
 import com.google.genai.types.GenerateContentResponse;
+import java.util.concurrent.Semaphore;
 
-/**
- * Thin wrapper around the Gemini API.
- *
- * Owns the Client lifecycle and retry logic so that agent
- * architectures only need to build prompts and parse responses.
- */
 public class GeminiClient {
 
     public static final String MODEL = "gemini-2.5-flash";
 
-    private static final int  MAX_RETRIES = 3;
+    private static final int MAX_RETRIES  = 3;
     private static final long RETRY_DELAY = 1000L;
 
-    private final Client client = new Client();
+    // Shared across ALL agents — one client, limited concurrency
+    private static final Client    client      = new Client();
+    private static final Semaphore semaphore   = new Semaphore(10); // max 10 concurrent Gemini calls
 
-    /**
-     * Sends a prompt to Gemini and returns the raw text response.
-     * Retries up to MAX_RETRIES times on transient failures.
-     * Returns an empty string if all attempts fail.
-     */
     public String getResponse(String prompt) {
         int attempt = 0;
         while (attempt < MAX_RETRIES) {
             try {
-                GenerateContentResponse response =
-                    client.models.generateContent(MODEL, prompt, null);
-                return response.text();
+                semaphore.acquire();  // wait for a slot — does NOT block the thread pool permanently
+                try {
+                    GenerateContentResponse response =
+                        client.models.generateContent(MODEL, prompt, null);
+                    return response.text();
+                } finally {
+                    semaphore.release();  // always release, even on exception
+                }
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                return "";
             } catch (Exception e) {
                 attempt++;
                 System.err.println("[GeminiClient] Error (attempt " + attempt + "): " + e.getMessage());
@@ -37,9 +37,7 @@ public class GeminiClient {
                     System.err.println("[GeminiClient] Max retries reached. Returning empty string.");
                     return "";
                 }
-                try {
-                    Thread.sleep(RETRY_DELAY);
-                } catch (InterruptedException ie) {
+                try { Thread.sleep(RETRY_DELAY); } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
                     return "";
                 }

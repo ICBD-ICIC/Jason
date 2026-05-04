@@ -1,6 +1,7 @@
 package env;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class NetworkManager {
     public static class Edge {
@@ -36,7 +37,7 @@ public class NetworkManager {
 
     private static final double DEFAULT_WEIGHT = 1;
 
-    private final Set<Edge> socialNetwork = Collections.synchronizedSet(new HashSet<>());
+    private final Set<Edge> socialNetwork = ConcurrentHashMap.newKeySet();
 
     //If already exists, it will be ignored.
     public void addEdge(String from, String to, double weight) {

@@ -261,17 +261,12 @@ def sample_threads_by_agents(list_dfs: list, num_agents: int,
 # ---------------------------------------------------------------------------
 
 def build_adjacency(pheme_path: Path, list_dfs: list) -> dict:
-    """
-    Returns {uid: set(neighbour_uids)}.
-
-    Mirrors the notebook exactly:
-    1. Concatenate all who-follows-whom.dat files across every thread and
-       theme into one edge list (follower_id followed_id per line).
-    2. Augment with G_full logic: for every thread, if a participant has no
-       existing path to the source author, add a directed edge
-       participant -> source_author.
-    """
     import networkx as nx
+
+    # Only nodes that actually appear in the sampled threads
+    sampled_uids = set()
+    for df in list_dfs:
+        sampled_uids |= get_thread_uids(df)
 
     G = nx.DiGraph()
     list_themes = sorted([
@@ -292,8 +287,10 @@ def build_adjacency(pheme_path: Path, list_dfs: list) -> dict:
                 for line in f:
                     parts = line.strip().split()
                     if len(parts) >= 2:
-                        G.add_edge(parts[0], parts[1])
-                        dat_count += 1
+                        u, v = parts[0], parts[1]
+                        if u in sampled_uids and v in sampled_uids:  # ← NEW
+                            G.add_edge(u, v)
+                            dat_count += 1
 
     print(f"[INFO] Base graph from who-follows-whom.dat: "
           f"{G.number_of_nodes():,} nodes, {G.number_of_edges():,} edges "
@@ -525,7 +522,7 @@ def main():
 
     # --------------------------------------------------- global adjacency list
     print("[INFO] Building adjacency list from full dataset...")
-    adj = build_adjacency(pheme_path, list_dfs)
+    adj = build_adjacency(pheme_path, selected_dfs)
     all_uids = set(adj.keys()) | {nb for nbs in adj.values() for nb in nbs}
     print(f"[INFO] Network: {len(all_uids):,} nodes, {len(adj):,} source rows")
 
@@ -537,7 +534,7 @@ def main():
 
     # --------------------------------------------------- global user influences
     print("[INFO] Computing user influence scores from full dataset...")
-    pusr_lookup = compute_pusr(list_dfs)
+    pusr_lookup = compute_pusr(selected_dfs)
     print(f"[INFO] Pusr computed for {len(pusr_lookup):,} users.")
 
     output_dir.mkdir(parents=True, exist_ok=True)
