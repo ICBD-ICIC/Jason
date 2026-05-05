@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.nio.file.*;
 import java.util.List;
 import java.util.Optional;
+import java.util.logging.Logger;
 
 public class CsvLoader {
 
@@ -18,16 +19,16 @@ public class CsvLoader {
      *
      * All columns are read as strings. Missing cells are treated as empty strings.
      */
-    public static Optional<Table> load(String csvPath, List<String> requiredColumns) throws IOException {
+    public static Optional<Table> load(String csvPath, List<String> requiredColumns, Logger logger) throws IOException {
         Path path = Path.of(csvPath);
 
         if (!Files.exists(path)) {
-            System.out.println("[CsvLoader] File '" + csvPath + "' not found. Skipping.");
+            logger.warning("[CsvLoader] File '" + csvPath + "' not found. Skipping.");
             return Optional.empty();
         }
 
         if (Files.size(path) == 0) {
-            System.out.println("[CsvLoader] File '" + csvPath + "' is empty. Skipping.");
+            logger.info("[CsvLoader] File '" + csvPath + "' is empty. Skipping.");
             return Optional.empty();
         }
 
@@ -39,7 +40,7 @@ public class CsvLoader {
         );
 
         if (table.rowCount() == 0) {
-            System.out.println("[CsvLoader] File '" + csvPath + "' has no data rows. Skipping.");
+            logger.info("[CsvLoader] File '" + csvPath + "' has no data rows. Skipping.");
             return Optional.empty();
         }
 

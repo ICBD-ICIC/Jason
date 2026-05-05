@@ -1,7 +1,9 @@
 package arch;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 public class SharedInterpretationCache {
@@ -12,8 +14,10 @@ public class SharedInterpretationCache {
     private static final int MAX_SIZE = 10_000;
 
     public static Map<String, Object> get(
-            String content,
+            String content,                                    // FIX: renamed param was never used; introduce local 'key'
             Function<String, Map<String, Object>> loader) {
+
+        String key = content;                                  // FIX: 'key' was referenced but never declared
 
         CompletableFuture<Map<String, Object>> existing = cache.get(key);
         if (existing != null) {
@@ -43,7 +47,7 @@ public class SharedInterpretationCache {
 
     private static void evictIfNeeded() {
         if (cache.size() > MAX_SIZE) {
-            AtomicInteger toRemove = new AtomicInteger(MAX_SIZE / 10);
+            AtomicInteger toRemove = new AtomicInteger(MAX_SIZE / 10); // FIX: AtomicInteger now imported
             cache.keys().asIterator().forEachRemaining(k -> {
                 if (toRemove.getAndDecrement() > 0) cache.remove(k);
             });
@@ -51,6 +55,6 @@ public class SharedInterpretationCache {
     }
 
     private static Map<String, Object> fallback() {
-        return Map.of("pnov", 0.0, "prpl", 0.0, "pnw", 0.0, "topics", List.of());
+        return Map.of("pnov", 0.0, "prpl", 0.0, "pnw", 0.0, "topics", List.of()); // FIX: List now imported
     }
 }

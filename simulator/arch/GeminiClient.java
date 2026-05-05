@@ -3,53 +3,70 @@ package arch;
 import com.google.genai.Client;
 import com.google.genai.types.GenerateContentResponse;
 import java.util.concurrent.Semaphore;
+import java.util.logging.Logger;
 
 public class GeminiClient {
 
-    public static final String MODEL = "gemini-2.5-flash";
+    public static final String MODEL = "gemini-2.0-flash-lite";
 
     private static final int MAX_RETRIES  = 3;
     private static final long RETRY_DELAY = 1000L;
 
     // Shared across ALL agents — one client, limited concurrency
-    private static final Client    client      = new Client();
-    private static final Semaphore semaphore   = new Semaphore(500); // max 500 concurrent Gemini calls
+    private static final Client    client    = new Client();
+    private static final Semaphore semaphore = new Semaphore(500); // max 500 concurrent Gemini calls
 
-    private static final GenerateContentConfig CONFIG_ANALYTICAL = GenerateContentConfig.builder()
+    private static final Logger logger = Logger.getLogger(GeminiClient.class.getName());
+
+    public static final GenerateContentConfig CONFIG_ANALYTICAL = GenerateContentConfig.builder()
         .temperature(0.0f)
         .build();
 
-    private static final GenerateContentConfig CONFIG_CREATIVE = GenerateContentConfig.builder()
+    public static final GenerateContentConfig CONFIG_CREATIVE = GenerateContentConfig.builder()
         .temperature(0.8f)
         .build();
 
     public String getResponse(String prompt) {
-        return getResponse(prompt, CONFIG_ANALYTICAL); // safe default
+        return getResponse(prompt, CONFIG_ANALYTICAL); 
     }
 
     public String getResponse(String prompt, GenerateContentConfig config) {
         int attempt = 0;
         while (attempt < MAX_RETRIES) {
             try {
-                semaphore.acquire();  // wait for a slot — does NOT block the thread pool permanently
+                semaphore.acquire();
                 try {
                     GenerateContentResponse response =
                         client.models.generateContent(MODEL, prompt, config);
                     return response.text();
                 } finally {
-                    semaphore.release();  // always release, even on exception
+                    semaphore.release();
                 }
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
                 return "";
             } catch (Exception e) {
                 attempt++;
-                System.err.println("[GeminiClient] Error (attempt " + attempt + "): " + e.getMessage());
+                String msg = e.getMessage() != null ? e.getMessage() : "";
+                boolean isRateLimit = msg.contains("429") || msg.toLowerCase().contains("quota");
+
                 if (attempt >= MAX_RETRIES) {
-                    System.err.println("[GeminiClient] Max retries reached. Returning empty string.");
+                    logger.severe("[GeminiClient] Max retries reached.");
                     return "";
                 }
-                try { Thread.sleep(RETRY_DELAY); } catch (InterruptedException ie) {
+
+                long delay;
+                if (isRateLimit) {
+                    // Exponential backoff capped at 60s — no need to sleep a full minute
+                    // at 4k RPM the window resets in 60s, so 15s → 30s → 60s is enough
+                    delay = Math.min(15_000L * (1L << (attempt - 1)), 60_000L);
+                    logger.warning("[GeminiClient] Rate limited. Waiting " + delay + "ms...");
+                } else {
+                    delay = RETRY_DELAY * attempt; // linear backoff for transient errors
+                    logger.warning("[GeminiClient] Error (attempt " + attempt + "): " + msg);
+                }
+
+                try { Thread.sleep(delay); } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
                     return "";
                 }

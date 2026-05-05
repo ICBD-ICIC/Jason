@@ -3,6 +3,7 @@ package initializer;
 import tech.tablesaw.api.*;
 import java.io.IOException;
 import java.util.*;
+import java.util.logging.Logger;
 
 public class PublicProfileLoader {
 
@@ -17,10 +18,11 @@ public class PublicProfileLoader {
      *
      * @param publicProfiles the map used to save the pairs attribute-value for each agent
      * @param csvPath path to the CSV file to load, following the specified rules
+     * @param logger the logger to use for logging messages
      * @throws IOException if the file cannot be read, a row is malformed, or a referential constraint is violated
      */
-    public static void load(Map<String, Map<String, Object>> publicProfiles, String csvPath) throws IOException {
-        Optional<Table> result = CsvLoader.load(csvPath, List.of("agent", "attribute", "value"));
+    public static void load(Map<String, Map<String, Object>> publicProfiles, String csvPath, Logger logger) throws IOException {
+        Optional<Table> result = CsvLoader.load(csvPath, List.of("agent", "attribute", "value"), logger);
         if (result.isEmpty()) return;
         Table table = result.get();
 

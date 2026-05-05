@@ -8,6 +8,7 @@ import jason.environment.Environment;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.logging.Logger;
 
 import env.NetworkManager;
 
@@ -26,10 +27,11 @@ public class NetworkLoader {
      * @param networkManager the network used to register links/edges
      * @param env            the Jason environment used to inject agent percepts
      * @param csvPath        path to the CSV file to load
+     * @param logger         the logger used to log messages
      * @throws IOException if the file cannot be read or a row is malformed
      */
-    public static void load(NetworkManager networkManager, Environment env, String csvPath) throws IOException {
-        Optional<Table> result = CsvLoader.load(csvPath, List.of("from", "to", "weight"));
+    public static void load(NetworkManager networkManager, Environment env, String csvPath, Logger logger) throws IOException {
+        Optional<Table> result = CsvLoader.load(csvPath, List.of("from", "to", "weight"), logger);
         if (result.isEmpty()) return;
         Table table = result.get();
 

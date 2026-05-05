@@ -6,6 +6,7 @@ import tech.tablesaw.io.csv.CsvReadOptions;
 import java.io.IOException;
 import java.util.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.logging.Logger;
 
 import env.ContentManager;
 import env.Message;
@@ -32,10 +33,11 @@ public class MessageLoader {
      *
      * @param contentManager the content manager used to register messages, reposts, and reactions
      * @param csvPath path to the CSV file to load, following the specified rules
+     * @param logger the logger to use for logging messages
      * @throws IOException if the file cannot be read, a row is malformed, or a referential constraint is violated
      */
-    public static void load(ContentManager contentManager, String csvPath) throws IOException {
-        Optional<Table> result = CsvLoader.load(csvPath, List.of("id", "author", "content", "reactions", "original", "topics", "variables"));
+    public static void load(ContentManager contentManager, String csvPath, Logger logger) throws IOException {
+        Optional<Table> result = CsvLoader.load(csvPath, List.of("id", "author", "content", "reactions", "original", "topics", "variables"), logger);
         if (result.isEmpty()) return;
         Table table = result.get();
         

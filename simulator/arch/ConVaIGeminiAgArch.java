@@ -5,6 +5,7 @@ import jason.asSyntax.*;
 import lib.JasonToJavaTranslator;
 
 import java.util.*;
+import java.util.stream.Collectors; // FIX: missing import for Collectors.joining()
 
 /**
  * CoNVaI agent architecture.
@@ -28,6 +29,10 @@ import java.util.*;
 public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
 
     private static final GeminiClient gemini = new GeminiClient();
+
+    // FIX: ObjectMapper declared as a static field instead of being re-instantiated on every parse call
+    private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER =
+        new com.fasterxml.jackson.databind.ObjectMapper();
 
     // ----------------------------------------------------------------
     // SocialAgArch — interpretContent
@@ -53,13 +58,14 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
             + "\u0000"
             + past.stream()
                 .map(m -> m.strip().replaceAll("\\s+", " "))
-                .collect(Collectors.joining("\u0000"));
+                .collect(Collectors.joining("\u0000")); // FIX: now compiles with Collectors imported
         return SharedInterpretationCache.get(cacheKey, k -> {
             String prompt = buildInterpretPrompt(content, past);
-            String raw    = gemini.getResponse(prompt, GeminiClient.CONFIG_ANALYTICAL);
+            String raw    = gemini.getResponse(prompt, GeminiClient.CONFIG_ANALYTICAL); // FIX: CONFIG_ANALYTICAL is now public
             return parseInterpretation(raw);
         });
     }
+
     /**
      * Builds a single prompt that asks the LLM to estimate all three
      * PTX components and extract topics in one shot.
@@ -128,7 +134,6 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
 
         String content = stringify(varMap.get("content"));
 
-        // Build a comma-separated topic hint from the topics term.
         List<String> topicList = JasonToJavaTranslator.translateTopics(topics);
         String topicHint = topicList.isEmpty()
             ? ""
@@ -146,7 +151,7 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
             stance, topicHint, content
         );
 
-        return gemini.getResponse(prompt, GeminiClient.CONFIG_CREATIVE);
+        return gemini.getResponse(prompt, GeminiClient.CONFIG_CREATIVE); // FIX: CONFIG_CREATIVE is now public
     }
 
     // ----------------------------------------------------------------
@@ -167,16 +172,14 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
 
         try {
             String clean = raw.replaceAll("(?s)```json|```", "").trim();
-            com.fasterxml.jackson.databind.ObjectMapper mapper =
-                new com.fasterxml.jackson.databind.ObjectMapper();
 
             @SuppressWarnings("unchecked")
-            Map<String, Object> parsed = mapper.readValue(clean, Map.class);
+            Map<String, Object> parsed = MAPPER.readValue(clean, Map.class); // FIX: uses static MAPPER field
 
             for (String key : List.of("pnov", "prpl", "pnw")) {
                 if (parsed.containsKey(key)) {
                     double value = ((Number) parsed.get(key)).doubleValue();
-                    result.put(key, Math.min(value, 1.0));
+                    result.put(key, Math.max(0.0, Math.min(value, 1.0))); // FIX: clamp to [0.0, 1.0], not just ≤ 1.0
                 }
             }
 

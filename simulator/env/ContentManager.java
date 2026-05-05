@@ -9,6 +9,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Logger;
 
 public abstract class ContentManager {
 
@@ -43,8 +44,9 @@ public abstract class ContentManager {
 
     private static final Object LOG_LOCK = new Object();
 
-    public ContentManager(NetworkManager networkManager) {
+    public ContentManager(NetworkManager networkManager, Logger logger) {
         this.networkManager = networkManager;
+        this.logger = logger;
     }
 
     protected abstract boolean passFilter(Message message, MessageCreationParams params);
@@ -174,7 +176,7 @@ public abstract class ContentManager {
                 }
             }
         } catch (IOException e) {
-            System.err.println("[ContentManager] Logging failed: " + e.getMessage());
+            logger.warning("[ContentManager] Logging failed: " + e.getMessage());
         }
     }
 }

@@ -6,6 +6,7 @@ import jason.environment.Environment;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Logger;
 
 import lib.JasonToJavaTranslator;
 import lib.JavaToJasonTranslator;
@@ -15,18 +16,20 @@ import initializer.PublicProfileLoader;
 
 public class Env extends Environment {
 
+    private static final Logger logger = Logger.getLogger(Env.class.getName());
+
     private final NetworkManager networkManager = new NetworkManager();
-    // private final ContentManager contentManager = new DefaultContentManager(networkManager);
-    private final ContentManager contentManager = new CoNVaIContentManager(networkManager);
+    // private final ContentManager contentManager = new DefaultContentManager(networkManager, logger);
+    private final ContentManager contentManager = new CoNVaIContentManager(networkManager, logger);
     private final KnowledgeManager knowledgeManager = new DefaultKnowledgeManager();
     private final Map<String, Map<String, Object>> publicProfiles = new ConcurrentHashMap<>();
 
     @Override
     public void init(String[] args) {
         try {
-            MessageLoader.load(contentManager, "initializer/messages.csv");
-            PublicProfileLoader.load(publicProfiles, "initializer/public_profiles.csv");
-            NetworkLoader.load(networkManager, this, "initializer/network.csv");
+            MessageLoader.load(contentManager, "initializer/messages.csv", logger);
+            PublicProfileLoader.load(publicProfiles, "initializer/public_profiles.csv", logger);
+            NetworkLoader.load(networkManager, this, "initializer/network.csv", logger);
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize: " + e.getMessage(), e);
         }
@@ -46,7 +49,7 @@ public class Env extends Environment {
             case "createLink"      -> createLink(agent, action);
             case "removeLink"      -> removeLink(agent, action);
             case "readPublicProfile" -> readPublicProfile(agent, action);
-            default -> { System.out.println("Unknown action: " + action); yield true; }
+            default -> { logger.warning("[Env] Unknown action: " + action); yield true; }
         };
         return result;
     }
@@ -163,7 +166,7 @@ public class Env extends Environment {
             List<Literal> results = knowledgeManager.query(queryLiteral);
             results.forEach(fact -> addPercept(agent, fact));
         } catch (Exception e) {
-            System.out.println("Knowledge query failed for agent " + agent + ": " + e.getMessage());
+            logger.warning("[Env] Knowledge query failed for agent " + agent + ": " + e.getMessage());
         }
         return true;
     }
