@@ -49,11 +49,17 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
         String content    = JasonToJavaTranslator.translateString(s.getTerm(0));
         List<String> past = JasonToJavaTranslator.translateTopics(s.getTerm(1));
 
-        String prompt = buildInterpretPrompt(content, past);
-        String raw    = gemini.getResponse(prompt);
-        return parseInterpretation(raw);
+        String cacheKey = content.strip().replaceAll("\\s+", " ")
+            + "\u0000"
+            + past.stream()
+                .map(m -> m.strip().replaceAll("\\s+", " "))
+                .collect(Collectors.joining("\u0000"));
+        return SharedInterpretationCache.get(cacheKey, k -> {
+            String prompt = buildInterpretPrompt(content, past);
+            String raw    = gemini.getResponse(prompt, GeminiClient.CONFIG_ANALYTICAL);
+            return parseInterpretation(raw);
+        });
     }
-
     /**
      * Builds a single prompt that asks the LLM to estimate all three
      * PTX components and extract topics in one shot.
@@ -140,7 +146,7 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
             stance, topicHint, content
         );
 
-        return gemini.getResponse(prompt);
+        return gemini.getResponse(prompt, GeminiClient.CONFIG_CREATIVE);
     }
 
     // ----------------------------------------------------------------

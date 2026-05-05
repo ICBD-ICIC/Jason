@@ -15,14 +15,26 @@ public class GeminiClient {
     private static final Client    client      = new Client();
     private static final Semaphore semaphore   = new Semaphore(500); // max 500 concurrent Gemini calls
 
+    private static final GenerateContentConfig CONFIG_ANALYTICAL = GenerateContentConfig.builder()
+        .temperature(0.0f)
+        .build();
+
+    private static final GenerateContentConfig CONFIG_CREATIVE = GenerateContentConfig.builder()
+        .temperature(0.8f)
+        .build();
+
     public String getResponse(String prompt) {
+        return getResponse(prompt, CONFIG_ANALYTICAL); // safe default
+    }
+
+    public String getResponse(String prompt, GenerateContentConfig config) {
         int attempt = 0;
         while (attempt < MAX_RETRIES) {
             try {
                 semaphore.acquire();  // wait for a slot — does NOT block the thread pool permanently
                 try {
                     GenerateContentResponse response =
-                        client.models.generateContent(MODEL, prompt, null);
+                        client.models.generateContent(MODEL, prompt, config);
                     return response.text();
                 } finally {
                     semaphore.release();  // always release, even on exception
