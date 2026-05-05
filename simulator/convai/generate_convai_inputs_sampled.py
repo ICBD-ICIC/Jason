@@ -32,15 +32,23 @@ import pandas as pd
 
 # CoNVaI parameter grid — 288 combinations (Table 4, Supplementary Material)
 PARAM_GRID = list(itertools.product(
-    [0.05, 0.10, 0.15],   # pinf
-    [0.05, 0.10],          # pmd
-    [0.05, 0.10, 0.15],   # pad
-    [0.10, 0.15, 0.20, 0.25],  # popi
-    [0.10, 0.20, 0.30, 0.40],  # prd
+    [0.05, 0.10, 0.15],             # pinf
+    [0.05, 0.10],                   # pmd
+    [0.05, 0.10, 0.15],             # pad
+    [0.10, 0.15, 0.20, 0.25],       # popi
+    [0.10, 0.20, 0.30, 0.40],       # prd
 ))
 assert len(PARAM_GRID) == 288
 
 FINFL = 0.1
+
+# ---------------------------------------------------------------------------
+# Hardcoded median values from the full PHEME-9 corpus, matching
+# the notebook's `calculate_alpha(1000)` and `calculate_alpha(160)` calls.
+# Alpha is defined as -ln(0.5) / median so that sc(median) = 0.5.
+# ---------------------------------------------------------------------------
+ALPHA_FF_MEDIAN     = 1000   # median follower/followee ratio across all PHEME-9
+ALPHA_LISTED_MEDIAN = 160    # median listed_count across all PHEME-9
 
 TOPIC_MAP = {
     "charliehebdo":      "Charlie Hebdo Attack",
@@ -70,8 +78,12 @@ def log_scaling(value: float, alpha: float) -> float:
     return 1.0 - math.exp(-alpha * value)
 
 
-def alpha_from_median(median_val: float) -> float:
-    """Returns alpha such that sc(median_val) = 0.5."""
+def calculate_alpha(median_val: float) -> float:
+    """
+    Matches `calculate_alpha` from Extract_Info_Model.ipynb:
+        alpha = -ln(0.5) / median
+    so that sc(median_val) = 0.5.
+    """
     return -math.log(0.5) / median_val if median_val > 0 else 1.0
 
 
@@ -285,7 +297,14 @@ def compute_pusr(all_dfs: list[pd.DataFrame]) -> dict[str, float]:
     Pusr(u) = FINFL * Infl(u)
     Infl(u) = 0.4*sc(ff_ratio) + 0.4*sc(listed_count) + 0.2*verified
 
-    Alpha values are calibrated from the median across ALL threads/events.
+    Alpha values use hardcoded corpus medians (ALPHA_FF_MEDIAN=1000,
+    ALPHA_LISTED_MEDIAN=160), matching the notebook's `calculate_alpha(1000)`
+    and `calculate_alpha(160)` calls exactly.  These medians were derived from
+    the full PHEME-9 dataset in Extract_Info_Model.ipynb and must stay fixed
+    so results are reproducible without re-scanning the corpus.
+
+    Population used to collect records covers ALL PHEME-9 threads
+    (unchanged structurally), matching the notebook's global calibration scope.
     """
     records: dict[str, dict] = {}
     for df in all_dfs:
@@ -307,8 +326,8 @@ def compute_pusr(all_dfs: list[pd.DataFrame]) -> dict[str, float]:
     if not records:
         return {}
 
-    alpha_ff     = alpha_from_median(float(np.median([v["ff_ratio"] for v in records.values()])))
-    alpha_listed = alpha_from_median(float(np.median([v["listed"]   for v in records.values()])))
+    alpha_ff     = calculate_alpha(ALPHA_FF_MEDIAN)
+    alpha_listed = calculate_alpha(ALPHA_LISTED_MEDIAN)
 
     return {
         uid: FINFL * (
@@ -429,8 +448,10 @@ def main():
     agent_map = build_agent_map(all_uids)
     print(f"[INFO] Agent map: {len(agent_map):,} users -> convai_agent_1 … convai_agent_{len(agent_map)}")
 
-    # User influence (all PHEME-9 threads)
-    print("[INFO] Computing user influence scores from full dataset...")
+    # User influence scores
+    print("[INFO] Computing user influence scores (hardcoded PHEME-9 corpus medians)...")
+    print(f"[INFO]   alpha_ff     = calculate_alpha({ALPHA_FF_MEDIAN})  = {calculate_alpha(ALPHA_FF_MEDIAN):.8f}")
+    print(f"[INFO]   alpha_listed = calculate_alpha({ALPHA_LISTED_MEDIAN})   = {calculate_alpha(ALPHA_LISTED_MEDIAN):.8f}")
     pusr_lookup = compute_pusr(all_dfs)
     print(f"[INFO] Pusr computed for {len(pusr_lookup):,} users.")
 
