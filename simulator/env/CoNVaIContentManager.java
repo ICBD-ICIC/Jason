@@ -2,11 +2,12 @@ package env;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.logging.Logger;
 
 public class CoNVaIContentManager extends ContentManager {
 
-    public CoNVaIContentManager(NetworkManager networkManager) {
-        super(networkManager);
+    public CoNVaIContentManager(NetworkManager networkManager, Logger logger) {
+        super(networkManager, logger);
     }
 
     @Override

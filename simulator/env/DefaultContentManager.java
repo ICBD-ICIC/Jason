@@ -1,11 +1,12 @@
 package env;
 
 import java.util.*;
+import java.util.logging.Logger;
 
 public class DefaultContentManager extends ContentManager {
 
-    public DefaultContentManager(NetworkManager networkManager) {
-        super(networkManager);
+    public DefaultContentManager(NetworkManager networkManager, Logger logger) {
+        super(networkManager, logger);
     }
 
     @Override

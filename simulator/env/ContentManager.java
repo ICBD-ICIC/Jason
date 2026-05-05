@@ -38,6 +38,7 @@ public abstract class ContentManager {
     protected final Map<Integer, Message>               filteredContent = new ConcurrentHashMap<>();
     protected final AtomicInteger                       messageCounter  = new AtomicInteger(0);
     protected final NetworkManager                      networkManager;
+    protected final Logger                              logger;
 
     private static final String       LOG_FILE = "logs/messages.jsonl";
     private static final ObjectMapper mapper   = new ObjectMapper();
