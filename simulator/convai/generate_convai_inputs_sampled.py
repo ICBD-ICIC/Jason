@@ -1,25 +1,19 @@
 """
 generate_convai_inputs_sampled.py
-=========================
+==================================
 Reads the PHEME-9 dataset and produces simulator input files matching the
-real ABSS_CoNVaI Input_Simulator format.
-
-Same as generate_convai_inputs_original.py except:
-  - Adds --num_agents argument and sample_threads_by_agents() to restrict
-    per-thread output files to a random subset of threads.
-  - Global files (network.csv, public_profiles.csv) still cover the full
-    dataset, identical to the original script.
+ABSS_CoNVaI Input_Simulator format.
 
 Usage
 -----
     python generate_convai_inputs_sampled.py \
         --pheme_path /path/to/pheme-rumour-scheme-dataset \
         --output_dir ./convai_outputs \
-        --num_agents 500 \
         --seed 42
 """
 
 import argparse
+import io
 import itertools
 import json
 import math
@@ -30,17 +24,19 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import io
+
 
 # ---------------------------------------------------------------------------
-# CoNVaI parameter grid  (Table 4, Supplementary Material — 288 combinations)
+# Constants
 # ---------------------------------------------------------------------------
+
+# CoNVaI parameter grid — 288 combinations (Table 4, Supplementary Material)
 PARAM_GRID = list(itertools.product(
-    [0.05, 0.10, 0.15],
-    [0.05, 0.10],
-    [0.05, 0.10, 0.15],
-    [0.10, 0.15, 0.20, 0.25],
-    [0.10, 0.20, 0.30, 0.40],
+    [0.05, 0.10, 0.15],   # pinf
+    [0.05, 0.10],          # pmd
+    [0.05, 0.10, 0.15],   # pad
+    [0.10, 0.15, 0.20, 0.25],  # popi
+    [0.10, 0.20, 0.30, 0.40],  # prd
 ))
 assert len(PARAM_GRID) == 288
 
@@ -57,294 +53,242 @@ TOPIC_MAP = {
     "sydneysiege":       "Sydney Siege",
 }
 
+# The three Ottawa Shooting threads to simulate
+OTTAWA_THREADS = {
+    "524991576163250176",
+    "524949443607412737",
+    "524990163446140928",
+}
+
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 def log_scaling(value: float, alpha: float) -> float:
-    """Equation 1 in the paper: sc(X) = 1 - exp(-alpha * X)."""
+    """Equation 1: sc(X) = 1 - exp(-alpha * X)."""
     return 1.0 - math.exp(-alpha * value)
 
 
-def calculate_alpha(median_val: float) -> float:
+def alpha_from_median(median_val: float) -> float:
     """Returns alpha such that sc(median_val) = 0.5."""
-    if median_val <= 0:
-        return 1.0
-    return -math.log(0.5) / median_val
+    return -math.log(0.5) / median_val if median_val > 0 else 1.0
 
 
-def get_uid(user_dict: dict) -> str:
-    """Extract user ID string from a Twitter user dict."""
-    return str(user_dict.get("id_str", user_dict.get("id", "")))
-
-
-def get_thread_uids(thread_df: pd.DataFrame) -> set:
-    """Return the set of all unique user IDs that appear in a thread."""
-    uids = set()
-    for _, row in thread_df.iterrows():
-        u = row.get("user")
-        if isinstance(u, dict):
-            uid = get_uid(u)
-            if uid:
-                uids.add(uid)
-    return uids
+def get_uid(user: dict) -> str:
+    return str(user.get("id_str") or user.get("id", ""))
 
 
 def get_source_uid(thread_df: pd.DataFrame) -> str | None:
-    """Return the UID of the thread initiator (source tweet author), or None."""
-    source_rows = thread_df[thread_df["type_content"] == "source"]
-    if source_rows.empty:
+    src = thread_df[thread_df["type_content"] == "source"]
+    if src.empty or not isinstance(src.iloc[0]["user"], dict):
         return None
-    u = source_rows.iloc[0]["user"]
-    if not isinstance(u, dict):
-        return None
-    uid = get_uid(u)
-    return uid if uid else None
+    uid = get_uid(src.iloc[0]["user"])
+    return uid or None
 
 
 # ---------------------------------------------------------------------------
-# Load PHEME-9 dataset
+# Dataset loading
 # ---------------------------------------------------------------------------
 
-def load_pheme(pheme_path: Path, ann_dir: Path):
-    """
-    pheme_path : .../threads/en
-    ann_dir    : .../annotations
-    """
-    with open(ann_dir / "en-scheme-annotations.json", "r", encoding="utf-8") as f:
+def _load_annotations(ann_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Parse en-scheme-annotations.json, return (sources_ann, replies_ann)."""
+    with open(ann_dir / "en-scheme-annotations.json", encoding="utf-8") as f:
         lines = [l for l in f if not l.strip().startswith("#")]
 
-    ann_all = pd.read_json(
+    ann = pd.read_json(
         io.StringIO("".join(lines)),
         lines=True,
         dtype={"tweetid": "int64", "threadid": "int64"},
     )
+    sources = ann[ann["tweetid"] == ann["threadid"]].copy()
+    replies = ann[ann["tweetid"] != ann["threadid"]].copy()
+    replies = replies.rename(columns={"support": "responsetype-vs-source"})
+    return sources, replies
 
-    annotation_sources = ann_all[ann_all["tweetid"] == ann_all["threadid"]].copy()
-    annotation_replies = ann_all[ann_all["tweetid"] != ann_all["threadid"]].copy()
-    annotation_replies = annotation_replies.rename(
-        columns={"support": "responsetype-vs-source"}
-    )
 
-    list_themes = sorted([
-        f for f in os.listdir(pheme_path)
-        if (pheme_path / f).is_dir()
-    ])
+def _load_single_thread(
+    thread_path: Path,
+    theme: str,
+    ann_sources: pd.DataFrame,
+    ann_replies: pd.DataFrame,
+    load_meta: bool = False,
+) -> pd.DataFrame | None:
+    """
+    Load one thread directory into a DataFrame.
+    Returns None if no source tweet is found.
+    """
+    src_dir  = thread_path / "source-tweets"
+    reac_dir = thread_path / "reactions"
+    rt_file  = thread_path / "retweets.json"
 
-    an_lookup = {}
-    for theme in list_themes:
-        path_el = pheme_path / theme
-        for thread_id in os.listdir(path_el):
-            ann_file = path_el / thread_id / "annotation.json"
-            if ann_file.exists():
-                with open(ann_file) as fp:
-                    an_lookup[thread_id] = json.load(fp)
+    src_files = list(src_dir.iterdir()) if src_dir.exists() else []
+    if not src_files:
+        return None
 
-    list_dfs = []
-    for theme in list_themes:
-        path_el = pheme_path / theme
-        dir_folders = [
-            f for f in os.listdir(path_el)
-            if (path_el / f).is_dir() and not f.startswith("a")
-        ]
-        for thread_id in dir_folders:
-            path_thr = path_el / thread_id
-            src_dir  = path_thr / "source-tweets"
-            reac_dir = path_thr / "reactions"
-            rt_file  = path_thr / "retweets.json"
+    try:
+        src_df = pd.read_json(src_files[0], lines=True, dtype={"id": "int64"})
+    except Exception:
+        return None
 
-            src_files = list(src_dir.iterdir()) if src_dir.exists() else []
-            if not src_files:
-                continue
+    src_id  = int(src_df["id"].iloc[0])
+    src_ann = ann_sources[ann_sources["tweetid"] == src_id]
+    src_df["type_content"] = "source"
+    src_df["support"] = src_ann["support"].iloc[0] if len(src_ann) else "underspecified"
+    rows = [src_df]
 
-            src_df = pd.read_json(src_files[0], lines=True,
-                                  dtype={"id": "int64"})
-            src_id = int(src_df["id"].iloc[0])
-            src_ann = annotation_sources[
-                annotation_sources["tweetid"] == src_id
-            ]
-            src_df["type_content"] = "source"
-            src_df["support"] = (
-                src_ann["support"].iloc[0] if len(src_ann) else "underspecified"
-            )
-            rows = [src_df]
+    # Reactions
+    if reac_dir.exists():
+        reac_list = []
+        for rf in reac_dir.iterdir():
+            try:
+                reac_list.append(pd.read_json(rf, lines=True, dtype={"id": "int64"}))
+            except Exception:
+                pass
+        if reac_list:
+            reactions = pd.concat(reac_list, ignore_index=True)
+            reactions["type_content"] = "reaction"
 
-            if reac_dir.exists():
-                reac_files = list(reac_dir.iterdir())
-                reac_list = []
-                for rf in reac_files:
-                    try:
-                        reac_list.append(
-                            pd.read_json(rf, lines=True, dtype={"id": "int64"})
-                        )
-                    except Exception:
-                        pass
-                if reac_list:
-                    reactions = pd.concat(reac_list, ignore_index=True)
-                    reactions["type_content"] = "reaction"
-
-                    def _get_support(tid):
-                        try:
-                            r = annotation_replies[
-                                annotation_replies["tweetid"] == int(tid)
-                            ]
-                            return (
-                                str(r["responsetype-vs-source"].iloc[0])
-                                if len(r) else "underspecified"
-                            )
-                        except Exception:
-                            return "underspecified"
-
-                    reactions["support"] = reactions["id"].apply(_get_support)
-                    rows.append(reactions)
-
-            if rt_file.exists():
+            def _support(tid):
                 try:
-                    rt_df = pd.read_json(rt_file, lines=True,
-                                         dtype={"id": "int64"})
-                    if len(rt_df):
-                        rt_df["type_content"] = "retweet"
-                        rt_df["support"]      = "agreed"
-                        rows.append(rt_df)
+                    r = ann_replies[ann_replies["tweetid"] == int(tid)]
+                    return str(r["responsetype-vs-source"].iloc[0]) if len(r) else "underspecified"
                 except Exception:
-                    pass
+                    return "underspecified"
 
-            thread_df = pd.concat(rows, ignore_index=True)
-            meta = an_lookup.get(thread_id, {})
-            thread_df["thread_from"]    = thread_id
-            thread_df["theme"]          = theme
-            thread_df["misinformation"] = meta.get("misinformation", 0)
-            thread_df["true"]           = meta.get("true", 0)
-            thread_df["is_rumour"]      = meta.get("is_rumour", 0)
-            list_dfs.append(thread_df)
+            reactions["support"] = reactions["id"].apply(_support)
+            rows.append(reactions)
 
-    return list_dfs
+    # Retweets
+    if rt_file.exists():
+        try:
+            rt_df = pd.read_json(rt_file, lines=True, dtype={"id": "int64"})
+            if len(rt_df):
+                rt_df["type_content"] = "retweet"
+                rt_df["support"]      = "agreed"
+                rows.append(rt_df)
+        except Exception:
+            pass
+
+    df = pd.concat(rows, ignore_index=True)
+    df["thread_from"] = thread_path.name
+    df["theme"]       = theme
+
+    if load_meta:
+        ann_file = thread_path / "annotation.json"
+        meta = {}
+        if ann_file.exists():
+            with open(ann_file) as fp:
+                meta = json.load(fp)
+        df["misinformation"] = meta.get("misinformation", 0)
+        df["true"]           = meta.get("true", 0)
+        df["is_rumour"]      = meta.get("is_rumour", 0)
+
+    return df
 
 
-# ---------------------------------------------------------------------------
-# Sample threads until the cumulative unique-agent count reaches num_agents
-# ---------------------------------------------------------------------------
-
-def sample_threads_by_agents(list_dfs: list, num_agents: int,
-                              seed: int) -> list:
-    rng = random.Random(seed)
-    shuffled = list_dfs[:]
-    rng.shuffle(shuffled)
-
-    selected = []
-    seen_uids: set = set()
-
-    for df in shuffled:
-        thread_uids = get_thread_uids(df)
-        selected.append(df)
-        seen_uids |= thread_uids
-        if len(seen_uids) >= num_agents:
-            break
-    else:
-        print(
-            f"[WARN] Dataset exhausted with only {len(seen_uids):,} unique "
-            f"agents (target was {num_agents:,}). Using all threads.",
-            file=sys.stderr,
+def load_ottawa_threads(pheme_path: Path, ann_dir: Path) -> list[pd.DataFrame]:
+    """Load the three Ottawa Shooting threads (with metadata)."""
+    ann_sources, ann_replies = _load_annotations(ann_dir)
+    ottawa_path = pheme_path / "ottawashooting"
+    result = []
+    for thread_id in sorted(OTTAWA_THREADS):
+        df = _load_single_thread(
+            ottawa_path / thread_id, "ottawashooting",
+            ann_sources, ann_replies, load_meta=True,
         )
+        if df is None:
+            print(f"[WARN] No source tweet for thread {thread_id}, skipping.", file=sys.stderr)
+        else:
+            result.append(df)
+    return result
 
-    print(
-        f"[INFO] Sampled {len(selected)} threads \u2192 "
-        f"{len(seen_uids):,} unique agents "
-        f"(target \u2248 {num_agents:,}, seed={seed})"
-    )
-    return selected
+
+def load_all_threads(pheme_path: Path, ann_dir: Path) -> list[pd.DataFrame]:
+    """Load ALL threads across every PHEME-9 event (for global pusr calibration)."""
+    ann_sources, ann_replies = _load_annotations(ann_dir)
+    result = []
+    for theme_dir in sorted(pheme_path.iterdir()):
+        if not theme_dir.is_dir():
+            continue
+        for thread_dir in sorted(theme_dir.iterdir()):
+            if not thread_dir.is_dir():
+                continue
+            df = _load_single_thread(
+                thread_dir, theme_dir.name,
+                ann_sources, ann_replies, load_meta=False,
+            )
+            if df is not None:
+                result.append(df)
+    return result
 
 
 # ---------------------------------------------------------------------------
-# Build global adjacency list  (mirrors G_full in the notebook)
+# Network / adjacency
 # ---------------------------------------------------------------------------
 
-def build_adjacency(pheme_path: Path, list_dfs: list) -> dict:
+def build_adjacency(pheme_path: Path, ottawa_dfs: list[pd.DataFrame]) -> dict[str, set]:
+    """
+    Build a directed follower graph for the three Ottawa threads.
+
+    Step 1 — Load who-follows-whom.dat from each thread directory.
+    Step 2 — For any reaction/retweet user with no path to the thread
+              initiator, add a direct fallback edge.
+    """
     import networkx as nx
 
-    # Only nodes that actually appear in the sampled threads
-    sampled_uids = set()
-    for df in list_dfs:
-        sampled_uids |= get_thread_uids(df)
-
     G = nx.DiGraph()
-    list_themes = sorted([
-        f for f in os.listdir(pheme_path) if (pheme_path / f).is_dir()
-    ])
-    dat_count = 0
-    for theme in list_themes:
-        path_el = pheme_path / theme
-        dir_folders = [
-            f for f in os.listdir(path_el)
-            if (path_el / f).is_dir() and not f.startswith("a")
-        ]
-        for thread_id in dir_folders:
-            dat_file = path_el / thread_id / "who-follows-whom.dat"
-            if not dat_file.exists():
-                continue
-            with open(dat_file, "r", encoding="utf-8") as f:
-                for line in f:
-                    parts = line.strip().split()
-                    if len(parts) >= 2:
-                        u, v = parts[0], parts[1]
-                        if u in sampled_uids and v in sampled_uids:  # ← NEW
-                            G.add_edge(u, v)
-                            dat_count += 1
+    ottawa_path = pheme_path / "ottawashooting"
 
-    print(f"[INFO] Base graph from who-follows-whom.dat: "
-          f"{G.number_of_nodes():,} nodes, {G.number_of_edges():,} edges "
-          f"({dat_count:,} lines read)")
+    for thread_id in OTTAWA_THREADS:
+        dat_file = ottawa_path / thread_id / "who-follows-whom.dat"
+        if not dat_file.exists():
+            print(f"[WARN] {dat_file} not found, skipping.", file=sys.stderr)
+            continue
+        with open(dat_file, encoding="utf-8") as f:
+            for line in f:
+                parts = line.strip().split()
+                if len(parts) >= 2:
+                    G.add_edge(parts[0], parts[1])
 
-    # G_full augmentation
-    for df in list_dfs:
-        source_rows = df[df["type_content"] == "source"]
-        if source_rows.empty:
-            continue
-        src_user = source_rows.iloc[0]["user"]
-        if not isinstance(src_user, dict):
-            continue
-        src_uid = get_uid(src_user)
+    print(f"[INFO] Base graph: {G.number_of_nodes():,} nodes, {G.number_of_edges():,} edges")
+
+    for df in ottawa_dfs:
+        src_uid = get_source_uid(df)
         if not src_uid:
             continue
-
-        for _, row in df.iterrows():
+        G.add_node(src_uid)
+        for _, row in df[df["type_content"].isin(["reaction", "retweet"])].iterrows():
             u = row.get("user")
             if not isinstance(u, dict):
                 continue
             uid = get_uid(u)
-            if not uid or uid == src_uid:
-                continue
-            if not G.has_node(uid):
+            if uid and uid != src_uid:
                 G.add_node(uid)
-            if not G.has_node(src_uid):
-                G.add_node(src_uid)
-            if not nx.has_path(G, uid, src_uid):
-                G.add_edge(uid, src_uid)
+                if not nx.has_path(G, uid, src_uid):
+                    G.add_edge(uid, src_uid)
 
-    print(f"[INFO] After G_full augmentation: "
-          f"{G.number_of_nodes():,} nodes, {G.number_of_edges():,} edges")
+    print(f"[INFO] After augmentation: {G.number_of_nodes():,} nodes, {G.number_of_edges():,} edges")
 
-    adj = {}
+    adj: dict[str, set] = {}
     for u, v in G.edges():
         adj.setdefault(str(u), set()).add(str(v))
-
     return adj
 
 
 # ---------------------------------------------------------------------------
-# Compute Pusr globally across the full dataset  (Section 4.1)
+# User influence
 # ---------------------------------------------------------------------------
 
-def compute_pusr(list_dfs: list) -> dict:
+def compute_pusr(all_dfs: list[pd.DataFrame]) -> dict[str, float]:
     """
-    Returns {uid: pusr_value}.
     Pusr(u) = FINFL * Infl(u)
-    Infl(u) = 0.4*sc(followers/followees) + 0.4*sc(listed_count) + 0.2*verified
-    Alpha values derived from the median across ALL users (cross-event).
+    Infl(u) = 0.4*sc(ff_ratio) + 0.4*sc(listed_count) + 0.2*verified
+
+    Alpha values are calibrated from the median across ALL threads/events.
     """
-    records = {}
-    for df in list_dfs:
+    records: dict[str, dict] = {}
+    for df in all_dfs:
         for _, row in df.iterrows():
             u = row.get("user")
             if not isinstance(u, dict):
@@ -353,119 +297,90 @@ def compute_pusr(list_dfs: list) -> dict:
             if not uid or uid in records:
                 continue
             followers = int(u.get("followers_count", 0))
-            followees = int(u.get("friends_count", 0))
-            posts     = int(u.get("listed_count", 0))
-            verified  = bool(u.get("verified", False))
-            ff_ratio  = (followers / followees) if followees > 0 else float(followers)
-            records[uid] = {"ff_ratio": ff_ratio, "posts": posts, "verified": verified}
+            followees = int(u.get("friends_count",   0))
+            records[uid] = {
+                "ff_ratio": followers / followees if followees > 0 else float(followers),
+                "listed":   int(u.get("listed_count", 0)),
+                "verified": bool(u.get("verified", False)),
+            }
 
     if not records:
         return {}
 
-    median_ff    = float(np.median([v["ff_ratio"] for v in records.values()]))
-    median_posts = float(np.median([v["posts"]    for v in records.values()]))
-    alpha_ff     = calculate_alpha(median_ff)    if median_ff    > 0 else 1.0
-    alpha_posts  = calculate_alpha(median_posts) if median_posts > 0 else 1.0
+    alpha_ff     = alpha_from_median(float(np.median([v["ff_ratio"] for v in records.values()])))
+    alpha_listed = alpha_from_median(float(np.median([v["listed"]   for v in records.values()])))
 
-    pusr_lookup = {}
-    for uid, vals in records.items():
-        sc_ff    = log_scaling(vals["ff_ratio"], alpha_ff)
-        sc_posts = log_scaling(vals["posts"],    alpha_posts)
-        infl     = 0.4 * sc_ff + 0.4 * sc_posts + 0.2 * float(vals["verified"])
-        pusr_lookup[uid] = FINFL * infl
-
-    return pusr_lookup
+    return {
+        uid: FINFL * (
+            0.4 * log_scaling(v["ff_ratio"], alpha_ff) +
+            0.4 * log_scaling(v["listed"],   alpha_listed) +
+            0.2 * float(v["verified"])
+        )
+        for uid, v in records.items()
+    }
 
 
 # ---------------------------------------------------------------------------
-# Build global agent name mapping  uid -> convai_agent_X
+# Agent mapping
 # ---------------------------------------------------------------------------
 
-def build_agent_map(all_uids: set) -> dict:
-    """
-    Returns {uid: 'convai_agent_N'} for every user in the full dataset.
-    Sorted by uid for determinism.
-    """
-    return {uid: f"convai_agent_{i+1}"
-            for i, uid in enumerate(sorted(all_uids))}
+def build_agent_map(uids: set[str]) -> dict[str, str]:
+    """Stable uid -> convai_agent_N mapping (sorted by uid for determinism)."""
+    return {uid: f"convai_agent_{i+1}" for i, uid in enumerate(sorted(uids))}
 
 
 # ---------------------------------------------------------------------------
-# Per-thread CSV generators
+# Output generators
 # ---------------------------------------------------------------------------
 
-def make_messages_csv(thread_df: pd.DataFrame, conversation_id: int,
-                      agent_map: dict) -> pd.DataFrame:
-    """One row per source tweet (the simulation seed)."""
+def make_messages_csv(
+    thread_df: pd.DataFrame,
+    conversation_id: int,
+    agent_map: dict[str, str],
+) -> pd.DataFrame:
     rows = []
     for _, row in thread_df[thread_df["type_content"] == "source"].iterrows():
         u = row.get("user")
         if not isinstance(u, dict):
             continue
-        uid       = get_uid(u)
-        agent     = agent_map.get(uid, uid)
-        text      = str(row.get("text", "")).replace("\n", " ").replace("\r", " ")
-        raw_theme = str(row.get("theme", ""))
-        topic     = TOPIC_MAP.get(raw_theme, raw_theme)
-
-        # Initiator is always infected
-        variables = json.dumps({
-            "public": {"conversation_id": conversation_id, "state": "infected"}
-        })
+        uid   = get_uid(u)
+        topic = TOPIC_MAP.get(str(row.get("theme", "")), str(row.get("theme", "")))
+        text  = str(row.get("text", "")).replace("\n", " ").replace("\r", " ")
         rows.append({
-            "author":    agent,
+            "author":    agent_map.get(uid, uid),
             "content":   text,
             "reactions": "",
             "original":  "",
             "topics":    topic,
-            "variables": variables,
+            "variables": json.dumps({
+                "public": {"conversation_id": conversation_id, "state": "infected"}
+            }),
         })
-    return pd.DataFrame(rows,
-                        columns=["author", "content", "reactions",
-                                 "original", "topics", "variables"])
+    return pd.DataFrame(rows, columns=["author", "content", "reactions",
+                                        "original", "topics", "variables"])
 
 
-def make_agent_probs_csv(thread_df: pd.DataFrame,
-                         all_uids: set,
-                         agent_map: dict,
-                         rng: random.Random) -> pd.DataFrame:
-    """
-    One row per agent (ordered by agent name).
-
-    State assignment:
-        source author (thread initiator) -> infected
-        ALL other agents                 -> neutral
-
-    Each agent is assigned a random combination drawn *with replacement* from
-    the 288 CoNVaI parameter combinations (PARAM_GRID).
-
-    Columns: agent, pinf, pmd, pad, popi, prd, state
-    """
+def make_agent_probs_csv(
+    thread_df: pd.DataFrame,
+    all_uids: set[str],
+    agent_map: dict[str, str],
+    rng: random.Random,
+) -> pd.DataFrame:
     initiator_uid = get_source_uid(thread_df)
-    sorted_agents = sorted(
-        (agent_map[uid] for uid in all_uids),
-        key=lambda a: int(a.split("_")[-1])
-    )
     agent_to_uid  = {v: k for k, v in agent_map.items()}
+    sorted_agents = sorted(agent_map.values(), key=lambda a: int(a.split("_")[-1]))
 
     rows = []
-    for agent_name in sorted_agents:
-        uid   = agent_to_uid[agent_name]
+    for agent in sorted_agents:
+        uid   = agent_to_uid[agent]
         state = "infected" if uid == initiator_uid else "neutral"
         pinf, pmd, pad, popi, prd = rng.choice(PARAM_GRID)
         rows.append({
-            "agent": agent_name,
-            "pinf":  pinf,
-            "pmd":   pmd,
-            "pad":   pad,
-            "popi":  popi,
-            "prd":   prd,
+            "agent": agent,
+            "pinf":  pinf, "pmd": pmd, "pad": pad, "popi": popi, "prd": prd,
             "state": state,
         })
-
-    return pd.DataFrame(rows,
-                        columns=["agent", "pinf", "pmd", "pad",
-                                 "popi", "prd", "state"])
+    return pd.DataFrame(rows, columns=["agent", "pinf", "pmd", "pad", "popi", "prd", "state"])
 
 
 # ---------------------------------------------------------------------------
@@ -480,12 +395,8 @@ def main():
                         help="Root path of the PHEME-9 dataset.")
     parser.add_argument("--output_dir", default="./convai_outputs",
                         help="Root directory for output files.")
-    parser.add_argument("--num_agents", type=int, default=None,
-                        help="Approximate number of unique agents to include "
-                             "via thread sampling. Omit to use all threads.")
     parser.add_argument("--seed", type=int, default=42,
-                        help="Random seed for thread sampling and parameter "
-                             "assignment (default: 42).")
+                        help="Random seed for parameter assignment (default: 42).")
     args = parser.parse_args()
 
     root_path  = Path(args.pheme_path)
@@ -493,111 +404,80 @@ def main():
     ann_dir    = root_path / "annotations"
     output_dir = Path(args.output_dir)
 
-    for p, label in [
-        (root_path,  "root"),
-        (pheme_path, "threads/en"),
-        (ann_dir,    "annotations"),
-    ]:
-        if not p.exists():
-            print(f"[ERROR] {label} path not found: {p}", file=sys.stderr)
+    for path, label in [(root_path, "root"), (pheme_path, "threads/en"), (ann_dir, "annotations")]:
+        if not path.exists():
+            print(f"[ERROR] {label} path not found: {path}", file=sys.stderr)
             sys.exit(1)
 
     rng = random.Random(args.seed)
 
-    # ------------------------------------------------------------------ load
-    print("[INFO] Loading PHEME dataset...")
-    list_dfs = load_pheme(pheme_path, ann_dir)
-    print(f"[INFO] Loaded {len(list_dfs)} threads across all events.")
+    # Load data
+    print("[INFO] Loading 3 Ottawa Shooting threads...")
+    ottawa_dfs = load_ottawa_threads(pheme_path, ann_dir)
+    print(f"[INFO] Loaded {len(ottawa_dfs)} threads.")
 
-    # ------------------------------------------------------ sample threads
-    if args.num_agents is not None:
-        print(f"[INFO] Sampling threads to reach \u2248{args.num_agents:,} agents "
-              f"(seed={args.seed})...")
-        selected_dfs = sample_threads_by_agents(
-            list_dfs, args.num_agents, args.seed
-        )
-    else:
-        print("[INFO] --num_agents not set; using all threads.")
-        selected_dfs = list_dfs
+    print("[INFO] Loading ALL PHEME-9 threads for global pusr calibration...")
+    all_dfs = load_all_threads(pheme_path, ann_dir)
+    print(f"[INFO] Loaded {len(all_dfs)} threads across all events.")
 
-    # --------------------------------------------------- global adjacency list
-    print("[INFO] Building adjacency list from full dataset...")
-    adj = build_adjacency(pheme_path, selected_dfs)
+    # Build network (Ottawa threads only)
+    print("[INFO] Building adjacency list...")
+    adj = build_adjacency(pheme_path, ottawa_dfs)
     all_uids = set(adj.keys()) | {nb for nbs in adj.values() for nb in nbs}
-    print(f"[INFO] Network: {len(all_uids):,} nodes, {len(adj):,} source rows")
 
-    # --------------------------------------------------- global agent mapping
-    print("[INFO] Building global agent name mapping...")
+    # Global agent map
     agent_map = build_agent_map(all_uids)
-    print(f"[INFO] Agent map: {len(agent_map):,} users \u2192 convai_agent_1 \u2026 "
-          f"convai_agent_{len(agent_map)}")
+    print(f"[INFO] Agent map: {len(agent_map):,} users -> convai_agent_1 … convai_agent_{len(agent_map)}")
 
-    # --------------------------------------------------- global user influences
+    # User influence (all PHEME-9 threads)
     print("[INFO] Computing user influence scores from full dataset...")
-    pusr_lookup = compute_pusr(selected_dfs)
+    pusr_lookup = compute_pusr(all_dfs)
     print(f"[INFO] Pusr computed for {len(pusr_lookup):,} users.")
 
+    # Write outputs
     output_dir.mkdir(parents=True, exist_ok=True)
     thread_dir = output_dir / "news_sources_corr"
     thread_dir.mkdir(parents=True, exist_ok=True)
 
-    # -------------------------------------------------------------- network.csv
     print("[INFO] Writing network.csv...")
     with open(output_dir / "network.csv", "w", encoding="utf-8") as f:
         f.write("from,to,weight\n")
-        for src in sorted(adj.keys()):
+        for src in sorted(adj):
             src_agent = agent_map.get(src, src)
             for tgt in sorted(adj[src]):
-                tgt_agent = agent_map.get(tgt, tgt)
-                f.write(f"{src_agent},{tgt_agent},\n")
-    n_edges = sum(len(v) for v in adj.values())
-    print(f"[INFO] network.csv written ({n_edges:,} edges).")
+                f.write(f"{src_agent},{agent_map.get(tgt, tgt)},\n")
+    print(f"[INFO] network.csv: {sum(len(v) for v in adj.values()):,} edges.")
 
-    # ------------------------------------------------- public_profiles.csv
     print("[INFO] Writing public_profiles.csv...")
     profiles_df = pd.DataFrame(
-        [{"agent":     agent_map.get(uid, uid),
-          "attribute": "pusr",
-          "value":     round(pusr_lookup.get(uid, 0.0), 6)}
+        [{"agent": agent_map.get(uid, uid), "attribute": "pusr",
+          "value": round(pusr_lookup.get(uid, 0.0), 6)}
          for uid in sorted(all_uids)],
         columns=["agent", "attribute", "value"],
     )
     profiles_df.to_csv(output_dir / "public_profiles.csv", index=False)
-    print(f"[INFO] public_profiles.csv written ({len(profiles_df):,} rows).")
+    print(f"[INFO] public_profiles.csv: {len(profiles_df):,} rows.")
 
-    # ------------------------------------------------- per-thread files
-    print(f"[INFO] Writing per-thread files for {len(selected_dfs)} threads...")
-    for conv_idx, thread_df in enumerate(selected_dfs, start=1):
+    print(f"[INFO] Writing per-thread files for {len(ottawa_dfs)} threads...")
+    for conv_idx, thread_df in enumerate(ottawa_dfs, start=1):
         thread_id = str(thread_df["thread_from"].iloc[0])
-        theme     = str(thread_df["theme"].iloc[0])
-        topic     = TOPIC_MAP.get(theme, theme)
+        topic     = TOPIC_MAP.get(str(thread_df["theme"].iloc[0]), "")
 
-        messages_df = make_messages_csv(thread_df, conv_idx, agent_map)
-        messages_df.to_csv(
+        make_messages_csv(thread_df, conv_idx, agent_map).to_csv(
             thread_dir / f"messages_{thread_id}.csv", index=False
         )
-
         probs_df = make_agent_probs_csv(thread_df, all_uids, agent_map, rng)
-        probs_df.to_csv(
-            thread_dir / f"agent_probs_{thread_id}.csv", index=False
-        )
+        probs_df.to_csv(thread_dir / f"agent_probs_{thread_id}.csv", index=False)
 
-        state_counts = probs_df["state"].value_counts()
-        n_inf = state_counts.get("infected", 0)
-        n_neu = state_counts.get("neutral",  0)
-        print(f"  [{conv_idx:3d}/{len(selected_dfs)}] {thread_id} "
-              f"({topic}) \u2014 Inf={n_inf}, Neu={n_neu}, "
-              f"total_agents={len(probs_df)}")
+        counts = probs_df["state"].value_counts()
+        print(f"  [{conv_idx}/{len(ottawa_dfs)}] {thread_id} ({topic}) — "
+              f"infected={counts.get('infected', 0)}, neutral={counts.get('neutral', 0)}, "
+              f"total={len(probs_df)}")
 
-    print(f"\n[DONE] Outputs written to: {output_dir.resolve()}")
+    print(f"\n[DONE] Output: {output_dir.resolve()}")
     print(f"  Global : network.csv, public_profiles.csv")
-    print(f"  Threads: news_sources_corr/messages_<id>.csv + "
-          f"agent_probs_<id>.csv  ({len(selected_dfs)} files each)")
-    print(f"\n  State rule: initiator -> infected, all others -> neutral")
-    print(f"  agent_probs format: one row per agent, columns = "
-          f"agent,pinf,pmd,pad,popi,prd,state")
-    print(f"  Each agent's parameters drawn at random from "
-          f"{len(PARAM_GRID)} combinations (seed={args.seed}).")
+    print(f"  Threads: news_sources_corr/messages_<id>.csv + agent_probs_<id>.csv")
+
 
 if __name__ == "__main__":
     main()

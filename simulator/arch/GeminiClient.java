@@ -13,7 +13,7 @@ public class GeminiClient {
 
     // Shared across ALL agents — one client, limited concurrency
     private static final Client    client      = new Client();
-    private static final Semaphore semaphore   = new Semaphore(10); // max 10 concurrent Gemini calls
+    private static final Semaphore semaphore   = new Semaphore(500); // max 500 concurrent Gemini calls
 
     public String getResponse(String prompt) {
         int attempt = 0;
