@@ -27,6 +27,9 @@ async function generate() {
     INIT_NAMES.filter(n => initializers[n]?.rows.length).map(n => [n, initializers[n].rows])
   );
 
+  const threadPoolRaw = parseInt($('#thread-pool').value);
+  const threadPool    = (isNaN(threadPoolRaw) || threadPoolRaw < 1) ? 4 : threadPoolRaw;
+
   const payload = {
     mas_name:       $('#mas-name').value.trim(),
     output_folder:  $('#output-folder').value.trim(),
@@ -34,6 +37,7 @@ async function generate() {
     silent_logging: $('#silent-logging').checked,
     agent_types:    types.map(({ asl, arch_class, bb_class, instances }) => ({ asl, arch_class, bb_class, instances })),
     initializers:   initPayload,
+    thread_pool:    threadPool,
   };
 
   try {
