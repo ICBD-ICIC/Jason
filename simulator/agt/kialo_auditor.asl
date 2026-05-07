@@ -74,7 +74,7 @@ polarization_threshold(0.5).
 +!check_and_intervene(GlobalPolarization, _, _, _) :
         polarization_threshold(T) & GlobalPolarization <= T <-
     .print("[audit] polarization within threshold - no action needed");
-    ia.save_logs([polarization(GlobalPolarization), action(none), threshold(T)]).
+    ia.saveLogs([polarization(GlobalPolarization), action(none), threshold(T)]).
 
 /* ---- Build context and post comment ---- */
 
@@ -101,5 +101,5 @@ polarization_threshold(0.5).
         prompt_params(PromptParams)];
     comment(LeafId, [], CommentVars, CommentContent);
     .print("[audit] comment posted on leaf ", LeafId, " with stance ", Stance);
-    ia.save_logs([polarization(GlobalPolarization), action(comment),
+    ia.saveLogs([polarization(GlobalPolarization), action(comment),
                   leaf(LeafId), stance(Stance), threshold(Threshold)]).

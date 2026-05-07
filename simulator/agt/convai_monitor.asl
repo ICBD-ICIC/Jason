@@ -28,21 +28,21 @@
    ========================================================== */
 
 +idle_limit_reached(Agent): total_agents(N) <-
-    ia.save_logs([info("Agent declared idle limit reached."), agent(Agent)]);
+    ia.saveLogs([info("Agent declared idle limit reached."), agent(Agent)]);
     if (not idle_done(Agent)) {
         +idle_done(Agent)
     };
     !check_termination(N).
 
 +still_active(Agent) <-
-    ia.save_logs([info("Agent became active again."), agent(Agent)]);
+    ia.saveLogs([info("Agent became active again."), agent(Agent)]);
     if (idle_done(Agent)) {
         -idle_done(Agent)
     }.
 
 
 +max_cycles_reached(Agent): total_agents(N) <-
-    ia.save_logs([info("Agent declared max cycles reached."), agent(Agent)]);
+    ia.saveLogs([info("Agent declared max cycles reached."), agent(Agent)]);
     if (not cycle_done(Agent)) {
         +cycle_done(Agent)
     };
@@ -54,14 +54,14 @@
     IdleCount  = .length(IdleDone);
     CycleCount = .length(CycleDone);
     Threshold  = (N / 2) + 1;
-    ia.save_logs([idle_done(IdleCount), cycle_done(CycleCount), total(N), threshold(Threshold)]);
+    ia.saveLogs([idle_done(IdleCount), cycle_done(CycleCount), total(N), threshold(Threshold)]);
 
     if (CycleCount >= Threshold) {
-        ia.save_logs([info("Termination: majority of agents reached max cycles.")]);
+        ia.saveLogs([info("Termination: majority of agents reached max cycles.")]);
         .stopMAS
     } elif (IdleCount >= Threshold) {
-        ia.save_logs([info("Termination: majority of agents reached idle limit.")]);
+        ia.saveLogs([info("Termination: majority of agents reached idle limit.")]);
         .stopMAS
     } else {
-        ia.save_logs([info("Termination conditions not yet met. Waiting.")])
+        ia.saveLogs([info("Termination conditions not yet met. Waiting.")])
     }.
