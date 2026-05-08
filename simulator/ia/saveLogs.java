@@ -19,6 +19,7 @@ public class saveLogs extends DefaultInternalAction {
 
     private static final String LOGS_FOLDER = "logs/" + System.currentTimeMillis() + "/";
     private static final ConcurrentHashMap<String, BufferedWriter> writers = new ConcurrentHashMap<>();
+    private static final ObjectMapper mapper = new ObjectMapper();
 
     @Override
     public Object execute(TransitionSystem ts, Unifier un, Term[] args) throws Exception {
