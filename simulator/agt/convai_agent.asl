@@ -162,6 +162,9 @@ idle_limit_reached(false).
     -read_history(PastMessages);
     +read_history([Content | PastMessages]).
 
+-!process_single_message(Id): true <-
+    ia.saveLogs([info("Failed to process message, skipping."), message_id(Id)]).
+
 +known_conversation(CId): true <-
     ia.saveLogs([info("Now agent is aware of the conversation."), conversation_id(CId)]).
 
@@ -250,7 +253,8 @@ idle_limit_reached(false).
     ia.createContent(Topics, PromptParams, GeneratedContent);
     ia.saveLogs([info("Finished content generation.")]);
     comment(Id, Topics, Variables, GeneratedContent);
-    -message_topics(Id, _).
+    -message_topics(Id, _);
+    -replying(CId, Id).
 
 +!act(ActedNow): true <-
     ActedNow = false;
