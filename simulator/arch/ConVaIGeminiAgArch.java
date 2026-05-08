@@ -55,7 +55,7 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
             + "\u0000"
             + past.stream()
                 .map(m -> m.strip().replaceAll("\\s+", " "))
-                .collect(Collectors.joining("\u0000")); /
+                .collect(Collectors.joining("\u0000"));
         return SharedInterpretationCache.get(cacheKey, k -> {
             String prompt = buildInterpretPrompt(content, past);
             String raw    = gemini.getResponse(prompt, GeminiClient.CONFIG_ANALYTICAL);

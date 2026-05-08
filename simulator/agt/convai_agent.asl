@@ -144,6 +144,10 @@ idle_limit_reached(false).
     if (ActedNow) { ActNext = ActSoFar + 1 } else { ActNext = ActSoFar };
     !process_messages(Rest, ActNext, ActFinal).
 
+-!process_messages(Ids, ActSoFar, ActFinal): true <-
+    ActFinal = ActSoFar;
+    ia.saveLogs([info("process_messages failed."), remaining_count(Ids)]).
+
 +!process_single_message(Id): 
     read_history(PastMessages) & message(Id, Author, Content, Original, Timestamp) & message_var(Id, "conversation_id", CId)
 <-
@@ -162,7 +166,7 @@ idle_limit_reached(false).
     -read_history(PastMessages);
     +read_history([Content | PastMessages]).
 
--!process_single_message(Id): true <-
+-!process_single_message(_): true <-
     ia.saveLogs([info("Failed to process message, skipping."), message_id(Id)]).
 
 +known_conversation(CId): true <-
