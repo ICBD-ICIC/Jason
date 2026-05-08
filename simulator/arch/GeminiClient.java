@@ -16,7 +16,7 @@ public class GeminiClient {
 
     public static final String MODEL = "gemini-2.5-flash-lite";
 
-    private static final int MAX_RETRIES  = 3;
+    private static final int MAX_ATTEMPTS  = 3;
     private static final long RETRY_DELAY = 1000L;
 
     // Shared across ALL agents — one client, limited concurrency
@@ -68,7 +68,7 @@ public class GeminiClient {
 
     public String getResponse(String prompt, GenerateContentConfig config) {
         int attempt = 0;
-        while (attempt < MAX_RETRIES) {
+        while (attempt < MAX_ATTEMPTS) {
             try {
                 waitingForSemaphore.incrementAndGet();
                 semaphore.acquire();
@@ -98,10 +98,12 @@ public class GeminiClient {
                 return "";
             } catch (Exception e) {
                 attempt++;
-                String msg = e.getMessage() != null ? e.getMessage() : "";
+                Throwable cause = (e instanceof ExecutionException && e.getCause() != null)
+                    ? e.getCause() : e;
+                String msg = cause.getMessage() != null ? cause.getMessage() : "";
                 boolean isRateLimit = msg.contains("429") || msg.toLowerCase().contains("quota");
 
-                if (attempt >= MAX_RETRIES) {
+                if (attempt >= MAX_ATTEMPTS) {
                     logger.severe("[GeminiClient] Max retries reached.");
                     return "";
                 }
