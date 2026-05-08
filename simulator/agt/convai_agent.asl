@@ -96,7 +96,6 @@ idle_limit_reached(false).
     if (WasActive) {
         -+idle_cycles(0);
         if (IdleLimitReached) {
-            // Agent came back to life: retract idle declaration
             ia.saveLogs([info("Agent became active again after idle limit."), cycle(C1)]);
             -+idle_limit_reached(false);
             .my_name(Me);
