@@ -378,29 +378,47 @@ def make_messages_csv(
     return pd.DataFrame(rows, columns=["author", "content", "reactions",
                                         "original", "topics", "variables"])
 
-
-def make_agent_probs_csv(
-    thread_df: pd.DataFrame,
+def make_base_agent_probs(
     all_uids: set[str],
     agent_map: dict[str, str],
     rng: random.Random,
 ) -> pd.DataFrame:
-    initiator_uid = get_source_uid(thread_df)
-    agent_to_uid  = {v: k for k, v in agent_map.items()}
+    """
+    Generate ONE set of random probs for all agents.
+    Probs represent the agent's personality — shared across all threads.
+    State is set to 'neutral' here; apply_thread_state() sets the initiator.
+    """
     sorted_agents = sorted(agent_map.values(), key=lambda a: int(a.split("_")[-1]))
+    agent_to_uid  = {v: k for k, v in agent_map.items()}
 
     rows = []
     for agent in sorted_agents:
-        uid   = agent_to_uid[agent]
-        state = "infected" if uid == initiator_uid else "neutral"
         pinf, pmd, pad, popi, prd = rng.choice(PARAM_GRID)
         rows.append({
             "agent": agent,
             "pinf":  pinf, "pmd": pmd, "pad": pad, "popi": popi, "prd": prd,
-            "state": state,
+            "state": "neutral",   # overridden per-thread below
         })
     return pd.DataFrame(rows, columns=["agent", "pinf", "pmd", "pad", "popi", "prd", "state"])
 
+
+def apply_thread_state(
+    base_probs: pd.DataFrame,
+    thread_df: pd.DataFrame,
+    agent_map: dict[str, str],
+) -> pd.DataFrame:
+    """
+    Return a copy of base_probs with the thread initiator marked as 'infected'.
+    All other agents remain 'neutral'. Probs are unchanged.
+    """
+    initiator_uid = get_source_uid(thread_df)
+    initiator_agent = agent_map.get(initiator_uid, None) if initiator_uid else None
+
+    df = base_probs.copy()
+    df["state"] = "neutral"
+    if initiator_agent:
+        df.loc[df["agent"] == initiator_agent, "state"] = "infected"
+    return df
 
 # ---------------------------------------------------------------------------
 # Main
@@ -479,6 +497,10 @@ def main():
     profiles_df.to_csv(output_dir / "public_profiles.csv", index=False)
     print(f"[INFO] public_profiles.csv: {len(profiles_df):,} rows.")
 
+    # Generate probs ONCE — same personality for all agents across all threads
+    print("[INFO] Generating base agent probabilities (shared across all threads)...")
+    base_probs = make_base_agent_probs(all_uids, agent_map, rng)
+
     print(f"[INFO] Writing per-thread files for {len(ottawa_dfs)} threads...")
     for conv_idx, thread_df in enumerate(ottawa_dfs, start=1):
         thread_id = str(thread_df["thread_from"].iloc[0])
@@ -487,8 +509,11 @@ def main():
         make_messages_csv(thread_df, conv_idx, agent_map).to_csv(
             thread_dir / f"messages_{thread_id}.csv", index=False
         )
-        probs_df = make_agent_probs_csv(thread_df, all_uids, agent_map, rng)
-        probs_df.to_csv(thread_dir / f"agent_probs_{thread_id}.csv", index=False)
+        
+        probs_df = apply_thread_state(base_probs, thread_df, agent_map)
+        probs_df.to_csv(
+            thread_dir / f"agent_probs_{thread_id}.csv", index=False
+        )
 
         counts = probs_df["state"].value_counts()
         print(f"  [{conv_idx}/{len(ottawa_dfs)}] {thread_id} ({topic}) — "
