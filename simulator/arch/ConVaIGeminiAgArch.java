@@ -5,7 +5,8 @@ import jason.asSyntax.*;
 import lib.JasonToJavaTranslator;
 
 import java.util.*;
-import java.util.stream.Collectors; // FIX: missing import for Collectors.joining()
+import java.util.stream.Collectors; 
+import java.util.logging.Logger;
 
 /**
  * CoNVaI agent architecture.
@@ -21,32 +22,28 @@ import java.util.stream.Collectors; // FIX: missing import for Collectors.joinin
  *   - pnov   (double):       novelty — semantic/lexical divergence from prior messages.
  *   - prpl   (double):       engagement likelihood — how likely this provokes a reply.
  *   - pnw    (double):       cumulative influence — how broadly impactful the message seems.
- *   - topics (List<String>): 1–5 short topic labels extracted from the message content.
+ *   - topics (List<String>): 1-5 short topic labels extracted from the message content.
  *
  * createContent() generates tweet text once the ASL f() function has already decided to spread,
- * and now incorporates the message's topics to produce more contextually grounded output.
+ * and incorporates the message's topics to produce more contextually grounded output.
  */
 public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
 
     private static final GeminiClient gemini = new GeminiClient();
 
-    // FIX: ObjectMapper declared as a static field instead of being re-instantiated on every parse call
     private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER =
         new com.fasterxml.jackson.databind.ObjectMapper();
 
-    // ----------------------------------------------------------------
-    // SocialAgArch — interpretContent
-    // ----------------------------------------------------------------
-
+    private static final Logger logger = Logger.getLogger(CoNVaIGeminiAgArch.class.getName());
     /**
-     * Estimates Pnov, Prpl, Pnw, and a topics list for {@code contentTerm}
-     * given the agent's reading history ({@code pastMessagesTerm}).
+     * Estimates Pnov, Prpl, Pnw, and a topics list for a given message content,
+     * given the agent's reading history.
      *
      * @param contentStructure Jason structure expected to contain:
      *                         - Term 0: content string
      *                         - Term 1: list of past messages (strings)
      * @return Map with keys "pnov", "prpl", "pnw" (doubles in [0,1]) and
-     *         "topics" (List<String>; of 1–5 short labels).
+     *         "topics" (List<String>; of 1-5 short labels).
      */
     @Override
     public Map<String, Object> interpretContent(Term contentStructure) {
@@ -58,10 +55,10 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
             + "\u0000"
             + past.stream()
                 .map(m -> m.strip().replaceAll("\\s+", " "))
-                .collect(Collectors.joining("\u0000")); // FIX: now compiles with Collectors imported
+                .collect(Collectors.joining("\u0000")); /
         return SharedInterpretationCache.get(cacheKey, k -> {
             String prompt = buildInterpretPrompt(content, past);
-            String raw    = gemini.getResponse(prompt, GeminiClient.CONFIG_ANALYTICAL); // FIX: CONFIG_ANALYTICAL is now public
+            String raw    = gemini.getResponse(prompt, GeminiClient.CONFIG_ANALYTICAL);
             return parseInterpretation(raw);
         });
     }
@@ -102,8 +99,8 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
             "            this message is likely to become overall, considering topic salience,\n" +
             "            shareability, and persuasive strength.\n\n" +
 
-            "  \"topics\" — Topics (array of 1–5 short strings): the main subjects or themes\n" +
-            "            present in the new message. Each label should be 1–3 words, lowercase,\n" +
+            "  \"topics\" — Topics (array of 1-5 short strings): the main subjects or themes\n" +
+            "            present in the new message. Each label should be 1-3 words, lowercase,\n" +
             "            and specific enough to guide a reply (e.g. \"vaccine safety\",\n" +
             "            \"election fraud\", \"climate policy\").\n\n" +
 
@@ -111,10 +108,6 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
             historyBlock, content
         );
     }
-
-    // ----------------------------------------------------------------
-    // SocialAgArch — createContent
-    // ----------------------------------------------------------------
 
     /**
      * Generates tweet text for an agent that has already decided
@@ -151,12 +144,8 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
             stance, topicHint, content
         );
 
-        return gemini.getResponse(prompt, GeminiClient.CONFIG_CREATIVE); // FIX: CONFIG_CREATIVE is now public
+        return gemini.getResponse(prompt, GeminiClient.CONFIG_CREATIVE);
     }
-
-    // ----------------------------------------------------------------
-    // Helpers
-    // ----------------------------------------------------------------
 
     /**
      * Parses the LLM response into a map containing "pnov", "prpl", "pnw",
@@ -170,16 +159,21 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
         result.put("pnw",    0.0);
         result.put("topics", new ArrayList<String>());
 
+        if (raw == null || raw.isBlank()) {
+            logger.warning("[CoNVaIGeminiAgArch] Empty response from Gemini, using defaults.");
+            return result;
+        }
+
         try {
             String clean = raw.replaceAll("(?s)```json|```", "").trim();
 
             @SuppressWarnings("unchecked")
-            Map<String, Object> parsed = MAPPER.readValue(clean, Map.class); // FIX: uses static MAPPER field
+            Map<String, Object> parsed = MAPPER.readValue(clean, Map.class);
 
             for (String key : List.of("pnov", "prpl", "pnw")) {
                 if (parsed.containsKey(key)) {
                     double value = ((Number) parsed.get(key)).doubleValue();
-                    result.put(key, Math.max(0.0, Math.min(value, 1.0))); // FIX: clamp to [0.0, 1.0], not just ≤ 1.0
+                    result.put(key, Math.max(0.0, Math.min(value, 1.0)));
                 }
             }
 
@@ -194,7 +188,7 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
                 }
             }
         } catch (Exception e) {
-            System.err.println("[CoNVaIGeminiAgArch] Failed to parse interpretation JSON: "
+            logger.warning("[CoNVaIGeminiAgArch] Failed to parse interpretation JSON: "
                 + e.getMessage() + " | raw=" + raw);
         }
 

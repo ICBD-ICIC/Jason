@@ -71,35 +71,32 @@ public class GeminiClient {
         while (attempt < MAX_RETRIES) {
             try {
                 waitingForSemaphore.incrementAndGet();
-                logger.info("[GeminiClient] Waiting for semaphore. In queue: " + waitingForSemaphore.get() 
-                    + " | Active calls: " + activeGeminiCalls.get()
-                    + " | Available permits: " + semaphore.availablePermits());
                 semaphore.acquire();
                 waitingForSemaphore.decrementAndGet();
                 activeGeminiCalls.incrementAndGet();
-                logger.info("[GeminiClient] Acquired semaphore. Active calls: " + activeGeminiCalls.get());
                 try {
                     Future<String> future = executor.submit(() -> {
                         GenerateContentResponse response =
                             client.models.generateContent(MODEL, prompt, config);
-                        return response.text();
+                        String text = response.text();
+                        if (text == null || text.isBlank()) {
+                            throw new RuntimeException("Empty response from Gemini");
+                        }
+                        return text;
                     });
                     String result = future.get(30, TimeUnit.SECONDS);
-                    logger.info("[GeminiClient] Got response. Active calls: " + activeGeminiCalls.decrementAndGet());
                     return result;
                 } catch (TimeoutException te) {
-                    activeGeminiCalls.decrementAndGet();
-                    logger.warning("[GeminiClient] TIMEOUT. Active: " + activeGeminiCalls.get());
+                    logger.warning("[GeminiClient] TIMEOUT.");
                     attempt++;
                 } finally {
+                    activeGeminiCalls.decrementAndGet();
                     semaphore.release();
                 }
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
                 return "";
             } catch (Exception e) {
-                activeGeminiCalls.decrementAndGet();
-
                 attempt++;
                 String msg = e.getMessage() != null ? e.getMessage() : "";
                 boolean isRateLimit = msg.contains("429") || msg.toLowerCase().contains("quota");
@@ -111,12 +108,10 @@ public class GeminiClient {
 
                 long delay;
                 if (isRateLimit) {
-                    // Exponential backoff capped at 60s — no need to sleep a full minute
-                    // at 4k RPM the window resets in 60s, so 15s → 30s → 60s is enough
                     delay = Math.min(15_000L * (1L << (attempt - 1)), 60_000L);
                     logger.warning("[GeminiClient] Rate limited. Waiting " + delay + "ms...");
                 } else {
-                    delay = RETRY_DELAY * attempt; // linear backoff for transient errors
+                    delay = RETRY_DELAY * attempt;
                     logger.warning("[GeminiClient] Error (attempt " + attempt + "): " + msg);
                 }
 
