@@ -120,6 +120,8 @@ idle_limit_reached(false).
         .send(convai_monitor, tell, max_cycles_reached(Me))
     }.
 
++!end_cycle(_): true <-
+    ia.saveLogs([info("end_cycle skipped.")]).
 
 +restart: true <-
     -restart;
