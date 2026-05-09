@@ -273,7 +273,7 @@ def _load_run_agents(logs_dir: Path) -> tuple[dict, str | None]:
     if not logs_dir.exists():
         return agents_data, f"Logs directory not found: {logs_dir}"
     for jsonl_file in sorted(logs_dir.glob("*.jsonl")):
-        if jsonl_file.stem == "messages":
+        if jsonl_file.stem in ("messages", "convai_monitor"):
             continue
         rows: list[dict] = []
         try:
