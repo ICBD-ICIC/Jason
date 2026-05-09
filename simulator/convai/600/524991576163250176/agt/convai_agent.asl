@@ -99,13 +99,13 @@ idle_limit_reached(false).
             ia.saveLogs([info("Agent became active again after idle limit."), cycle(C1)]);
             -+idle_limit_reached(false);
             .my_name(Me);
-            .send(convai_monitor, tell, still_active(Me))
+            .send(convai_monitor, untell, idle_limit_reached(Me))
         }
     } else {
         IC1 = IC + 1;
         -+idle_cycles(IC1);
         ia.saveLogs([idle_cycles(IC1), cycle(C1)]);
-        if (IC1 > X & not IdleLimitReached) {
+        if (IC1 > X & IdleLimitReached == false) {
             ia.saveLogs([info("Idle limit reached. Notifying monitor."), cycle(C1)]);
             -+idle_limit_reached(true);
             .my_name(Me);
@@ -113,7 +113,7 @@ idle_limit_reached(false).
         }
     };
 
-    if (C1 > T & not MaxReached) {
+    if (C1 > T & MaxReached == false) {
         ia.saveLogs([info("Max cycles reached. Notifying monitor."), cycle(C1)]);
         -+max_cycles_reached(true);
         .my_name(Me);
@@ -262,4 +262,5 @@ idle_limit_reached(false).
 
 +!act(ActedNow): true <-
     ActedNow = false;
-    ia.saveLogs([info("Skipping action.")]).
+    ia.saveLogs([info("Skipping action.")]);
+    .abolish(replying(_, _)).
