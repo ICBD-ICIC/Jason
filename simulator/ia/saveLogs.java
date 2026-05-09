@@ -10,6 +10,9 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -18,45 +21,70 @@ import lib.JasonToJavaTranslator;
 public class saveLogs extends DefaultInternalAction {
 
     private static final String LOGS_FOLDER = "logs/" + System.currentTimeMillis() + "/";
-    private static final ConcurrentHashMap<String, BufferedWriter> writers = new ConcurrentHashMap<>();
     private static final ObjectMapper mapper = new ObjectMapper();
+
+    // One single-threaded executor per agent file — guarantees order, non-blocking for caller
+    private static final ConcurrentHashMap<String, ExecutorService> executors = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, BufferedWriter> writers = new ConcurrentHashMap<>();
+
+    static {
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            // Stop accepting new tasks
+            for (ExecutorService ex : executors.values()) {
+                ex.shutdown();
+            }
+            // Wait for pending writes to finish
+            for (ExecutorService ex : executors.values()) {
+                try { ex.awaitTermination(10, TimeUnit.SECONDS); } 
+                catch (InterruptedException ignored) {}
+            }
+            // Final flush and close
+            for (BufferedWriter w : writers.values()) {
+                try { w.flush(); w.close(); } 
+                catch (IOException ignored) {}
+            }
+        }));
+    }
 
     @Override
     public Object execute(TransitionSystem ts, Unifier un, Term[] args) throws Exception {
-
         if (args.length != 1) {
-            throw new IllegalArgumentException("saveLogs expects 1 argument: a list of variables");
+            throw new IllegalArgumentException("saveLogs expects 1 argument");
         }
 
-        Term listTerm = args[0];
         String agentName = ts.getAgArch().getAgName();
-        Map<String, Object> data = JasonToJavaTranslator.translateVariables(listTerm);
-
+        Map<String, Object> data = JasonToJavaTranslator.translateVariables(args[0]);
         data.put("timestamp", System.currentTimeMillis());
+        String json = mapper.writeValueAsString(data);
 
-        writeJsonToFile(agentName, data);
-        return true;
-    }
+        // Get or create a single-threaded executor for this agent
+        ExecutorService executor = executors.computeIfAbsent(agentName, name ->
+            Executors.newSingleThreadExecutor(r -> {
+                Thread t = new Thread(r, "log-writer-" + name);
+                t.setDaemon(false); // non-daemon so shutdown hook can drain it
+                return t;
+            })
+        );
 
-    private void writeJsonToFile(String agentName, Map<String, Object> data) throws IOException {
-        String fileName = LOGS_FOLDER + agentName + ".jsonl";
-        BufferedWriter writer = writers.computeIfAbsent(fileName, path -> {
+        executor.submit(() -> {
             try {
-                File dir = new File(LOGS_FOLDER);
-                if (!dir.exists()) dir.mkdirs();
-                return new BufferedWriter(new FileWriter(path, true));
+                BufferedWriter writer = writers.computeIfAbsent(agentName, name -> {
+                    try {
+                        File dir = new File(LOGS_FOLDER);
+                        if (!dir.exists()) dir.mkdirs();
+                        return new BufferedWriter(new FileWriter(LOGS_FOLDER + name + ".jsonl", true));
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+                writer.write(json);
+                writer.newLine();
+                writer.flush();
             } catch (IOException e) {
-                throw new RuntimeException("Failed to open log file: " + path, e);
+                System.err.println("[saveLogs] Write failed for " + agentName + ": " + e.getMessage());
             }
         });
 
-        String json = mapper.writeValueAsString(data);
-
-        // Synchronize per writer instance to prevent interleaved writes on the same file
-        synchronized (writer) {
-            writer.write(json);
-            writer.newLine();
-            writer.flush(); // flush after each write so logs aren't lost on crash
-        }
+        return true;
     }
 }

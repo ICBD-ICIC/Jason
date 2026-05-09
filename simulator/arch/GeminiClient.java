@@ -22,7 +22,7 @@ public class GeminiClient {
 
     // Shared across ALL agents — one client, limited concurrency
     private static final Client    client    = new Client();
-    private static final Semaphore semaphore = new Semaphore(80);
+    private static final Semaphore semaphore = new Semaphore(150);
 
     private static final AtomicInteger activeGeminiCalls    = new AtomicInteger(0);
     private static final AtomicInteger waitingForSemaphore  = new AtomicInteger(0);

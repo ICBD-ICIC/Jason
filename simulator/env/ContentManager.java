@@ -40,7 +40,7 @@ public abstract class ContentManager {
     protected final NetworkManager                      networkManager;
     protected final Logger                              logger;
 
-    private static final String       LOG_FILE = "logs/messages.jsonl";
+    private static final String LOG_FILE = "logs/messages_" + System.currentTimeMillis() + ".jsonl";
     private static final ObjectMapper mapper   = new ObjectMapper();
 
     private static final Object LOG_LOCK = new Object();

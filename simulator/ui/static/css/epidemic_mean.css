@@ -1,0 +1,157 @@
+/* ── Multi-run mean view ─────────────────────────────────────────────────────── */
+
+.mean-body {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: calc(100vh - 56px);
+  align-items: start;
+}
+
+/* ── Sidebar overrides ───────────────────────────────────────────────────────── */
+.mean-sidebar {
+  width: 260px;
+}
+
+/* ── Summary cards ───────────────────────────────────────────────────────────── */
+.mean-summary-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 16px;
+}
+
+.mean-summary-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  transition: border-color .15s;
+}
+
+.mean-summary-card:hover { border-color: var(--accent); }
+
+.mean-sc-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.mean-sc-info { flex: 1; }
+
+.mean-sc-label {
+  font-family: var(--mono);
+  font-size: .62rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .07em;
+}
+
+.mean-sc-val {
+  font-family: var(--mono);
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.mean-sc-std {
+  font-family: var(--mono);
+  font-size: .62rem;
+  color: var(--muted);
+}
+
+/* ── Run list ────────────────────────────────────────────────────────────────── */
+.mean-run-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0 10px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.mean-run-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  text-decoration: none;
+  transition: background .12s, border-color .12s;
+  cursor: pointer;
+}
+
+.mean-run-item:hover {
+  background: rgba(61, 255, 208, .06);
+  border-color: rgba(61, 255, 208, .2);
+}
+
+/* ── Options toggles ─────────────────────────────────────────────────────────── */
+.mean-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 16px;
+  font-family: var(--mono);
+  font-size: .75rem;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+  transition: color .12s;
+}
+
+.mean-toggle:hover { color: var(--text); }
+
+.mean-toggle input[type="checkbox"] {
+  accent-color: var(--accent);
+  cursor: pointer;
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
+/* ── Chart area ──────────────────────────────────────────────────────────────── */
+.mean-chart-area {
+  padding: 24px 28px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  overflow-y: auto;
+}
+
+/* ── Triple per-state row ────────────────────────────────────────────────────── */
+.mean-triple-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+
+/* ── Stats table ─────────────────────────────────────────────────────────────── */
+.mean-stats-table {
+  min-width: 560px;
+}
+
+.mean-stats-table th {
+  padding: 10px 14px;
+  font-size: .65rem;
+  font-weight: 600;
+  letter-spacing: .08em;
+  color: var(--muted);
+  text-transform: uppercase;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.mean-stats-table td {
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--border2);
+  vertical-align: middle;
+}
+
+.mean-stats-table tr:last-child td { border-bottom: none; }
+
+.mean-stats-table tr:hover td { background: rgba(255,255,255,.02); }

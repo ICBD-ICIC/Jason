@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ folder }} · Epidemic (All Runs)</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/epidemic.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/epidemic_mean.css') }}">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+</head>
+<body>
+
+<header class="hdr">
+  <div class="logo">sim<span>/</span>visualizer</div>
+  <div class="hdr-sep"></div>
+  <span class="hdr-folder">{{ folder }}</span>
+  <div class="hdr-sep"></div>
+  <span style="font-family:var(--mono);font-size:.75rem;color:var(--accent2)">all runs · mean</span>
+  <div class="hdr-spacer"></div>
+
+  <div id="run-selector-wrap"></div>
+
+  <div class="hdr-count" id="hdr-count"
+       style="font-family:var(--mono);font-size:.75rem;color:var(--sub);margin-left:8px;"></div>
+</header>
+
+{% if error %}
+<div class="err-wrap">
+  <div class="err-box">
+    <div class="err-icon">⚠</div>
+    <div class="err-title">Could not load run data</div>
+    <div class="err-msg">{{ error }}</div>
+  </div>
+</div>
+{% else %}
+
+<div class="stats-bar" id="stats-bar"></div>
+
+<div class="mean-body">
+
+  <!-- Sidebar -->
+  <aside class="sidebar mean-sidebar">
+    <div class="sidebar-inner">
+
+      <div class="sb-section">
+        <span class="sb-label">Summary</span>
+        <div class="mean-summary-cards" id="mean-summary-cards"></div>
+      </div>
+
+      <div class="sb-divider"></div>
+
+      <div class="sb-section">
+        <span class="sb-label">Runs</span>
+        <div class="mean-run-list" id="mean-run-list"></div>
+      </div>
+
+      <div class="sb-divider"></div>
+
+      <div class="sb-section">
+        <span class="sb-label">Chart options</span>
+        <label class="mean-toggle">
+          <input type="checkbox" id="opt-std-band" checked>
+          Show ±1 std band
+        </label>
+        <label class="mean-toggle">
+          <input type="checkbox" id="opt-per-run">
+          Overlay individual runs
+        </label>
+      </div>
+
+      <div class="sb-divider"></div>
+
+      <div class="sb-section">
+        <span class="sb-label">Legend</span>
+        <div class="legend-strip" style="padding:0;border:none;flex-direction:column;gap:8px;">
+          <div class="leg-item"><div class="leg-dot" style="background:#3a4055"></div>Neutral</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#f5604a"></div>Infected</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#2de89a"></div>Vaccinated</div>
+        </div>
+      </div>
+
+    </div>
+  </aside>
+
+  <!-- Main charts -->
+  <div class="chart-area mean-chart-area">
+
+    <!-- Mean stacked area -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <div class="dot" style="background:var(--accent2)"></div>
+        <span class="chart-title">Mean Population States Over Time</span>
+        <span class="chart-sub" id="run-count-badge"></span>
+      </div>
+      <div class="chart-body" style="height:300px">
+        <canvas id="mean-stacked-canvas"></canvas>
+      </div>
+      <div class="legend-strip">
+        <div class="leg-item"><div class="leg-dot" style="background:#3a4055"></div>Neutral (mean)</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#f5604a"></div>Infected (mean)</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#2de89a"></div>Vaccinated (mean)</div>
+        <div class="leg-item">
+          <div style="width:22px;height:3px;background:linear-gradient(90deg,rgba(91,141,246,0),rgba(91,141,246,.25),rgba(91,141,246,0));border-radius:2px;margin-right:2px;"></div>
+          ±1 std
+        </div>
+      </div>
+    </div>
+
+    <!-- Per-state mean + std row -->
+    <div class="chart-row mean-triple-row">
+
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="dot" style="background:#3a4055;border:1px solid #5b6080"></div>
+          <span class="chart-title">Neutral</span>
+        </div>
+        <div class="chart-body" style="height:180px">
+          <canvas id="mean-neutral-canvas"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="dot" style="background:#f5604a"></div>
+          <span class="chart-title">Infected</span>
+        </div>
+        <div class="chart-body" style="height:180px">
+          <canvas id="mean-infected-canvas"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="dot" style="background:#2de89a"></div>
+          <span class="chart-title">Vaccinated</span>
+        </div>
+        <div class="chart-body" style="height:180px">
+          <canvas id="mean-vaccinated-canvas"></canvas>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Peak / final stats table -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <div class="dot" style="background:#f0a500"></div>
+        <span class="chart-title">Run-level Statistics</span>
+        <span class="chart-sub">peak infected · final state · per run</span>
+      </div>
+      <div class="chart-body" style="padding:0;overflow-x:auto;">
+        <table class="trans-table mean-stats-table" id="run-stats-table">
+          <thead>
+            <tr>
+              <th style="padding:10px 16px">Run</th>
+              <th>Peak infected</th>
+              <th>Peak step</th>
+              <th>Final neutral</th>
+              <th>Final infected</th>
+              <th>Final vaccinated</th>
+            </tr>
+          </thead>
+          <tbody id="run-stats-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const MEAN_DATA  = {{ mean_json | safe }};
+const FOLDER     = {{ folder_json | safe }};
+const RUN_NAMES  = {{ run_names_json | safe }};
+
+Chart.defaults.color       = '#8899bb';
+Chart.defaults.borderColor = '#252e42';
+Chart.defaults.font.family = 'Space Mono, monospace';
+
+const TICK  = '#7a82a0';
+const GRID  = '#1b2235';
+const FONT  = { size: 10, family: 'Space Mono, monospace' };
+
+const STATE_COLOR = { neutral: '#3a4055', infected: '#f5604a', vaccinated: '#2de89a' };
+const STATE_LABEL = { neutral: 'Neutral',  infected: 'Infected',  vaccinated: 'Vaccinated' };
+const STATES      = ['neutral', 'infected', 'vaccinated'];
+
+const ts         = MEAN_DATA.timestamps  || [];
+const meanStates = MEAN_DATA.mean_states || [];
+const stdStates  = MEAN_DATA.std_states  || [];
+const perRun     = MEAN_DATA.per_run_series || {};
+const nRuns      = MEAN_DATA.n_runs || 0;
+const nAgents    = MEAN_DATA.n_agents || 0;
+
+// ── Formatting ────────────────────────────────────────────────────────────────
+function fmtDT(ms) {
+  return new Date(ms).toLocaleString([], { month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+}
+
+// ── Stats bar ─────────────────────────────────────────────────────────────────
+document.getElementById('stats-bar').innerHTML = `
+  <span class="stat-item"><span class="stat-val">${nRuns}</span>&nbsp;runs</span>
+  <span class="stat-item"><span class="stat-val">${nAgents}</span>&nbsp;agents per run</span>
+  <span class="stat-item"><span class="stat-val">${ts.length}</span>&nbsp;time steps</span>
+  ${ts.length ? `<span class="stat-item"><span class="stat-val">${fmtDT(ts[0])}</span>&nbsp;start</span>
+  <span class="stat-item"><span class="stat-val">${fmtDT(ts[ts.length-1])}</span>&nbsp;end</span>` : ''}
+`;
+document.getElementById('hdr-count').textContent = `${nRuns} runs`;
+document.getElementById('run-count-badge').textContent = `${nRuns} run${nRuns !== 1 ? 's' : ''} averaged`;
+
+// ── Run selector dropdown ─────────────────────────────────────────────────────
+(function () {
+  const wrap = document.getElementById('run-selector-wrap');
+  if (!RUN_NAMES || !RUN_NAMES.length) return;
+  const sel = document.createElement('select');
+  sel.style.cssText = `
+    background:var(--card);border:1px solid var(--border);border-radius:5px;
+    color:var(--text);padding:4px 8px;font-family:var(--mono);font-size:.75rem;
+    cursor:pointer;outline:none;`;
+  const optMean = document.createElement('option');
+  optMean.value    = '';
+  optMean.textContent = '— All runs (mean) —';
+  optMean.selected = true;
+  sel.appendChild(optMean);
+  RUN_NAMES.forEach(r => {
+    const opt = document.createElement('option');
+    opt.value       = `/${FOLDER}/epidemic/${encodeURIComponent(r)}`;
+    opt.textContent = r;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener('change', () => { if (sel.value) window.location.href = sel.value; });
+  wrap.appendChild(sel);
+})();
+
+// ── Summary cards ─────────────────────────────────────────────────────────────
+function buildSummaryCards() {
+  if (!meanStates.length) return;
+  const last = meanStates[meanStates.length - 1];
+  const lastStd = stdStates[stdStates.length - 1] || {};
+  const peakInf = Math.max(...meanStates.map(s => s.infected));
+  document.getElementById('mean-summary-cards').innerHTML = STATES.map(s => `
+    <div class="mean-summary-card">
+      <div class="mean-sc-dot" style="background:${STATE_COLOR[s]}"></div>
+      <div class="mean-sc-info">
+        <div class="mean-sc-label">${STATE_LABEL[s]}</div>
+        <div class="mean-sc-val" style="color:${STATE_COLOR[s] === '#3a4055' ? '#9ba4bf' : STATE_COLOR[s]}">
+          ${last[s] !== undefined ? last[s].toFixed(1) : '—'}
+        </div>
+        <div class="mean-sc-std">±${lastStd[s] !== undefined ? lastStd[s].toFixed(1) : '—'} std</div>
+      </div>
+    </div>`).join('') + `
+    <div class="mean-summary-card">
+      <div class="mean-sc-dot" style="background:#f5604a"></div>
+      <div class="mean-sc-info">
+        <div class="mean-sc-label">Peak infected</div>
+        <div class="mean-sc-val" style="color:#f5604a">${peakInf.toFixed(1)}</div>
+        <div class="mean-sc-std">mean across runs</div>
+      </div>
+    </div>`;
+}
+
+// ── Run list ──────────────────────────────────────────────────────────────────
+function buildRunList() {
+  document.getElementById('mean-run-list').innerHTML = RUN_NAMES.map(r => `
+    <a class="mean-run-item" href="/${FOLDER}/epidemic/${encodeURIComponent(r)}">
+      <span style="font-family:var(--mono);font-size:.75rem;color:var(--text)">${r}</span>
+      <span style="font-family:var(--mono);font-size:.65rem;color:var(--accent);margin-left:auto">→</span>
+    </a>`).join('') || '<div style="padding:8px 16px;font-size:.8rem;color:var(--muted)">No runs</div>';
+}
+
+// ── Chart helpers ─────────────────────────────────────────────────────────────
+const baseScaleOpts = {
+  x: { ticks:{ color:TICK, font:FONT, maxTicksLimit:7, maxRotation:0 }, grid:{ color:GRID } },
+  y: { ticks:{ color:TICK, font:FONT }, grid:{ color:GRID }, min:0 },
+};
+
+function labelsFromTs() {
+  return ts.map(t => fmtDT(t));
+}
+
+// Build a ±std shaded dataset pair for a single state
+function makeShadeDatasets(state, color) {
+  const meanVals = meanStates.map(s => s[state] ?? 0);
+  const stdVals  = stdStates.map(s => s[state] ?? 0);
+  const upper    = meanVals.map((v, i) => v + stdVals[i]);
+  const lower    = meanVals.map((v, i) => Math.max(0, v - stdVals[i]));
+  return [
+    {
+      label: `${STATE_LABEL[state]} upper`,
+      data: upper,
+      borderWidth: 0,
+      pointRadius: 0,
+      backgroundColor: color + '28',
+      fill: '+1',
+      tension: 0.3,
+    },
+    {
+      label: `${STATE_LABEL[state]} lower`,
+      data: lower,
+      borderWidth: 0,
+      pointRadius: 0,
+      backgroundColor: color + '28',
+      fill: false,
+      tension: 0.3,
+    },
+  ];
+}
+
+// ── Main stacked mean chart ───────────────────────────────────────────────────
+let mainChart = null;
+
+function buildMainChart() {
+  const canvas = document.getElementById('mean-stacked-canvas');
+  if (!canvas || !ts.length) return;
+
+  const showStd    = document.getElementById('opt-std-band').checked;
+  const showPerRun = document.getElementById('opt-per-run').checked;
+
+  if (mainChart) { mainChart.destroy(); mainChart = null; }
+
+  const datasets = [];
+
+  STATES.forEach(state => {
+    const color    = STATE_COLOR[state];
+    const meanVals = meanStates.map(s => s[state] ?? 0);
+    const stdVals  = stdStates.map(s => s[state] ?? 0);
+
+    // Per-run overlays (thin, low opacity)
+    if (showPerRun) {
+      Object.entries(perRun).forEach(([runName, series]) => {
+        datasets.push({
+          label: `${runName} · ${state}`,
+          data:  series.map(s => s[state] ?? 0),
+          borderColor: color + '44',
+          backgroundColor: 'transparent',
+          borderWidth: 1,
+          pointRadius: 0,
+          tension: 0.3,
+          fill: false,
+        });
+      });
+    }
+
+    // Std band
+    if (showStd) {
+      const upper = meanVals.map((v, i) => v + stdVals[i]);
+      const lower = meanVals.map((v, i) => Math.max(0, v - stdVals[i]));
+      datasets.push({
+        label: `${STATE_LABEL[state]} +σ`,
+        data: upper,
+        borderWidth: 0, pointRadius: 0,
+        backgroundColor: color + '22',
+        fill: `+1`,
+        tension: 0.3,
+      });
+      datasets.push({
+        label: `${STATE_LABEL[state]} −σ`,
+        data: lower,
+        borderWidth: 0, pointRadius: 0,
+        backgroundColor: color + '22',
+        fill: false,
+        tension: 0.3,
+      });
+    }
+
+    // Mean line (on top)
+    datasets.push({
+      label: STATE_LABEL[state] + ' (mean)',
+      data:  meanVals,
+      borderColor: color,
+      backgroundColor: color + '33',
+      borderWidth: 2.5,
+      pointRadius: 0,
+      tension: 0.3,
+      fill: state === 'neutral' ? false : false,
+    });
+  });
+
+  mainChart = new Chart(canvas, {
+    type: 'line',
+    data: { labels: labelsFromTs(), datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1c2030',
+          borderColor: '#2a3045',
+          borderWidth: 1,
+          filter: item => !item.dataset.label.includes('σ') && !item.dataset.label.includes('·'),
+          callbacks: {
+            label: ctx => {
+              if (ctx.dataset.label.includes('σ')) return null;
+              const si   = ctx.dataIndex;
+              const state = STATES.find(s => ctx.dataset.label.includes(STATE_LABEL[s]));
+              if (!state) return ` ${ctx.dataset.label}: ${ctx.raw}`;
+              const std  = stdStates[si]?.[state] ?? 0;
+              return ` ${ctx.dataset.label}: ${(+ctx.raw).toFixed(1)} ±${std.toFixed(1)}`;
+            },
+          },
+        },
+      },
+      scales: baseScaleOpts,
+      animation: { duration: 0 },
+    },
+  });
+}
+
+// ── Per-state detail charts ───────────────────────────────────────────────────
+const stateCharts = {};
+
+function buildStateChart(state) {
+  const canvas = document.getElementById(`mean-${state}-canvas`);
+  if (!canvas || !ts.length) return;
+  if (stateCharts[state]) { stateCharts[state].destroy(); }
+
+  const color    = STATE_COLOR[state];
+  const meanVals = meanStates.map(s => s[state] ?? 0);
+  const stdVals  = stdStates.map(s => s[state] ?? 0);
+  const upper    = meanVals.map((v, i) => v + stdVals[i]);
+  const lower    = meanVals.map((v, i) => Math.max(0, v - stdVals[i]));
+
+  const showStd    = document.getElementById('opt-std-band').checked;
+  const showPerRun = document.getElementById('opt-per-run').checked;
+
+  const datasets = [];
+
+  if (showPerRun) {
+    Object.entries(perRun).forEach(([runName, series]) => {
+      datasets.push({
+        label: runName,
+        data:  series.map(s => s[state] ?? 0),
+        borderColor: color + '40',
+        backgroundColor: 'transparent',
+        borderWidth: 1,
+        pointRadius: 0,
+        tension: 0.3,
+        fill: false,
+      });
+    });
+  }
+
+  if (showStd) {
+    datasets.push({
+      label: '+σ', data: upper,
+      borderWidth: 0, pointRadius: 0,
+      backgroundColor: color + '25',
+      fill: '+1', tension: 0.3,
+    });
+    datasets.push({
+      label: '−σ', data: lower,
+      borderWidth: 0, pointRadius: 0,
+      backgroundColor: color + '25',
+      fill: false, tension: 0.3,
+    });
+  }
+
+  datasets.push({
+    label: 'mean',
+    data:  meanVals,
+    borderColor: color,
+    backgroundColor: color + '22',
+    borderWidth: 2,
+    pointRadius: 0,
+    tension: 0.3,
+    fill: false,
+  });
+
+  stateCharts[state] = new Chart(canvas, {
+    type: 'line',
+    data: { labels: labelsFromTs(), datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1c2030',
+          borderColor: '#2a3045',
+          borderWidth: 1,
+          callbacks: {
+            label: ctx => {
+              if (ctx.dataset.label === '+σ' || ctx.dataset.label === '−σ') return null;
+              if (ctx.dataset.label === 'mean') {
+                const std = stdStates[ctx.dataIndex]?.[state] ?? 0;
+                return ` mean: ${(+ctx.raw).toFixed(1)} ±${std.toFixed(1)}`;
+              }
+              return ` ${ctx.dataset.label}: ${(+ctx.raw).toFixed(1)}`;
+            },
+          },
+        },
+      },
+      scales: baseScaleOpts,
+      animation: { duration: 0 },
+    },
+  });
+}
+
+// ── Run statistics table ──────────────────────────────────────────────────────
+function buildRunStatsTable() {
+  const tbody = document.getElementById('run-stats-tbody');
+  if (!tbody || !Object.keys(perRun).length) return;
+
+  const rows = RUN_NAMES.map(runName => {
+    const series = perRun[runName] || [];
+    if (!series.length) return null;
+
+    const infVals   = series.map(s => s.infected ?? 0);
+    const peakInf   = Math.max(...infVals);
+    const peakStep  = infVals.indexOf(peakInf) + 1;
+    const final     = series[series.length - 1] || {};
+
+    return { runName, peakInf, peakStep, final };
+  }).filter(Boolean);
+
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td style="padding:8px 16px">
+        <a href="/${FOLDER}/epidemic/${encodeURIComponent(r.runName)}"
+           style="font-family:var(--mono);font-size:.78rem;color:var(--accent2);text-decoration:none;">
+          ${r.runName}
+        </a>
+      </td>
+      <td><span class="trans-count" style="color:#f5604a">${r.peakInf.toFixed(1)}</span></td>
+      <td><span style="font-family:var(--mono);font-size:.78rem;color:var(--muted)">${r.peakStep}</span></td>
+      <td><span style="font-family:var(--mono);font-size:.78rem;color:#9ba4bf">${(r.final.neutral ?? 0).toFixed(1)}</span></td>
+      <td><span style="font-family:var(--mono);font-size:.78rem;color:#f5604a">${(r.final.infected ?? 0).toFixed(1)}</span></td>
+      <td><span style="font-family:var(--mono);font-size:.78rem;color:#2de89a">${(r.final.vaccinated ?? 0).toFixed(1)}</span></td>
+    </tr>`).join('') || '<tr><td colspan="6" style="padding:16px;text-align:center;color:var(--muted)">No run data</td></tr>';
+}
+
+// ── Rebuild on option change ──────────────────────────────────────────────────
+function rebuildCharts() {
+  buildMainChart();
+  STATES.forEach(buildStateChart);
+}
+
+document.getElementById('opt-std-band').addEventListener('change', rebuildCharts);
+document.getElementById('opt-per-run').addEventListener('change', rebuildCharts);
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+buildSummaryCards();
+buildRunList();
+rebuildCharts();
+buildRunStatsTable();
+</script>
+
+{% endif %}
+</body>
+</html>

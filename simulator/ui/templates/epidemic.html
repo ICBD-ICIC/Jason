@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{ folder }} · Epidemic Dashboard</title>
+  <title>{{ folder }}{% if run_name %} · {{ run_name }}{% endif %} · Epidemic Dashboard</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/epidemic.css') }}">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -15,9 +15,30 @@
   <div class="logo">sim<span>/</span>visualizer</div>
   <div class="hdr-sep"></div>
   <span class="hdr-folder">{{ folder }}</span>
+  {% if run_name %}
+  <div class="hdr-sep"></div>
+  <span style="font-family:var(--mono);font-size:.78rem;color:var(--accent2)">{{ run_name }}</span>
+  {% endif %}
   <div class="hdr-spacer"></div>
+
+  {# ── Run navigation ── #}
+  {% set run_names = run_names_json | tojson if run_names_json is string else run_names_json %}
+  <div id="run-nav" style="display:flex;align-items:center;gap:8px;">
+    {% if mean_url %}
+    <a href="{{ mean_url }}"
+       style="font-family:var(--mono);font-size:.75rem;color:var(--muted);text-decoration:none;
+              border:1px solid var(--border);border-radius:5px;padding:3px 10px;
+              transition:border-color .14s,color .14s;"
+       onmouseover="this.style.borderColor='var(--accent2)';this.style.color='var(--accent2)'"
+       onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">
+      ← All runs
+    </a>
+    {% endif %}
+    <div id="run-selector-wrap"></div>
+  </div>
+
   <div class="hdr-count" id="hdr-count"
-       style="font-family:var(--mono);font-size:.75rem;color:var(--sub)"></div>
+       style="font-family:var(--mono);font-size:.75rem;color:var(--sub);margin-left:8px;"></div>
 </header>
 
 {% if error %}
@@ -154,7 +175,7 @@
 
     </div>
 
-    <!-- ── Active Network Graph ──────────────────────────────────────────────── -->
+    <!-- Active Network Graph -->
     <div class="chart-card">
       <div class="chart-header">
         <div class="dot" style="background:#f0a500"></div>
@@ -185,18 +206,6 @@
         <div class="leg-item"><div class="leg-dot" style="background:#f5604a"></div>Infected</div>
         <div class="leg-item"><div class="leg-dot" style="background:#2de89a"></div>Vaccinated</div>
         <div class="leg-item"><div class="leg-dot" style="background:#3a4055;border:1px solid #5b6080"></div>Susceptible neighbour</div>
-        <div class="leg-item">
-          <svg width="22" height="10" style="flex-shrink:0">
-            <line x1="0" y1="5" x2="22" y2="5" stroke="#f5604a" stroke-width="1.5" stroke-dasharray="4,2" opacity=".7"/>
-          </svg>
-          Edge to infected
-        </div>
-        <div class="leg-item">
-          <svg width="22" height="10" style="flex-shrink:0">
-            <line x1="0" y1="5" x2="22" y2="5" stroke="#2de89a" stroke-width="1.5" stroke-dasharray="4,2" opacity=".7"/>
-          </svg>
-          Edge to vaccinated
-        </div>
       </div>
     </div>
 
@@ -243,7 +252,35 @@
 <script>
 const AGENTS_DATA  = {{ agents_json | safe }};
 const FOLDER       = {{ folder_json | safe }};
-const NETWORK_DATA = {{ network_json | safe }};  {# {edges: [{source, target}], loaded: bool, error?: str} #}
+const NETWORK_DATA = {{ network_json | safe }};
+const RUN_NAME     = {{ (run_name | tojson) if run_name else 'null' }};
+const RUN_NAMES    = {{ run_names_json | safe }};
+const MEAN_URL     = {{ (mean_url | tojson) if mean_url else 'null' }};
+
+// Build run selector dropdown
+(function () {
+  const wrap = document.getElementById('run-selector-wrap');
+  if (!RUN_NAMES || !RUN_NAMES.length) return;
+  const sel = document.createElement('select');
+  sel.style.cssText = `
+    background:var(--card);border:1px solid var(--border);border-radius:5px;
+    color:var(--text);padding:4px 8px;font-family:var(--mono);font-size:.75rem;
+    cursor:pointer;outline:none;`;
+  const optMean = document.createElement('option');
+  optMean.value = MEAN_URL || '#';
+  optMean.textContent = '— All runs (mean) —';
+  optMean.selected = !RUN_NAME;
+  sel.appendChild(optMean);
+  RUN_NAMES.forEach(r => {
+    const opt = document.createElement('option');
+    opt.value = `/${FOLDER}/epidemic/${encodeURIComponent(r)}`;
+    opt.textContent = r;
+    opt.selected = r === RUN_NAME;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener('change', () => { if (sel.value) window.location.href = sel.value; });
+  wrap.appendChild(sel);
+})();
 </script>
 <script src="{{ url_for('static', filename='js/epidemic.js') }}"></script>
 

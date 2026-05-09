@@ -184,7 +184,6 @@ def generate():
         stem           = src_path.stem
         multiple_total = stem_totals.get(stem, 1) > 1
 
-        # Write the shared .asl once per stem — no beliefs baked in
         if stem not in written_stems:
             out_path = out_agt_dir / f"{stem}.asl"
             out_path.write_text(src_path.read_text(), encoding="utf-8")
@@ -261,34 +260,276 @@ def generate():
 
 # ── Visualisations ────────────────────────────────────────────────────────────
 
+# ── Per-folder mean cache: {folder: (mtime_signature, result_dict)} ───────────
+_mean_cache: dict[str, tuple[str, dict]] = {}
+
+MAX_MEAN_STEPS = 300  # subsample to this many steps for the mean view
+
+
+def _load_run_agents(logs_dir: Path) -> tuple[dict, str | None]:
+    """Load agent JSONL files from a single logs directory. Returns (agents_data, error)."""
+    agents_data: dict[str, list] = {}
+    error = None
+    if not logs_dir.exists():
+        return agents_data, f"Logs directory not found: {logs_dir}"
+    for jsonl_file in sorted(logs_dir.glob("*.jsonl")):
+        if jsonl_file.stem == "messages":
+            continue
+        rows: list[dict] = []
+        try:
+            for line in jsonl_file.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line:
+                    rows.append(json.loads(line))
+        except Exception as exc:
+            error = f"Failed to parse {jsonl_file.name}: {exc}"
+            break
+        if rows:
+            agents_data[jsonl_file.stem] = rows
+    return agents_data, error
+
+
+def _run_mtime_sig(logs_dir: Path) -> str:
+    """Cheap cache key: join all JSONL file sizes + mtimes under logs_dir."""
+    parts = []
+    for d in sorted(logs_dir.iterdir()) if logs_dir.exists() else []:
+        if not d.is_dir():
+            continue
+        for f in sorted(d.glob("*.jsonl")):
+            st = f.stat()
+            parts.append(f"{f}:{st.st_size}:{st.st_mtime_ns}")
+    return "|".join(parts)
+
+
+def _compute_mean_across_runs(logs_dir: Path, run_dirs: list[Path]) -> tuple[dict, str | None]:
+    """
+    Compute per-step mean state counts across all runs.
+    Results are cached in memory keyed by file mtimes — recomputed only when
+    log files change.  Hot path (cache hit) costs ~0 ms.
+    """
+    STATE_NAMES = ["neutral", "infected", "vaccinated"]
+    cache_key   = str(logs_dir)
+    sig         = _run_mtime_sig(logs_dir)
+
+    if cache_key in _mean_cache and _mean_cache[cache_key][0] == sig:
+        return _mean_cache[cache_key][1], None
+
+    # ── Load all runs ────────────────────────────────────────────────────────
+    runs_agents: dict[str, dict[str, list]] = {}
+    first_error = None
+    for rd in run_dirs:
+        agents_data, err = _load_run_agents(rd)
+        if err and not agents_data and not first_error:
+            first_error = err
+        if agents_data:
+            runs_agents[rd.name] = agents_data
+
+    if not runs_agents:
+        empty = {"timestamps": [], "mean_states": [], "std_states": [],
+                 "per_run_series": {}, "run_names": [], "n_runs": 0, "n_agents": 0}
+        return empty, first_error
+
+    run_names = sorted(runs_agents.keys())
+
+    # ── Build per-run compact state-count timeseries ─────────────────────────
+    # Strategy: scan each agent's log once in order, advancing a pointer per
+    # agent rather than binary-searching for every (agent, timestamp) pair.
+    # This is O(total_rows) instead of O(agents × timestamps).
+
+    run_counts: dict[str, list[tuple[int, int, int]]] = {}
+    # value: list of (neutral, infected, vaccinated) counts — integers, no dicts
+
+    all_raw_ts: set[int] = set()
+
+    for run_name, agents_data in runs_agents.items():
+        # 1. Collect all transition events sorted by timestamp
+        #    events: list of (ts, agent_idx, state_idx)
+        state_idx = {"neutral": 0, "infected": 1, "vaccinated": 2}
+        n_agents  = len(agents_data)
+
+        # Initial state vector (all neutral = 0)
+        cur_state = [0] * n_agents  # 0=neutral,1=infected,2=vaccinated
+
+        # Build flat event list: (timestamp, agent_idx, new_state_idx)
+        events: list[tuple[int, int, int]] = []
+        for ai, rows in enumerate(agents_data.values()):
+            for row in rows:
+                ts_val = row.get("timestamp")
+                st_val = row.get("state")
+                if ts_val is not None and st_val in state_idx:
+                    events.append((int(ts_val), ai, state_idx[st_val]))
+
+        if not events:
+            run_counts[run_name] = []
+            continue
+
+        events.sort()
+
+        # Collect unique timestamps for this run
+        run_ts_set: set[int] = {e[0] for e in events}
+        all_raw_ts |= run_ts_set
+
+        # 2. Walk events once, snapshotting counts at each unique timestamp
+        #    counts_at_ts: {ts: [n, i, v]}
+        counts_at_ts: dict[int, list[int]] = {}
+        cur_counts   = [n_agents, 0, 0]  # neutral, infected, vaccinated
+        ei           = 0
+        n_events     = len(events)
+
+        for ts in sorted(run_ts_set):
+            # Apply all events up to and including ts
+            while ei < n_events and events[ei][0] <= ts:
+                _, ai, new_si = events[ei]
+                old_si = cur_state[ai]
+                if old_si != new_si:
+                    cur_counts[old_si] -= 1
+                    cur_counts[new_si] += 1
+                    cur_state[ai] = new_si
+                ei += 1
+            counts_at_ts[ts] = cur_counts[:]
+
+        run_counts[run_name] = counts_at_ts  # type: ignore[assignment]
+
+    if not all_raw_ts:
+        empty = {"timestamps": [], "mean_states": [], "std_states": [],
+                 "per_run_series": {}, "run_names": run_names,
+                 "n_runs": len(run_names), "n_agents": 0}
+        _mean_cache[cache_key] = (sig, empty)
+        return empty, first_error
+
+    # ── Subsample timestamps to MAX_MEAN_STEPS ────────────────────────────────
+    all_sorted_ts = sorted(all_raw_ts)
+    if len(all_sorted_ts) > MAX_MEAN_STEPS:
+        step = len(all_sorted_ts) / MAX_MEAN_STEPS
+        all_sorted_ts = [all_sorted_ts[int(i * step)] for i in range(MAX_MEAN_STEPS)]
+
+    # ── For each run, forward-fill counts at each sampled timestamp ───────────
+    # run_series[run_name] = list of {"neutral":n,"infected":i,"vaccinated":v}
+    run_series: dict[str, list[dict]] = {}
+    n_agents_max = 0
+
+    for run_name in run_names:
+        cts = run_counts[run_name]  # {ts: [n,i,v]} or []
+        if not cts:
+            run_series[run_name] = [{"neutral": 0, "infected": 0, "vaccinated": 0}] * len(all_sorted_ts)
+            continue
+
+        sorted_run_ts = sorted(cts.keys())
+        last_counts   = [0, 0, 0]
+        ri            = 0
+        series        = []
+
+        for ts in all_sorted_ts:
+            # Advance pointer to last known snapshot at or before ts
+            while ri < len(sorted_run_ts) and sorted_run_ts[ri] <= ts:
+                last_counts = cts[sorted_run_ts[ri]]
+                ri += 1
+            series.append({"neutral": last_counts[0],
+                            "infected": last_counts[1],
+                            "vaccinated": last_counts[2]})
+            n_agents_max = max(n_agents_max, sum(last_counts))
+
+        run_series[run_name] = series
+
+    # ── Average + std across runs ─────────────────────────────────────────────
+    mean_states: list[dict] = []
+    std_states:  list[dict] = []
+    n_runs = len(run_names)
+
+    for i in range(len(all_sorted_ts)):
+        means, stds = {}, {}
+        for s in STATE_NAMES:
+            vals = [run_series[r][i][s] for r in run_names]
+            avg  = sum(vals) / n_runs
+            var  = sum((v - avg) ** 2 for v in vals) / n_runs
+            means[s] = round(avg, 2)
+            stds[s]  = round(var ** 0.5, 2)
+        mean_states.append(means)
+        std_states.append(stds)
+
+    result = {
+        "timestamps":     all_sorted_ts,
+        "mean_states":    mean_states,
+        "std_states":     std_states,
+        "per_run_series": run_series,
+        "run_names":      run_names,
+        "n_runs":         n_runs,
+        "n_agents":       n_agents_max,
+    }
+    _mean_cache[cache_key] = (sig, result)
+    return result, first_error
+
+
 @app.route("/<path:folder>/epidemic")
 def visualize_epidemic(folder: str):
     safe_folder = _safe_folder_name(folder)
     logs_dir    = BASE_DIR / safe_folder / "logs"
+    error       = None
 
-    agents_data: dict[str, list] = {}
-    error = None
+    # Detect multi-run layout: logs/ contains subdirectories
+    run_dirs: list[Path] = []
+    if logs_dir.exists():
+        run_dirs = sorted([d for d in logs_dir.iterdir() if d.is_dir()])
 
-    if not logs_dir.exists():
-        error = f"Logs directory not found: {logs_dir.relative_to(BASE_DIR)}"
+    if run_dirs:
+        # ── Multi-run mean view ───────────────────────────────────────────────
+        mean_data, error = _compute_mean_across_runs(logs_dir, run_dirs)
+
+        return render_template(
+            "epidemic_mean.html",
+            folder         = safe_folder,
+            folder_json    = json.dumps(safe_folder),
+            mean_json      = json.dumps(mean_data),
+            run_names_json = json.dumps(mean_data.get("run_names", [])),
+            error          = error,
+        )
     else:
-        for jsonl_file in sorted(logs_dir.glob("*.jsonl")):
-            if jsonl_file.stem == "messages":
-                continue
-            agent_name = jsonl_file.stem
-            rows: list[dict] = []
-            try:
-                for line in jsonl_file.read_text(encoding="utf-8").splitlines():
-                    line = line.strip()
-                    if line:
-                        rows.append(json.loads(line))
-            except Exception as exc:
-                error = f"Failed to parse {jsonl_file.name}: {exc}"
-                break
-            if rows:
-                agents_data[agent_name] = rows
+        # ── Single-run (legacy flat layout) ──────────────────────────────────
+        agents_data, error = _load_run_agents(logs_dir)
 
-    # ── Load network.csv ──────────────────────────────────────────────────────
+        network_data: dict = {"edges": [], "loaded": False}
+        network_csv = BASE_DIR / safe_folder / "initializer" / "network.csv"
+        if network_csv.exists():
+            try:
+                edges = []
+                with network_csv.open(encoding="utf-8-sig") as fh:
+                    reader = csv.DictReader(fh)
+                    for row in reader:
+                        src = (row.get("from") or row.get("source") or "").strip()
+                        tgt = (row.get("to")   or row.get("target") or "").strip()
+                        if src and tgt:
+                            edges.append({"source": src, "target": tgt})
+                network_data = {"edges": edges, "loaded": True}
+            except Exception as exc:
+                network_data = {"edges": [], "loaded": False, "error": str(exc)}
+
+        return render_template(
+            "epidemic.html",
+            folder         = safe_folder,
+            folder_json    = json.dumps(safe_folder),
+            agents_json    = json.dumps(agents_data),
+            network_json   = json.dumps(network_data),
+            error          = error,
+            run_name       = None,
+            run_names_json = json.dumps([]),
+            mean_url       = None,
+        )
+
+
+@app.route("/<path:folder>/epidemic/<run_name>")
+def visualize_epidemic_run(folder: str, run_name: str):
+    """Single-run detailed view when multi-run layout is detected."""
+    safe_folder = _safe_folder_name(folder)
+    if not re.match(r'^[\w\-. ]+$', run_name):
+        return "Invalid run name", 400
+
+    logs_dir = BASE_DIR / safe_folder / "logs" / run_name
+    agents_data, error = _load_run_agents(logs_dir)
+
+    # Discover sibling runs for the dropdown
+    parent_logs = BASE_DIR / safe_folder / "logs"
+    run_names = sorted([d.name for d in parent_logs.iterdir() if d.is_dir()]) if parent_logs.exists() else []
+
     network_data: dict = {"edges": [], "loaded": False}
     network_csv = BASE_DIR / safe_folder / "initializer" / "network.csv"
     if network_csv.exists():
@@ -307,12 +548,16 @@ def visualize_epidemic(folder: str):
 
     return render_template(
         "epidemic.html",
-        folder       = safe_folder,
-        folder_json  = json.dumps(safe_folder),
-        agents_json  = json.dumps(agents_data),
-        network_json = json.dumps(network_data),
-        error        = error,
+        folder         = safe_folder,
+        folder_json    = json.dumps(safe_folder),
+        agents_json    = json.dumps(agents_data),
+        network_json   = json.dumps(network_data),
+        error          = error,
+        run_name       = run_name,
+        run_names_json = json.dumps(run_names),
+        mean_url       = f"/{safe_folder}/epidemic",
     )
+
 
 @app.route("/<path:folder>/agts")
 def visualize_agts(folder: str):
@@ -529,10 +774,6 @@ def parse_variables(value: str, row_idx: int):
 
 
 def _build_belief_string(instance: dict) -> str:
-    """
-    Build a comma-separated belief string for the mas2j [ beliefs="..." ] clause.
-    e.g. {"pepe": "num1", "prob": "0.3"} → 'pepe(num1), prob(0.3)'
-    """
     parts = []
     for attr, value in instance.items():
         attr  = (attr  or "").strip()
@@ -549,7 +790,6 @@ def _build_belief_string(instance: dict) -> str:
 
 
 def _parse_fact_args(value: str) -> list[str]:
-    """Robust CSV-style parser that respects quoted strings."""
     reader = csv.reader(StringIO(value), skipinitialspace=True)
     return next(reader)
 
