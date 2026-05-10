@@ -52,11 +52,11 @@ read_history([]).
 
 // --- Cycle / idle tracking ---
 cycle(0).
-max_cycles(1000).
+max_cycles(100).
 max_cycles_reached(false).
 
 idle_cycles(0).
-inactivity_limit(60).
+inactivity_limit(20).
 idle_limit_reached(false).
 
 !init.
@@ -160,7 +160,11 @@ idle_limit_reached(false).
     message_var(Id, "conversation_id", CId) & message_var(Id, "cycle", Cycle) & cycle(C)
 <-
     ia.saveLogs([info("Got all information for message. Waiting for interpretation.")]);
-    ia.interpretContent(content(Content, PastMessages, Cycle, Timestamp), [pnov(Pnov), prpl(Prpl), pnw(Pnw), topics(Topics)]);
+    ia.interpretContent(content(Content, PastMessages, Cycle, Timestamp), Interpretation);
+    .member(pnov(Pnov), Interpretation);
+    .member(prpl(Prpl), Interpretation);
+    .member(pnw(Pnw),   Interpretation);
+    .member(topics(Topics), Interpretation);
     ia.saveLogs([info("Interpretation complete."), cycle(C), pnov(Pnov), prpl(Prpl), pnw(Pnw), topics(Topics)]);
     -+message_topics(Id, Topics);
     if (known_conversation(CId)) {

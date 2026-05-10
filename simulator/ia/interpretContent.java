@@ -5,7 +5,6 @@ import jason.architecture.AgArch;
 import jason.asSemantics.DefaultInternalAction;
 import jason.asSemantics.TransitionSystem;
 import jason.asSemantics.Unifier;
-import jason.asSyntax.StringTermImpl;
 import jason.asSyntax.Term;
 import java.util.Map;
 
