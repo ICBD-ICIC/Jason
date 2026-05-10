@@ -5,7 +5,6 @@ import jason.asSyntax.*;
 import lib.JasonToJavaTranslator;
 
 import java.util.*;
-import java.util.stream.Collectors; 
 import java.util.logging.Logger;
 
 /**
@@ -55,38 +54,28 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
         int currentCycle  = JasonToJavaTranslator.translateInt(s.getTerm(2));
         int messageCycle  = JasonToJavaTranslator.translateInt(s.getTerm(3));
 
-        // --- Cache 1: per conversation root (pnw + topics) ---
-        // pnw is a fixed property of the news piece itself, not of any reply.
-        // We key only on the root content so all replies share the same pnw.
+        // pnw: cached per conversation root as a plain double — no map involved
         String convCacheKey = "conv\u0000" + content.strip().replaceAll("\\s+", " ");
-        Map<String, Object> convLevel = SharedInterpretationCache.get(convCacheKey, k -> {
+        double pnw = SharedInterpretationCache.getDouble(convCacheKey, k -> {
             String prompt = buildInfluencePrompt(content);
             String raw    = gemini.getResponse(prompt, GeminiClient.CONFIG_ANALYTICAL);
-            return parseInterpretation(raw);
+            return parseDouble(raw, "pnw");
         });
 
-        // --- Cache 2: per message + history (pnov + prpl) ---
-        // These depend on what this specific agent has already seen,
-        // so the full history must be part of the cache key.
+        // pnov, prpl, topics: never cached — always fresh per message
         List<String> recentWindow = past.size() > 3 ? past.subList(0, 3) : past;
-        String msgCacheKey = content.strip().replaceAll("\\s+", " ")
-            + "\u0000"
-            + recentWindow.stream()
-                .map(m -> m.strip().replaceAll("\\s+", " "))
-                .collect(Collectors.joining("\u0000"));
+        String prompt     = buildMessagePrompt(content, recentWindow, past.size());
+        String raw        = gemini.getResponse(prompt, GeminiClient.CONFIG_ANALYTICAL);
+        Map<String, Object> msgResult = parseInterpretation(raw);
 
-        Map<String, Object> msgLevel = SharedInterpretationCache.get(msgCacheKey, k -> {
-            String prompt = buildEngagementPrompt(content, past); // still passes full past for context size
-            String raw    = gemini.getResponse(prompt, GeminiClient.CONFIG_ANALYTICAL);
-            return parseInterpretation(raw);
-        });
+        // Merge
+        Map<String, Object> merged = new LinkedHashMap<>(msgResult);
+        merged.put("pnw", pnw);
 
-        // --- Merge and apply time decay ---
-        Map<String, Object> merged = new LinkedHashMap<>();
-        merged.put("pnov",   msgLevel.getOrDefault("pnov",   0.0));
-        merged.put("prpl",   msgLevel.getOrDefault("prpl",   0.0));
-        merged.put("pnw",    convLevel.getOrDefault("pnw",   0.0));
-        merged.put("topics", convLevel.getOrDefault("topics", new ArrayList<String>()));
+        logger.info(String.format(
+            "[CoNVaIGeminiAgArch] interpretContent | content=\"%s\" | pnov=%.3f | prpl=%.3f | pnw=%.3f | topics=%s",
+            content, merged.get("pnov"), merged.get("prpl"), merged.get("pnw"), merged.get("topics")
+        ));
 
         return applyTimeDecay(merged, currentCycle, messageCycle, past.size());
     }
@@ -115,86 +104,90 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
     }
 
     /**
-     * Prompt for pnw + topics only — keyed per conversation root.
+     * Prompt for pnw only — keyed per conversation root.
      * No history needed since cumulative influence is a property of the content itself.
      */
     private String buildInfluencePrompt(String content) {
         return String.format(
-            "You are an analytical engine for an information-diffusion simulation.\n" +
-            "Given a social media message, estimate its cumulative influence and extract topics.\n\n" +
+            "You are an analytical engine for a social media diffusion simulation.\n\n" +
 
             "=== MESSAGE ===\n" +
             "\"%s\"\n\n" +
 
-            "=== TASK ===\n" +
-            "Return ONLY a JSON object with exactly these two keys:\n\n" +
+            "Return ONLY a JSON object with one key:\n\n" +
 
-            "  \"pnw\"  — Cumulative influence (float in [0.0, 1.0]): how broadly impactful\n" +
-            "            this message is likely to become overall, considering topic salience,\n" +
-            "            shareability, and persuasive strength.\n\n" +
+            "\"pnw\": float [0.0-1.0]. The cumulative influence of this message — how broadly\n" +
+            "  impactful it is likely to become overall, considering topic salience,\n" +
+            "  shareability, and persuasive strength.\n\n" +
 
-            "  \"topics\" — Topics (array of 1-5 short strings): the main subjects or themes\n" +
-            "            present in the message. Each label should be 1-3 words, lowercase,\n" +
-            "            and specific enough to guide a reply (e.g. \"vaccine safety\",\n" +
-            "            \"election fraud\", \"climate policy\").\n\n" +
-
-            "No markdown, no explanation — output the raw JSON object only.",
+            "No markdown. No explanation. Raw JSON only.",
             content
         );
     }
 
     /**
-     * Prompt for pnov + prpl only — keyed per message + agent history.
+     * Prompt for pnov + prpl + topics — keyed per message + agent history.
      * These are agent-relative: they depend on what this agent has already seen.
      */
-    private String buildEngagementPrompt(String content, List<String> pastMessages) {
-        // For pnov: only use the last 3 messages — mirrors KL-divergence over a recent window
-        // For prpl: the full history size matters for saturation
-        List<String> recentWindow = pastMessages.size() > 3
-            ? pastMessages.subList(0, 3)  // list is most-recent-first
-            : pastMessages;
-
+    private String buildMessagePrompt(String content, List<String> recentWindow, int totalSeen) {
         String recentBlock = recentWindow.isEmpty()
-            ? "(none — this is the first message the agent has seen)"
+            ? "(none — this is the first message)"
             : "- " + String.join("\n- ", recentWindow);
 
-        String fullHistorySize = pastMessages.isEmpty()
-            ? "This is the first message."
-            : "The agent has read " + pastMessages.size() + " messages in this conversation so far.";
+        String seenNote = totalSeen == 0
+            ? "This is the first message the agent has seen."
+            : "The agent has read " + totalSeen + " messages in this conversation so far.";
 
         return String.format(
-            "You are an analytical engine for an information-diffusion simulation.\n\n" +
+            "You are an analytical engine for a social media diffusion simulation.\n\n" +
 
-            "=== RECENT MESSAGES (last 3 the agent read, most recent first) ===\n" +
+            "=== LAST 3 MESSAGES THIS AGENT READ (most recent first) ===\n" +
             "%s\n\n" +
 
-            "=== NEW MESSAGE ===\n" +
+            "=== NEW MESSAGE TO EVALUATE ===\n" +
             "\"%s\"\n\n" +
 
-            "=== CONTEXT ===\n" +
             "%s\n\n" +
 
-            "=== TASK ===\n" +
-            "Return ONLY a JSON object with exactly these two keys:\n\n" +
+            "=== YOUR TASK ===\n" +
+            "Return ONLY a valid JSON object with exactly these three keys.\n\n" +
 
-            "  \"pnov\" — Novelty (float in [0.0, 1.0]): how much NEW information or vocabulary\n" +
-            "            this message introduces compared to the last 3 messages shown above.\n" +
-            "            Compare only to the recent window, not all history.\n" +
-            "            0.0 = identical topic and wording to recent messages.\n" +
-            "            0.3 = same topic but adds new claims or framing.\n" +
-            "            0.7 = shifts to a related but distinct angle.\n" +
-            "            1.0 = entirely new topic or vocabulary.\n" +
-            "            IMPORTANT: avoid returning exactly 0.0 unless the message is a\n" +
-            "            near-verbatim repeat. Even familiar topics can introduce new framing.\n\n" +
+            "\"pnov\": float [0.0-1.0]. How much NEW information does this message introduce\n" +
+            "  compared only to the last 3 messages above?\n" +
+            "  - 0.0 = near-verbatim repeat of something just seen\n" +
+            "  - 0.2 = same topic, minor rephrasing\n" +
+            "  - 0.4 = same topic, adds a new claim or detail\n" +
+            "  - 0.6 = shifts angle or introduces a new sub-topic\n" +
+            "  - 0.8 = substantially new framing or evidence\n" +
+            "  - 1.0 = completely new topic\n" +
+            "  Do NOT return 0.0 unless the message is a near-verbatim duplicate.\n\n" +
 
-            "  \"prpl\" — Engagement likelihood (float in [0.0, 1.0]): probability that a\n" +
-            "            typical user would reply to or interact with this message, based on\n" +
-            "            its emotional charge, rhetorical features, call-to-action language,\n" +
-            "            and controversy. This is independent of novelty.\n\n" +
+            "\"prpl\": float [0.0-1.0]. How likely is a typical social media user to reply\n" +
+            "  to this specific message? Consider emotional charge, controversy, calls to\n" +
+            "  action, and rhetorical provocation. Independent of novelty.\n\n" +
 
-            "No markdown, no explanation — output the raw JSON object only.",
-            recentBlock, content, fullHistorySize
+            "\"topics\": array of 1-5 strings. The specific subjects raised IN THIS MESSAGE.\n" +
+            "  Use the actual message content, not the conversation theme. Each label 1-3\n" +
+            "  words, lowercase. E.g. [\"police cover-up\", \"eyewitness accounts\"] not\n" +
+            "  just [\"ottawa shooting\"].\n\n" +
+
+            "No markdown. No explanation. Raw JSON only.",
+            recentBlock, content, seenNote
         );
+    }
+    
+    private double parseDouble(String raw, String key) {
+        try {
+            String clean = raw.replaceAll("(?s)```json|```", "").trim();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> parsed = MAPPER.readValue(clean, Map.class);
+            if (parsed.containsKey(key)) {
+                return Math.max(0.0, Math.min(((Number) parsed.get(key)).doubleValue(), 1.0));
+            }
+        } catch (Exception e) {
+            logger.warning("[CoNVaIGeminiAgArch] Failed to parse pnw: " + e.getMessage());
+        }
+        return 0.0;
     }
 
     /**

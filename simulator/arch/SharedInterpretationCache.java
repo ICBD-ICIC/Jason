@@ -8,53 +8,46 @@ import java.util.function.Function;
 
 public class SharedInterpretationCache {
 
-    private static final ConcurrentHashMap<String, CompletableFuture<Map<String, Object>>> cache =
+    // Only pnw is cached now — per conversation root, as a plain double.
+    // pnov, prpl, and topics are computed fresh per message (no cache).
+    private static final ConcurrentHashMap<String, CompletableFuture<Double>> doubleCache =
         new ConcurrentHashMap<>();
 
     private static final int MAX_SIZE = 10_000;
 
-    public static Map<String, Object> get(
-            String content,                                    // FIX: renamed param was never used; introduce local 'key'
-            Function<String, Map<String, Object>> loader) {
-
-        String key = content;                                  // FIX: 'key' was referenced but never declared
-
-        CompletableFuture<Map<String, Object>> existing = cache.get(key);
+    public static double getDouble(String key, Function<String, Double> loader) {
+        CompletableFuture<Double> existing = doubleCache.get(key);
         if (existing != null) {
             try { return existing.get(); }
-            catch (Exception e) { cache.remove(key); }
+            catch (Exception e) { doubleCache.remove(key); }
         }
 
-        CompletableFuture<Map<String, Object>> future = new CompletableFuture<>();
-        CompletableFuture<Map<String, Object>> prior  = cache.putIfAbsent(key, future);
+        CompletableFuture<Double> future = new CompletableFuture<>();
+        CompletableFuture<Double> prior  = doubleCache.putIfAbsent(key, future);
 
         if (prior != null) {
             try { return prior.get(); }
-            catch (Exception e) { return fallback(); }
+            catch (Exception e) { return 0.0; }
         }
 
         try {
-            Map<String, Object> result = loader.apply(content);
+            double result = loader.apply(key);
             future.complete(result);
             evictIfNeeded();
             return result;
         } catch (Exception e) {
             future.completeExceptionally(e);
-            cache.remove(key);
-            return fallback();
+            doubleCache.remove(key);
+            return 0.0;
         }
     }
 
     private static void evictIfNeeded() {
-        if (cache.size() > MAX_SIZE) {
-            AtomicInteger toRemove = new AtomicInteger(MAX_SIZE / 10); // FIX: AtomicInteger now imported
-            cache.keys().asIterator().forEachRemaining(k -> {
-                if (toRemove.getAndDecrement() > 0) cache.remove(k);
+        if (doubleCache.size() > MAX_SIZE) {
+            AtomicInteger toRemove = new AtomicInteger(MAX_SIZE / 10);
+            doubleCache.keys().asIterator().forEachRemaining(k -> {
+                if (toRemove.getAndDecrement() > 0) doubleCache.remove(k);
             });
         }
-    }
-
-    private static Map<String, Object> fallback() {
-        return Map.of("pnov", 0.0, "prpl", 0.0, "pnw", 0.0, "topics", List.of()); // FIX: List now imported
     }
 }
