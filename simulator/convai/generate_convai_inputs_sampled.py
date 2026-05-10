@@ -372,7 +372,7 @@ def make_messages_csv(
             "original":  "",
             "topics":    topic,
             "variables": json.dumps({
-                "public": {"conversation_id": conversation_id, "state": "infected"}
+                "public": {"conversation_id": conversation_id, "state": "infected", "cycle": 0}
             }),
         })
     return pd.DataFrame(rows, columns=["author", "content", "reactions",
@@ -389,7 +389,6 @@ def make_base_agent_probs(
     State is set to 'neutral' here; apply_thread_state() sets the initiator.
     """
     sorted_agents = sorted(agent_map.values(), key=lambda a: int(a.split("_")[-1]))
-    agent_to_uid  = {v: k for k, v in agent_map.items()}
 
     rows = []
     for agent in sorted_agents:
@@ -406,19 +405,61 @@ def apply_thread_state(
     base_probs: pd.DataFrame,
     thread_df: pd.DataFrame,
     agent_map: dict[str, str],
+    adj: dict[str, set],
 ) -> pd.DataFrame:
     """
     Return a copy of base_probs with the thread initiator marked as 'infected'.
     All other agents remain 'neutral'. Probs are unchanged.
+
+    Adds a 'susceptible' column: written as the Jason atom 'false' for any
+    agent whose corresponding node has no directed path to the initiator in
+    the final (post-augmentation) adjacency graph, 'true' otherwise.
+    The initiator itself is always 'true'.
+
+    Note: because build_adjacency() already adds a fallback edge for every
+    reaction/retweet user that lacked a path to the initiator, the only agents
+    that end up susceptible=false are those that appear in the global agent map
+    (via the neighbour union) but are genuinely unreachable even after that
+    augmentation step.
     """
-    initiator_uid = get_source_uid(thread_df)
+    import networkx as nx
+
+    initiator_uid   = get_source_uid(thread_df)
     initiator_agent = agent_map.get(initiator_uid, None) if initiator_uid else None
+
+    # Rebuild a DiGraph from the final adj so reachability reflects post-augmentation edges
+    G = nx.DiGraph()
+    for src, targets in adj.items():
+        for tgt in targets:
+            G.add_edge(src, tgt)
+
+    # Reverse map: agent_name -> uid
+    agent_to_uid = {v: k for k, v in agent_map.items()}
+
+    # Pre-compute the set of nodes that CAN reach initiator_uid (ancestors + itself)
+    # nx.ancestors gives all nodes with a directed path TO the target node.
+    if initiator_uid and G.has_node(initiator_uid):
+        can_reach: set[str] = nx.ancestors(G, initiator_uid) | {initiator_uid}
+    else:
+        can_reach = set()
+
+    def _is_susceptible(agent: str) -> str:
+        """Return Jason atom 'true' or 'false' (lowercase strings)."""
+        if agent == initiator_agent:
+            return "true"   # the initiator is always susceptible (it IS the source)
+        uid = agent_to_uid.get(agent)
+        return "true" if uid in can_reach else "false"
 
     df = base_probs.copy()
     df["state"] = "neutral"
     if initiator_agent:
         df.loc[df["agent"] == initiator_agent, "state"] = "infected"
+
+    # Written as Jason atoms so the mas2j loader produces susceptible(true)/susceptible(false)
+    df["susceptible"] = df["agent"].apply(_is_susceptible)
+
     return df
+
 
 # ---------------------------------------------------------------------------
 # Main
@@ -509,16 +550,18 @@ def main():
         make_messages_csv(thread_df, conv_idx, agent_map).to_csv(
             thread_dir / f"messages_{thread_id}.csv", index=False
         )
-        
-        probs_df = apply_thread_state(base_probs, thread_df, agent_map)
+
+        # Pass adj so reachability can be checked per-thread
+        probs_df = apply_thread_state(base_probs, thread_df, agent_map, adj)
         probs_df.to_csv(
             thread_dir / f"agent_probs_{thread_id}.csv", index=False
         )
 
         counts = probs_df["state"].value_counts()
+        n_not_susceptible = (probs_df["susceptible"] == "false").sum()
         print(f"  [{conv_idx}/{len(ottawa_dfs)}] {thread_id} ({topic}) — "
               f"infected={counts.get('infected', 0)}, neutral={counts.get('neutral', 0)}, "
-              f"total={len(probs_df)}")
+              f"not_susceptible={n_not_susceptible}, total={len(probs_df)}")
 
     print(f"\n[DONE] Output: {output_dir.resolve()}")
     print(f"  Global : network.csv, public_profiles.csv")

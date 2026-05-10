@@ -52,18 +52,23 @@ read_history([]).
 
 // --- Cycle / idle tracking ---
 cycle(0).
-max_cycles(1000).
+max_cycles(100).
 max_cycles_reached(false).
 
 idle_cycles(0).
-inactivity_limit(60).
+inactivity_limit(20).
 idle_limit_reached(false).
 
-!save_state.
-!start.
+!init.
 
-+!save_state: state(State) <-
-    ia.saveLogs([state(State)]).
++!init: susceptible(false) & state(State) <-
+    .my_name(Me);
+    ia.saveLogs([info("Killing agent."), agent(Me), state(State)]);
+    .kill_agent(Me).
+
++!init: state(State) <-
+    ia.saveLogs([state(State)]);
+    !start.
 
 +!start: true <-
     updateFeed(true).
@@ -151,11 +156,12 @@ idle_limit_reached(false).
     ia.saveLogs([info("process_messages failed."), remaining_count(Ids)]).
 
 +!process_single_message(Id): 
-    read_history(PastMessages) & message(Id, Author, Content, Original, Timestamp) & message_var(Id, "conversation_id", CId)
+    read_history(PastMessages) & message(Id, Author, Content, Original, Timestamp) & 
+    message_var(Id, "conversation_id", CId) & message_var(Id, "cycle", Cycle) & cycle(C)
 <-
     ia.saveLogs([info("Got all information for message. Waiting for interpretation.")]);
-    ia.interpretContent(content(Content, PastMessages), [pnov(Pnov), prpl(Prpl), pnw(Pnw), topics(Topics)]);
-    ia.saveLogs([info("Interpretation complete."), pnov(Pnov), prpl(Prpl), pnw(Pnw), topics(Topics)]);
+    ia.interpretContent(content(Content, PastMessages, Cycle, Timestamp), [pnov(Pnov), prpl(Prpl), pnw(Pnw), topics(Topics)]);
+    ia.saveLogs([info("Interpretation complete."), cycle(C), pnov(Pnov), prpl(Prpl), pnw(Pnw), topics(Topics)]);
     -+message_topics(Id, Topics);
     if (known_conversation(CId)) {
         ia.saveLogs([info("Message is part of a known conversation. Processing with ReadMs.")]);
@@ -250,11 +256,12 @@ idle_limit_reached(false).
 
 /* f(state) */
 +!act(ActedNow):
-    replying(CId, Id) & state(State) & message(Id, _, Content, _, _) & message_topics(Id, Topics) & State \== neutral
+    replying(CId, Id) & state(State) & message(Id, _, Content, _, _) &
+    message_topics(Id, Topics) & cycle(Cycle) & State \== neutral
 <-
     ActedNow = true;
     PromptParams = [content(Content), state(State)];
-    Variables = [public(state(State), conversation_id(CId))];
+    Variables = [public(state(State), conversation_id(CId), cycle(Cycle))];
     ia.saveLogs([info("Waiting for content generation.")]);
     ia.createContent(Topics, PromptParams, GeneratedContent);
     ia.saveLogs([info("Finished content generation.")]);
