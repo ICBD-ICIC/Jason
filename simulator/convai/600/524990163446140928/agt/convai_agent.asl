@@ -52,11 +52,11 @@ read_history([]).
 
 // --- Cycle / idle tracking ---
 cycle(0).
-max_cycles(100).
+max_cycles(1000).
 max_cycles_reached(false).
 
 idle_cycles(0).
-inactivity_limit(20).
+inactivity_limit(60).
 idle_limit_reached(false).
 
 !init.
