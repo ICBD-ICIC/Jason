@@ -26,7 +26,7 @@
 +idle_limit_reached(Agent): total_agents(N) <-
     .findall(A, idle_limit_reached(A), Done);
     IC = .length(Done);
-    Threshold = N;
+    Threshold = (N / 2) + 1;
     if (IC >= Threshold) {
         ia.saveLogs([info("Termination: majority idle."), idle_count(IC)]);
         .stopMAS
@@ -37,7 +37,7 @@
 +max_cycles_reached(Agent): total_agents(N) <-
     .findall(A, max_cycles_reached(A), Done);
     CC = .length(Done);
-    Threshold = N;
+    Threshold = (N / 2) + 1;
     if (CC >= Threshold) {
         ia.saveLogs([info("Termination: majority reached max cycles."), cycle_count(CC)]);
         .stopMAS

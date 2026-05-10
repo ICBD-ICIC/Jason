@@ -1,6 +1,5 @@
 package arch;
 
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -11,8 +10,8 @@ import java.util.function.Function;
  *
  * Two independent stores reflect the two caching strategies in use:
  *
- *   doubleCache — single double values; used for Pnw (one entry per conversation root)
- *   mapCache    — Map<String,Object> values; used for Prpl+topics (one entry per message text)
+ *   doubleCache - single double values; used for Pnw (one entry per conversation root)
+ *   mapCache    - Map<String,Object> values; used for Prpl+topics (one entry per message text)
  *
  * Both stores use CompletableFuture to prevent duplicate LLM calls when multiple
  * agents concurrently miss the same cache key: only the first caller fires the
@@ -71,11 +70,11 @@ public class SharedInterpretationCache {
             if (existing != null) {
                 try {
                     V value = existing.get();
-                    // If the future completed exceptionally, get() throws —
+                    // If the future completed exceptionally, get() throws -
                     // so reaching here means we have a valid result
                     return value;
                 } catch (ExecutionException e) {
-                    // Previous attempt failed — remove and retry from scratch
+                    // Previous attempt failed - remove and retry from scratch
                     cache.remove(key, existing);
                     continue;
                 } catch (InterruptedException e) {
@@ -88,11 +87,11 @@ public class SharedInterpretationCache {
             CompletableFuture<V> prior   = cache.putIfAbsent(key, promise);
 
             if (prior != null) {
-                // Lost the race — wait, but handle failure by retrying
+                // Lost the race - wait, but handle failure by retrying
                 try {
                     return prior.get();
                 } catch (ExecutionException e) {
-                    // Winner failed — loop back and try to become the new winner
+                    // Winner failed - loop back and try to become the new winner
                     cache.remove(key, prior);
                     continue;
                 } catch (InterruptedException e) {
@@ -101,11 +100,11 @@ public class SharedInterpretationCache {
                 }
             }
 
-            // Won the race — call loader
+            // Won the race - call loader
             try {
                 V result = loader.apply(key);
                 if (result == null) {
-                    // Treat null as a failed load — don't cache it
+                    // Treat null as a failed load - don't cache it
                     promise.completeExceptionally(new RuntimeException("Loader returned null"));
                     cache.remove(key, promise);
                     return fallback;

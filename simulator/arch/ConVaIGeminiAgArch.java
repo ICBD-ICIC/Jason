@@ -37,8 +37,7 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
      * @param contentStructure Jason structure containing:
      *   Term 0 - message text
      *   Term 1 - list of past messages read by this agent (most recent first)
-     *   Term 2 - current simulation cycle
-     *   Term 3 - cycle at which the message was created
+     *   Term 2 - current simulation cycle of agent
      * @return map with keys pnov, prpl, pnw (double) and topics (List<String>)
      */
     @Override
@@ -48,7 +47,6 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
             String     content      = JasonToJavaTranslator.translateString(s.getTerm(0));
             List<String> past       = JasonToJavaTranslator.translateTopics(s.getTerm(1));
             int        currentCycle = JasonToJavaTranslator.translateInt(s.getTerm(2));
-            int        messageCycle = JasonToJavaTranslator.translateInt(s.getTerm(3));
 
             String convKey = "conv\u0000" + normalise(content);
             double pnw = SharedInterpretationCache.getDouble(convKey, k ->
@@ -78,7 +76,14 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
             merged.put("pnw",  pnw);
             merged.put("pnov", pnov);
 
-            Map<String, Object> decayed = applyTimeDecay(merged, currentCycle, messageCycle, past.size());
+            logger.info(String.format("[CoNVaIGeminiAgArch] interpretContent results for content='%s': pnov=%.3f, prpl=%.3f, pnw=%.3f, topics=%s",
+                content, merged.get("pnov"), merged.get("prpl"), merged.get("pnw"), merged.get("topics")));
+
+            Map<String, Object> decayed = applyTimeDecay(merged, currentCycle, past.size());
+
+            logger.info(String.format("[CoNVaIGeminiAgArch] interpretContent decayed for content='%s': pnov=%.3f, prpl=%.3f, pnw=%.3f, topics=%s",
+                content, decayed.get("pnov"), decayed.get("prpl"), decayed.get("pnw"), decayed.get("topics")));
+
             return decayed;
 
         } catch (Exception e) {
@@ -105,24 +110,18 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
      * Applies Gaussian temporal decay to Pnov and combined temporal + saturation
      * decay to Prpl.  Pnw is left unchanged (fixed property of the news piece).
      *
-     * Pnov decay: Gaussian over (currentCycle - messageCycle), σ² = 100
      * Prpl decay: e^(-0.1 * historySize) × max(0.05, 1 - t/1000)
      */
     private Map<String, Object> applyTimeDecay(Map<String, Object> base,
                                                 int currentCycle,
-                                                int messageCycle,
                                                 int historySize) {
         Map<String, Object> result = new LinkedHashMap<>(base);
-
-        double timeDiff        = currentCycle - messageCycle;
-        double gaussianDecay   = Math.exp(-(timeDiff * timeDiff) / (2.0 * 100.0));
-        double pnov            = Math.min((double) base.get("pnov") * gaussianDecay, 1.0);
 
         double historySat      = Math.exp(-0.1 * historySize);
         double temporalScale   = Math.max(0.05, 1.0 - (currentCycle / 1000.0));
         double prpl            = Math.min((double) base.get("prpl") * historySat * temporalScale, 1.0);
 
-        result.put("pnov", pnov);
+        result.put("pnov", base.get("pnov"));
         result.put("prpl", prpl);
         return result;
     }

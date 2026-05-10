@@ -157,10 +157,10 @@ idle_limit_reached(false).
 
 +!process_single_message(Id): 
     read_history(PastMessages) & message(Id, Author, Content, Original, Timestamp) & 
-    message_var(Id, "conversation_id", CId) & message_var(Id, "cycle", Cycle) & cycle(C)
+    message_var(Id, "conversation_id", CId) & cycle(C)
 <-
     ia.saveLogs([info("Got all information for message. Waiting for interpretation.")]);
-    ia.interpretContent(content(Content, PastMessages, Cycle, Timestamp), Interpretation);
+    ia.interpretContent(content(Content, PastMessages, C), Interpretation);
     .member(pnov(Pnov), Interpretation);
     .member(prpl(Prpl), Interpretation);
     .member(pnw(Pnw),   Interpretation);

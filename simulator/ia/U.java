@@ -25,7 +25,6 @@ public class U extends DefaultInternalAction {
         }
 
         double u;
-        Random rand = new Random();
         do {
             u = rand.nextDouble() * max;
         } while (u == 0.0);
