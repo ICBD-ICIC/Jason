@@ -3,7 +3,7 @@
 
     Termination conditions:
         1. Hard cap:   N/2+1 agents have reported max_cycles_reached
-        2. Inactivity: N/2+1 agents have reported idle_limit_reached
+        2. Inactivity: N/4+1 agents have reported idle_limit_reached
                        and none have since sent still_active
 
     The monitor reacts to two events sent by agents:
@@ -17,10 +17,8 @@
             Added to cycle_done set. Never retracted since
             cycles only go forward.
 
-    Termination fires when either set contains N/2+1 agents (majority).
-
     Parameters:
-        total_agents(N) - total number of agents in the simulation
+        total_agents(N) - total number of susceptible agents in the simulation
    ========================================================== */
 
 +idle_limit_reached(Agent): total_agents(N) <-
@@ -37,7 +35,7 @@
 +max_cycles_reached(Agent): total_agents(N) <-
     .findall(A, max_cycles_reached(A), Done);
     CC = .length(Done);
-    Threshold = (N / 2) + 1;
+    Threshold = (N / 4) + 1;
     if (CC >= Threshold) {
         ia.saveLogs([info("Termination: majority reached max cycles."), cycle_count(CC)]);
         .stopMAS

@@ -1,6 +1,6 @@
 /* ==========================================================
     CoNVaI Agent (Jason BDI)
-    RodrÃ­guez-GarcÃ­a et al. (2025) - "Simulating Misinformation
+    Rodríguez-García et al. (2025) - "Simulating Misinformation
     Diffusion on Social Media Through CoNVaI"
 
     Implements Definition 6 (CoNVaI-agent): <S, O, Uin, g, f, per, s0>
@@ -38,7 +38,7 @@
         anew        Start a new conversation (not yet implemented;
                     a_new condition is never true with current g)
         areply(c)   Reply to conversation c - requires Replying flag
-                    set during g and state â‰  neutral
+                    set during g and state ≠ neutral
         askip       Do nothing
 
     -- Algorithms implemented ----------------------------------
@@ -52,11 +52,11 @@ read_history([]).
 
 // --- Cycle / idle tracking ---
 cycle(0).
-max_cycles(100).
+max_cycles(1000).
 max_cycles_reached(false).
 
 idle_cycles(0).
-inactivity_limit(20).
+inactivity_limit(60).
 idle_limit_reached(false).
 
 !init.
