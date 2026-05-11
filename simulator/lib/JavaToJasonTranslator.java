@@ -24,29 +24,11 @@ public final class JavaToJasonTranslator {
      * @throws IllegalArgumentException if null values are encountered in the map or nested structures.
      */
     public static Term translateVariables(Map<String, Object> map) throws IllegalArgumentException {
-        if (map == null) {
-            return ASSyntax.createList(new ArrayList<>());
-        }
+        if (map == null) return ASSyntax.createList(new ArrayList<>());
         List<Term> structures = new ArrayList<>();
         for (Map.Entry<String, Object> entry : map.entrySet()) {
-            String functor = entry.getKey();
-            Object value = entry.getValue();
-            Term argTerm = objectToTerm(value);
-            Term structure;
-            if (argTerm instanceof ListTerm lt) {
-                List<Term> terms = lt.getAsList();
-                boolean allStructures = terms.stream().allMatch(t -> t instanceof Structure);
-                if (allStructures) {
-                    // multi-arg structure
-                    structure = ASSyntax.createStructure(functor, terms.toArray(new Term[0]));
-                } else {
-                    // single list arg
-                    structure = ASSyntax.createStructure(functor, argTerm);
-                }
-            } else {
-                structure = ASSyntax.createStructure(functor, argTerm);
-            }
-            structures.add(structure);
+            Term argTerm = objectToTerm(entry.getValue());
+            structures.add(ASSyntax.createStructure(entry.getKey(), argTerm));
         }
         return ASSyntax.createList(structures);
     }

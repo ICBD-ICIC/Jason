@@ -783,10 +783,49 @@ def _build_belief_string(instance: dict) -> str:
         functor = attr.split(":")[0].strip()
         if not functor:
             continue
-        args     = _parse_fact_args(value)
-        rendered = ", ".join(_render_arg(a) for a in args)
+
+        # If the value is not a structured multi-arg term, treat it as a single
+        # string argument — avoids splitting prose strings on internal commas.
+        if _is_plain_string(value):
+            rendered = _render_arg(value)
+        else:
+            args = _parse_fact_args(value)
+            rendered = ", ".join(_render_arg(a) for a in args)
+
         parts.append(f"{functor}({rendered})")
     return ", ".join(parts)
+
+
+def _is_plain_string(value: str) -> bool:
+    """
+    Returns True if value should be treated as a single string atom rather
+    than a comma-separated argument list.  A value is a structured term if
+    it contains a top-level comma (i.e. a comma outside quotes/parens/brackets).
+    Plain prose like 'Hello, world' has top-level commas, but so does
+    'agent_1, neutral' — the difference is that structured terms also look
+    like identifiers/numbers, while plain strings contain spaces or other
+    non-atom characters.
+
+    Heuristic: if the value starts with a quote, or contains a space and is
+    not already a recognised literal (number, atom, list, dict), treat it
+    as a plain string.
+    """
+    v = value.strip()
+    # Already explicitly quoted
+    if (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'")):
+        return True
+    # Number or bare atom (no spaces) — let the normal splitter handle it
+    if _is_number(v):
+        return False
+    if re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', v):
+        return False
+    # List or dict literal — let normal splitter handle it
+    if (v.startswith("[") and v.endswith("]")) or (v.startswith("{") and v.endswith("}")):
+        return False
+    # Anything with a space is prose / a plain string
+    if " " in v:
+        return True
+    return False
 
 
 def _parse_fact_args(value: str) -> list[str]:
@@ -797,10 +836,10 @@ def _parse_fact_args(value: str) -> list[str]:
 def _render_arg(arg: str) -> str:
     arg = arg.strip()
     if not arg:
-        return '""'
+        return "''"
     if (arg.startswith('"') and arg.endswith('"')) or (arg.startswith("'") and arg.endswith("'")):
-        inner = arg[1:-1].replace('"', '\\"')
-        return f'"{inner}"'
+        inner = arg[1:-1].replace("'", "")
+        return f"'{inner}'"
     if _is_number(arg):
         return arg
     if re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', arg):
@@ -812,11 +851,11 @@ def _render_arg(arg: str) -> str:
                 return "[" + ",".join(_render_arg(str(x)) for x in parsed) + "]"
         except Exception:
             pass
-        return f'"{arg}"'
+        return f"'{arg}'"
     if arg.startswith("{") and arg.endswith("}"):
-        return f'"{arg}"'
-    return f'"{arg.replace(chr(34), chr(92)+chr(34))}"'
-
+        return f"'{arg}'"
+    # Fallback: single-quoted string, strip any internal single-quotes
+    return "'" + arg.replace("'", "") + "'"
 
 def _is_number(s: str) -> bool:
     try:

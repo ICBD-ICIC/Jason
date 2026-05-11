@@ -31,6 +31,8 @@ public final class JasonToJavaTranslator {
      *                                  element is not an atom, string, or variable
      */
     public static List<String> translateTopics(Term t) {
+        if (t instanceof Atom a && a.getFunctor().equals(".")) return new ArrayList<>();
+
         if (!(t instanceof ListTerm list)) {
             throw new IllegalArgumentException("Expected a Jason list term but got " + t.getClass().getSimpleName());
         }
@@ -186,6 +188,11 @@ public final class JasonToJavaTranslator {
      * @throws IllegalArgumentException if the term type is not supported
      */
     private static Object parseValue(Term t) {
+        if (t instanceof ListTerm list) { 
+            List<Object> values = new ArrayList<>();
+            for (Term item : list) values.add(parseValue(item));
+            return values;
+        }
         if (t instanceof StringTerm s) {
             return s.getString();
         }
@@ -201,13 +208,6 @@ public final class JasonToJavaTranslator {
             } catch (Exception e) {
                 return t.toString();
             }
-        }
-        if (t instanceof ListTerm list) {
-            List<Object> values = new ArrayList<>();
-            for (Term item : list) {
-                values.add(parseValue(item));
-            }
-            return values;
         }
         if (t instanceof Structure s && s.getArity() > 1) {
             Map<String, Object> nested = new LinkedHashMap<>();

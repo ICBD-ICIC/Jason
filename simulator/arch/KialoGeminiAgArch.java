@@ -59,7 +59,7 @@ public class KialoGeminiAgArch extends AgArch implements SocialAgArch {
             targetLeaf, parent, siblings, stance
         );
 
-        return gemini.getResponse(prompt);
+        return gemini.getResponse(prompt, GeminiClient.CONFIG_CREATIVE);
     }
 
     // ----------------------------------------------------------------

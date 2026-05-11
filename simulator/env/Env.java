@@ -185,4 +185,10 @@ public class Env extends Environment {
         }
         return true;
     }
+
+    @Override
+    public void stop() {
+        super.stop();
+        System.exit(0);
+    }
 }

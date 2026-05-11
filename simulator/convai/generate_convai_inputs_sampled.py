@@ -30,7 +30,7 @@ import pandas as pd
 # Constants
 # ---------------------------------------------------------------------------
 
-# CoNVaI parameter grid — 288 combinations (Table 4, Supplementary Material)
+# CoNVaI parameter grid - 288 combinations (Table 4, Supplementary Material)
 PARAM_GRID = list(itertools.product(
     [0.05, 0.10, 0.15],             # pinf
     [0.05, 0.10],                   # pmd
@@ -243,8 +243,8 @@ def build_adjacency(pheme_path: Path, ottawa_dfs: list[pd.DataFrame]) -> dict[st
     """
     Build a directed follower graph for the three Ottawa threads.
 
-    Step 1 — Load who-follows-whom.dat from each thread directory.
-    Step 2 — For any reaction/retweet user with no path to the thread
+    Step 1 - Load who-follows-whom.dat from each thread directory.
+    Step 2 - For any reaction/retweet user with no path to the thread
               initiator, add a direct fallback edge.
     """
     import networkx as nx
@@ -292,19 +292,11 @@ def build_adjacency(pheme_path: Path, ottawa_dfs: list[pd.DataFrame]) -> dict[st
 # User influence
 # ---------------------------------------------------------------------------
 
-def compute_pusr(all_dfs: list[pd.DataFrame]) -> dict[str, float]:
+def collect_user_records(all_dfs: list[pd.DataFrame]) -> dict[str, dict]:
     """
-    Pusr(u) = FINFL * Infl(u)
-    Infl(u) = 0.4*sc(ff_ratio) + 0.4*sc(listed_count) + 0.2*verified
-
-    Alpha values use hardcoded corpus medians (ALPHA_FF_MEDIAN=1000,
-    ALPHA_LISTED_MEDIAN=160), matching the notebook's `calculate_alpha(1000)`
-    and `calculate_alpha(160)` calls exactly.  These medians were derived from
-    the full PHEME-9 dataset in Extract_Info_Model.ipynb and must stay fixed
-    so results are reproducible without re-scanning the corpus.
-
-    Population used to collect records covers ALL PHEME-9 threads
-    (unchanged structurally), matching the notebook's global calibration scope.
+    Collect raw user attributes from all PHEME-9 threads.
+    Returns a dict keyed by uid with keys:
+        ff_ratio, listed, verified, followers_count, friends_count, listed_count
     """
     records: dict[str, dict] = {}
     for df in all_dfs:
@@ -318,12 +310,26 @@ def compute_pusr(all_dfs: list[pd.DataFrame]) -> dict[str, float]:
             followers = int(u.get("followers_count", 0))
             followees = int(u.get("friends_count",   0))
             records[uid] = {
-                "ff_ratio": followers / followees if followees > 0 else float(followers),
-                "listed":   int(u.get("listed_count", 0)),
-                "verified": bool(u.get("verified", False)),
+                "ff_ratio":        followers / followees if followees > 0 else float(followers),
+                "listed":          int(u.get("listed_count", 0)),
+                "verified":        bool(u.get("verified", False)),
+                "followers_count": followers,
+                "friends_count":   followees,
+                "listed_count":    int(u.get("listed_count", 0)),
             }
+    return records
 
-    if not records:
+
+def compute_pusr(user_records: dict[str, dict]) -> dict[str, float]:
+    """
+    Pusr(u) = FINFL * Infl(u)
+    Infl(u) = 0.4*sc(ff_ratio) + 0.4*sc(listed_count) + 0.2*verified
+
+    Alpha values use hardcoded corpus medians (ALPHA_FF_MEDIAN=1000,
+    ALPHA_LISTED_MEDIAN=160), matching the notebook's `calculate_alpha(1000)`
+    and `calculate_alpha(160)` calls exactly.
+    """
+    if not user_records:
         return {}
 
     alpha_ff     = calculate_alpha(ALPHA_FF_MEDIAN)
@@ -335,7 +341,7 @@ def compute_pusr(all_dfs: list[pd.DataFrame]) -> dict[str, float]:
             0.4 * log_scaling(v["listed"],   alpha_listed) +
             0.2 * float(v["verified"])
         )
-        for uid, v in records.items()
+        for uid, v in user_records.items()
     }
 
 
@@ -378,6 +384,7 @@ def make_messages_csv(
     return pd.DataFrame(rows, columns=["author", "content", "reactions",
                                         "original", "topics", "variables"])
 
+
 def make_base_agent_probs(
     all_uids: set[str],
     agent_map: dict[str, str],
@@ -385,7 +392,7 @@ def make_base_agent_probs(
 ) -> pd.DataFrame:
     """
     Generate ONE set of random probs for all agents.
-    Probs represent the agent's personality — shared across all threads.
+    Probs represent the agent's personality - shared across all threads.
     State is set to 'neutral' here; apply_thread_state() sets the initiator.
     """
     sorted_agents = sorted(agent_map.values(), key=lambda a: int(a.split("_")[-1]))
@@ -415,38 +422,27 @@ def apply_thread_state(
     agent whose corresponding node has no directed path to the initiator in
     the final (post-augmentation) adjacency graph, 'true' otherwise.
     The initiator itself is always 'true'.
-
-    Note: because build_adjacency() already adds a fallback edge for every
-    reaction/retweet user that lacked a path to the initiator, the only agents
-    that end up susceptible=false are those that appear in the global agent map
-    (via the neighbour union) but are genuinely unreachable even after that
-    augmentation step.
     """
     import networkx as nx
 
     initiator_uid   = get_source_uid(thread_df)
     initiator_agent = agent_map.get(initiator_uid, None) if initiator_uid else None
 
-    # Rebuild a DiGraph from the final adj so reachability reflects post-augmentation edges
     G = nx.DiGraph()
     for src, targets in adj.items():
         for tgt in targets:
             G.add_edge(src, tgt)
 
-    # Reverse map: agent_name -> uid
     agent_to_uid = {v: k for k, v in agent_map.items()}
 
-    # Pre-compute the set of nodes that CAN reach initiator_uid (ancestors + itself)
-    # nx.ancestors gives all nodes with a directed path TO the target node.
     if initiator_uid and G.has_node(initiator_uid):
         can_reach: set[str] = nx.ancestors(G, initiator_uid) | {initiator_uid}
     else:
         can_reach = set()
 
     def _is_susceptible(agent: str) -> str:
-        """Return Jason atom 'true' or 'false' (lowercase strings)."""
         if agent == initiator_agent:
-            return "true"   # the initiator is always susceptible (it IS the source)
+            return "true"
         uid = agent_to_uid.get(agent)
         return "true" if uid in can_reach else "false"
 
@@ -455,10 +451,122 @@ def apply_thread_state(
     if initiator_agent:
         df.loc[df["agent"] == initiator_agent, "state"] = "infected"
 
-    # Written as Jason atoms so the mas2j loader produces susceptible(true)/susceptible(false)
     df["susceptible"] = df["agent"].apply(_is_susceptible)
 
     return df
+
+
+# ---------------------------------------------------------------------------
+# Natural language personality description
+# ---------------------------------------------------------------------------
+
+def _level(value: float, low: float, high: float) -> str:
+    """Map a probability value to a low/moderate/high label."""
+    if value <= low:
+        return "low"
+    elif value >= high:
+        return "high"
+    return "moderate"
+
+
+def make_personality_description(
+    pinf: float,
+    pmd:  float,
+    pad:  float,
+    popi: float,
+    prd:  float,
+) -> str:
+    """
+    Produce a second-person prompt directive that blends the five probability
+    parameters into a coherent personality sketch.
+
+    Parameter ranges (from PARAM_GRID):
+        pinf  in {0.05, 0.10, 0.15}       → low ≤0.05, high ≥0.15
+        pmd   in {0.05, 0.10}             → low ≤0.05, high ≥0.10
+        pad   in {0.05, 0.10, 0.15}       → low ≤0.05, high ≥0.15
+        popi  in {0.10, 0.15, 0.20, 0.25} → low ≤0.10, high ≥0.25
+        prd   in {0.10, 0.20, 0.30, 0.40} → low ≤0.10, high ≥0.40
+    """
+
+    # ---- pinf: susceptibility to being convinced on first contact ----
+    pinf_level = _level(pinf, 0.05, 0.15)
+    pinf_phrases = {
+        "low":      "You are highly resistant to new claims and rarely change your mind based on a single encounter.",
+        "moderate": "You are somewhat open to new information, but a single message is not enough to fully convince you.",
+        "high":     "You are quite impressionable and can be convinced by a compelling message on first contact.",
+    }
+
+    # ---- pmd: tendency to become sceptical / vaccinated on first contact ----
+    pmd_level = _level(pmd, 0.05, 0.10)
+    pmd_phrases = {
+        "low":      "You do not tend to develop scepticism readily - exposure to a claim does not typically make you dismissive of it.",
+        "moderate": "You sometimes develop a critical distance from claims you encounter, becoming harder to persuade thereafter.",
+        "high":     "You are quick to become sceptical: once you encounter a claim and resist it, you actively discount it going forward.",
+    }
+
+    # ---- pad: willingness to flip opinion when exposed to disagreement ----
+    pad_level = _level(pad, 0.05, 0.15)
+    pad_phrases = {
+        "low":      "When you disagree with a message, you almost never change your position - you hold your ground firmly.",
+        "moderate": "Encountering disagreement occasionally causes you to reconsider and adjust your stance.",
+        "high":     "You are sensitive to opposing views: disagreement with a message can lead you to adopt the other side's position.",
+    }
+
+    # ---- popi: tendency to reinforce one's own opinion ----
+    popi_level = _level(popi, 0.10, 0.25)
+    popi_phrases = {
+        "low":      "Agreement with a message does not particularly strengthen your existing beliefs.",
+        "moderate": "When you agree with a message or successfully resist a challenge, your convictions are moderately reinforced.",
+        "high":     "Confirmation of your views or resisting a contrary message significantly deepens your commitment to your current position.",
+    }
+
+    # ---- prd: how actively you read and process incoming messages ----
+    prd_level = _level(prd, 0.10, 0.40)
+    prd_phrases = {
+        "low":      "You read and process incoming messages slowly, engaging with only a small fraction of what reaches you.",
+        "moderate": "You read messages at an average pace, engaging with a reasonable share of the information flow.",
+        "high":     "You are a highly active reader who processes a large proportion of incoming messages quickly.",
+    }
+
+    paragraph = (
+        f"{pinf_phrases[pinf_level]} "
+        f"{pmd_phrases[pmd_level]} "
+        f"{pad_phrases[pad_level]} "
+        f"{popi_phrases[popi_level]} "
+        f"{prd_phrases[prd_level]}"
+    )
+    return paragraph
+
+
+def make_agent_probs_raw(probs_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Translate a per-thread agent_probs DataFrame into natural language
+    personality descriptions (one row per agent).
+
+    Columns:
+        agent                   - agent identifier
+        personality_description - paragraph built from the five prob values only
+        state                   - raw value from agent_probs (neutral / infected)
+        susceptible             - raw Jason atom from agent_probs (true / false)
+    """
+    rows = []
+    for _, row in probs_df.iterrows():
+        description = make_personality_description(
+            pinf=float(row["pinf"]),
+            pmd=float(row["pmd"]),
+            pad=float(row["pad"]),
+            popi=float(row["popi"]),
+            prd=float(row["prd"]),
+        )
+        rows.append({
+            "agent":                   row["agent"],
+            "personality_description": description,
+            "state":                   row["state"],
+            "susceptible":             row["susceptible"],
+        })
+    return pd.DataFrame(
+        rows, columns=["agent", "personality_description", "state", "susceptible"]
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -507,11 +615,16 @@ def main():
     agent_map = build_agent_map(all_uids)
     print(f"[INFO] Agent map: {len(agent_map):,} users -> convai_agent_1 … convai_agent_{len(agent_map)}")
 
+    # Collect raw user records (used for both pusr and public_profiles_raw)
+    print("[INFO] Collecting user records from all PHEME-9 threads...")
+    user_records = collect_user_records(all_dfs)
+    print(f"[INFO] Records collected for {len(user_records):,} users.")
+
     # User influence scores
     print("[INFO] Computing user influence scores (hardcoded PHEME-9 corpus medians)...")
     print(f"[INFO]   alpha_ff     = calculate_alpha({ALPHA_FF_MEDIAN})  = {calculate_alpha(ALPHA_FF_MEDIAN):.8f}")
     print(f"[INFO]   alpha_listed = calculate_alpha({ALPHA_LISTED_MEDIAN})   = {calculate_alpha(ALPHA_LISTED_MEDIAN):.8f}")
-    pusr_lookup = compute_pusr(all_dfs)
+    pusr_lookup = compute_pusr(user_records)
     print(f"[INFO] Pusr computed for {len(pusr_lookup):,} users.")
 
     # Write outputs
@@ -528,6 +641,16 @@ def main():
                 f.write(f"{src_agent},{agent_map.get(tgt, tgt)},\n")
     print(f"[INFO] network.csv: {sum(len(v) for v in adj.values()):,} edges.")
 
+    print("[INFO] Writing network_llm.csv...")
+    with open(output_dir / "network_llm.csv", "w", encoding="utf-8") as f:
+        f.write("from,to,weight\n")
+        for src in sorted(adj):
+            src_agent = agent_map.get(src, src).replace("convai_agent_", "convai_llm_agent_")
+            for tgt in sorted(adj[src]):
+                tgt_agent = agent_map.get(tgt, tgt).replace("convai_agent_", "convai_llm_agent_")
+                f.write(f"{src_agent},{tgt_agent},\n")
+    print(f"[INFO] network_llm.csv: {sum(len(v) for v in adj.values()):,} edges.")
+
     print("[INFO] Writing public_profiles.csv...")
     profiles_df = pd.DataFrame(
         [{"agent": agent_map.get(uid, uid), "attribute": "pusr",
@@ -538,7 +661,31 @@ def main():
     profiles_df.to_csv(output_dir / "public_profiles.csv", index=False)
     print(f"[INFO] public_profiles.csv: {len(profiles_df):,} rows.")
 
-    # Generate probs ONCE — same personality for all agents across all threads
+    # -----------------------------------------------------------------------
+    # public_profiles_raw.csv
+    # One row per (agent, attribute) for followers_count, friends_count,
+    # listed_count, verified. Agents with no user record get NaN/False.
+    # -----------------------------------------------------------------------
+    print("[INFO] Writing public_profiles_raw.csv...")
+    RAW_ATTRIBUTES = ["followers_count", "friends_count", "listed_count", "verified"]
+    raw_profile_rows = []
+    for uid in sorted(all_uids):
+        agent = agent_map.get(uid, uid)
+        rec   = user_records.get(uid, {})
+        for attr in RAW_ATTRIBUTES:
+            raw_profile_rows.append({
+                "agent":     agent.replace("convai_agent_", "convai_llm_agent_"),
+                "attribute": attr,
+                "value":     rec.get(attr, None),
+            })
+    public_profiles_raw_df = pd.DataFrame(
+        raw_profile_rows, columns=["agent", "attribute", "value"]
+    )
+    public_profiles_raw_df.to_csv(output_dir / "public_profiles_raw.csv", index=False)
+    print(f"[INFO] public_profiles_raw.csv: {len(public_profiles_raw_df):,} rows "
+          f"({len(all_uids):,} agents × {len(RAW_ATTRIBUTES)} attributes).")
+
+    # Generate probs ONCE - same personality for all agents across all threads
     print("[INFO] Generating base agent probabilities (shared across all threads)...")
     base_probs = make_base_agent_probs(all_uids, agent_map, rng)
 
@@ -547,25 +694,45 @@ def main():
         thread_id = str(thread_df["thread_from"].iloc[0])
         topic     = TOPIC_MAP.get(str(thread_df["theme"].iloc[0]), "")
 
-        make_messages_csv(thread_df, conv_idx, agent_map).to_csv(
+        messages_df = make_messages_csv(thread_df, conv_idx, agent_map)
+        messages_df.to_csv(
             thread_dir / f"messages_{thread_id}.csv", index=False
         )
+        messages_llm_df = messages_df.copy()
+        messages_llm_df["author"] = messages_llm_df["author"].str.replace(
+            "convai_agent_", "convai_llm_agent_", regex=False
+        )
+        messages_llm_df.to_csv(
+            thread_dir / f"messages_llm_{thread_id}.csv", index=False
+        )
 
-        # Pass adj so reachability can be checked per-thread
         probs_df = apply_thread_state(base_probs, thread_df, agent_map, adj)
         probs_df.to_csv(
             thread_dir / f"agent_probs_{thread_id}.csv", index=False
         )
 
+        # -------------------------------------------------------------------
+        # agent_probs_raw_<thread_id>.csv
+        # Natural language personality description per agent for this thread.
+        # State and susceptibility are thread-specific; prob values are shared.
+        # -------------------------------------------------------------------
+        probs_raw_df = make_agent_probs_raw(probs_df)
+        probs_raw_df.to_csv(
+            thread_dir / f"agent_probs_raw_{thread_id}.csv", index=False
+        )
+
         counts = probs_df["state"].value_counts()
         n_not_susceptible = (probs_df["susceptible"] == "false").sum()
-        print(f"  [{conv_idx}/{len(ottawa_dfs)}] {thread_id} ({topic}) — "
+        print(f"  [{conv_idx}/{len(ottawa_dfs)}] {thread_id} ({topic}) - "
               f"infected={counts.get('infected', 0)}, neutral={counts.get('neutral', 0)}, "
               f"not_susceptible={n_not_susceptible}, total={len(probs_df)}")
 
     print(f"\n[DONE] Output: {output_dir.resolve()}")
-    print(f"  Global : network.csv, public_profiles.csv")
-    print(f"  Threads: news_sources_corr/messages_<id>.csv + agent_probs_<id>.csv")
+    print(f"  Global : network.csv, network_llm.csv, public_profiles.csv, public_profiles_raw.csv")
+    print(f"  Threads: news_sources_corr/messages_<id>.csv")
+    print(f"           news_sources_corr/messages_llm_<id>.csv")
+    print(f"           news_sources_corr/agent_probs_<id>.csv")
+    print(f"           news_sources_corr/agent_probs_raw_<id>.csv")
 
 
 if __name__ == "__main__":

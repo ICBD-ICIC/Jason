@@ -59,6 +59,16 @@ def discover_sim_folders(convai_600: Path) -> list[Path]:
 # Execution
 # ---------------------------------------------------------------------------
 
+def stop_gradle_daemons(base_dir: Path) -> None:
+    """Send --stop to all running Gradle daemons for this installation."""
+    subprocess.call(
+        [str((base_dir / "gradlew.bat").resolve()), "--stop"],
+        cwd=base_dir,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
 def run_gradle(
     sim_dir: Path,
     gradle_cmd: str,
@@ -88,8 +98,8 @@ def run_gradle(
             cmd,
             cwd=base_dir,
             text=True,
-            shell=False,                      
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,  
+            shell=False,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
         )
         _current_proc = proc
         try:
@@ -101,12 +111,18 @@ def run_gradle(
                 stderr=subprocess.DEVNULL,
             )
             proc.wait()
+            # Kill daemons that may still be running after timeout.
+            stop_gradle_daemons(base_dir)
             elapsed = time.monotonic() - t0
             return False, f"{sim_dir.name}: TIMEOUT after {elapsed:.1f}s"
 
         elapsed = time.monotonic() - t0
         success = proc.returncode == 0
         status  = "OK" if success else f"FAILED (rc={proc.returncode})"
+
+        # Stop all Gradle daemons spawned by this run so they don't accumulate.
+        stop_gradle_daemons(base_dir)
+
         return success, f"{sim_dir.name}: {status}  [{elapsed:.1f}s]"
 
     except FileNotFoundError:
