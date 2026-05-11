@@ -38,7 +38,7 @@ max_cycles(1000).
 max_cycles_reached(false).
 
 idle_cycles(0).
-inactivity_limit(100).
+inactivity_limit(60).
 idle_limit_reached(false).
 
 !init.
@@ -134,19 +134,16 @@ idle_limit_reached(false).
 <-
     ia.saveLogs([info("Processing message with LLM."), cycle(C), message_id(Id)]);
     readPublicProfile(Author);
-    ia.saveLogs([info("Profile read."), author(Author)]);
     ?public_profile(Author, "followers_count", Followers);
     ?public_profile(Author, "friends_count", Friends);
     ?public_profile(Author, "listed_count", Listed);
     ?public_profile(Author, "verified", Verified);
-    ia.saveLogs([info("LLM call starting.")]);
     ia.interpretContent(
         content(Content, PastMessages, CurrentState,
                 Followers, Friends, Listed, Verified,
                 PersonalityDesc),
         LLMResult
     );
-    ia.saveLogs([info("LLM returned."), result(LLMResult)]);
     .member(new_state(NewState),       LLMResult);
     .member(reply_content(ReplyText),  LLMResult);
     .member(topics(Topics),            LLMResult);
@@ -154,6 +151,8 @@ idle_limit_reached(false).
     if (NewState \== CurrentState) {
         -+state(NewState);
         ia.saveLogs([info("State transition."), state(NewState)])
+    } else {
+        ia.saveLogs([info("No state transition."), state(CurrentState)])
     };
 
     if (ReplyText \== "" & NewState \== neutral) {
@@ -168,7 +167,7 @@ idle_limit_reached(false).
     -read_history(PastMessages);
     +read_history([Content | PastMessages]).
 
--!process_single_message(Id, ActedNow): true <-
+-!process_single_message(_Id, ActedNow): true <-
     ActedNow = false;
-    ia.saveLogs([info("Failed to process message, skipping."), message_id(Id)]).
+    ia.saveLogs([info("Failed to process message, skipping.")]).
 

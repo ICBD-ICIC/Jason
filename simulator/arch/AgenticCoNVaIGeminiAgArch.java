@@ -7,6 +7,8 @@ import lib.JasonToJavaTranslator;
 import java.util.*;
 import java.util.logging.Logger;
 
+import arch.schema.GeminiSchemas;
+
 /**
  * Architecture for the LLM-driven CoNVaI agent.
  *
@@ -97,7 +99,12 @@ public class AgenticCoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
                 followers, friends, listed, verified,
                 personality
             );
-            String raw = gemini.getResponse(decisionPrompt, GeminiClient.CONFIG_CREATIVE);
+            String raw = gemini.getResponse(
+                            decisionPrompt, 
+                            GeminiClient.jsonConfigCreative(
+                                GeminiSchemas.DECISION_SCHEMA
+                            )
+                        );
             return parseDecision(raw, currentState);
 
         } catch (Exception e) {
@@ -242,7 +249,7 @@ public class AgenticCoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
         }
 
         try {
-            String json = extractJsonObject(raw);
+            String json = raw.trim();
             if (json == null) {
                 logger.warning("[CoNVaILLMAgArch] No JSON object found in response. raw=" + raw);
                 return result;
@@ -287,6 +294,9 @@ public class AgenticCoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
                     .toList();
                 result.put("topics", topics);
             }
+            if (finalReply.isBlank()) {
+                result.put("topics", new ArrayList<String>());
+            }
 
         } catch (Exception e) {
             logger.warning("[CoNVaILLMAgArch] Failed to parse decision JSON: "
@@ -294,39 +304,6 @@ public class AgenticCoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
         }
 
         return result;
-    }
-
-    /**
-     * Extracts the first top-level JSON object {...} from a string that may
-     * contain prose before or after it (e.g. Gemini chain-of-thought preambles).
-     * Returns null if no balanced object is found.
-     */
-    private static String extractJsonObject(String text) {
-        if (text == null) return null;
-            text = text.replace('\u2018', '\'').replace('\u2019', '\'')  // curly single quotes
-                       .replace('\u201C', '"').replace('\u201D', '"');   // curly double quotes
-        int start = text.indexOf('{');
-        if (start == -1) return null;
-
-        int depth = 0;
-        boolean inString = false;
-        boolean escape = false;
-
-        for (int i = start; i < text.length(); i++) {
-            char c = text.charAt(i);
-
-            if (escape) { escape = false; continue; }
-            if (c == '\\' && inString) { escape = true; continue; }
-            if (c == '"') { inString = !inString; continue; }
-            if (inString) continue;
-
-            if (c == '{') depth++;
-            else if (c == '}') {
-                depth--;
-                if (depth == 0) return text.substring(start, i + 1);
-            }
-        }
-        return null; // unbalanced
     }
 
     private Map<String, Object> safeFallback(String currentState) {

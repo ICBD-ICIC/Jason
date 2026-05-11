@@ -38,7 +38,7 @@ max_cycles(1000).
 max_cycles_reached(false).
 
 idle_cycles(0).
-inactivity_limit(100).
+inactivity_limit(60).
 idle_limit_reached(false).
 
 !init.
@@ -151,6 +151,8 @@ idle_limit_reached(false).
     if (NewState \== CurrentState) {
         -+state(NewState);
         ia.saveLogs([info("State transition."), state(NewState)])
+    } else {
+        ia.saveLogs([info("No state transition."), state(CurrentState)])
     };
 
     if (ReplyText \== "" & NewState \== neutral) {

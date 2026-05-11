@@ -3,6 +3,7 @@ package arch;
 import com.google.genai.Client;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.GenerateContentResponse;
+import com.google.genai.types.Schema;
 
 import java.util.logging.Logger;
 
@@ -18,6 +19,16 @@ public class GeminiClient {
     public static final GenerateContentConfig CONFIG_CREATIVE = GenerateContentConfig.builder()
             .temperature(0.8f)
             .build();
+
+    public static GenerateContentConfig jsonConfigCreative(
+            Schema schema
+    ) {
+        return GenerateContentConfig.builder()
+            .temperature(0.8f)
+            .responseMimeType("application/json")
+            .responseSchema(schema)
+            .build();
+    }
 
     private static final int MAX_RETRIES = 2;
     private static final long INITIAL_RETRY_DELAY_MS = 5_000L;
