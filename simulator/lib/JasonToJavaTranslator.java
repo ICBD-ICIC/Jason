@@ -31,8 +31,6 @@ public final class JasonToJavaTranslator {
      *                                  element is not an atom, string, or variable
      */
     public static List<String> translateTopics(Term t) {
-        if (t instanceof Atom a && a.getFunctor().equals(".")) return new ArrayList<>();
-
         if (!(t instanceof ListTerm list)) {
             throw new IllegalArgumentException("Expected a Jason list term but got " + t.getClass().getSimpleName());
         }
@@ -40,18 +38,21 @@ public final class JasonToJavaTranslator {
         List<String> topics = new ArrayList<>();
 
         for (Term item : list) {
+            // Skip the empty list tail atom that Jason appends to cons-cell lists
+            if (item instanceof Atom a && a.getFunctor().equals(".")) continue;
+            // Also skip the actual empty list term []
+            if (item instanceof ListTerm lt && lt.isEmpty()) continue;
+
             if (item instanceof StringTerm s) {
                 topics.add(s.getString());
-            }
-            else if (item instanceof VarTerm) {
+            } else if (item instanceof VarTerm) {
                 topics.add(item.toString());
-            }
-            else if (item instanceof Atom a && a.getArity() == 0) {
+            } else if (item instanceof Atom a && a.getArity() == 0) {
                 topics.add(a.getFunctor());
-            }
-            else {
+            } else {
                 throw new IllegalArgumentException(
-                    "Topics must be atoms, strings, or vars. Found: " + item
+                    "Topics must be atoms, strings, or vars. Found: "
+                    + item.getClass().getSimpleName() + " = " + item
                 );
             }
         }

@@ -16,7 +16,7 @@ import java.util.logging.Logger;
  *   Pnw    - cumulative influence of the news piece itself         → cached per conversation root
  *   Prpl   - intrinsic engagement likelihood of the message        → cached per message content
  *   topics - subjects raised in the message                        → cached per message content
- *   Pnov   - novelty relative to this agent's reading history      → never cached (agent-specific)
+ *   Pnov   - novelty relative to this agent's reading history      → cached per content + recent window
  *
  * Time decay and agent saturation are applied individually after cache lookup,
  * so each agent receives personalised effective probabilities even when raw
@@ -33,56 +33,62 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
     // interpretContent  (PTX computation)
     // -------------------------------------------------------------------------
 
-    /**
-     * @param contentStructure Jason structure containing:
-     *   Term 0 - message text
-     *   Term 1 - list of past messages read by this agent (most recent first)
-     *   Term 2 - current simulation cycle of agent
-     * @return map with keys pnov, prpl, pnw (double) and topics (List<String>)
-     */
     @Override
     public Map<String, Object> interpretContent(Term contentStructure) {
         try {
-            Structure  s            = (Structure) contentStructure;
-            String     content      = JasonToJavaTranslator.translateString(s.getTerm(0));
-            List<String> past       = JasonToJavaTranslator.translateTopics(s.getTerm(1));
-            int        currentCycle = JasonToJavaTranslator.translateInt(s.getTerm(2));
+            Structure s = (Structure) contentStructure;
 
+            String       content      = JasonToJavaTranslator.translateString(s.getTerm(0));
+            List<String> past         = JasonToJavaTranslator.translateTopics(s.getTerm(1));
+            int          currentCycle = JasonToJavaTranslator.translateInt(s.getTerm(2));
+
+            // ── Pnw ──────────────────────────────────────────────────────────
             String convKey = "conv\u0000" + normalise(content);
-            double pnw = SharedInterpretationCache.getDouble(convKey, k ->
-                parseDouble(gemini.getResponse(buildInfluencePrompt(content), GeminiClient.CONFIG_ANALYTICAL), "pnw")
-            );
+            Double cachedPnw = SharedInterpretationCache.getDoubleIfPresent(convKey);
+            double pnw;
+            if (cachedPnw != null) {
+                pnw = cachedPnw;
+            } else {
+                String raw = gemini.getResponse(buildInfluencePrompt(content), GeminiClient.CONFIG_ANALYTICAL);
+                pnw = parseDouble(raw, "pnw");
+                SharedInterpretationCache.putDouble(convKey, pnw);
+            }
 
+            // ── Prpl + topics ─────────────────────────────────────────────────
             String msgKey = "msg\u0000" + normalise(content);
-            Map<String, Object> engagement = SharedInterpretationCache.get(msgKey, k ->
-                parseEngagement(gemini.getResponse(buildEngagementPrompt(content), GeminiClient.CONFIG_ANALYTICAL))
-            );
+            Map<String, Object> engagement;
+            Map<String, Object> cachedEng = SharedInterpretationCache.getIfPresent(msgKey);
+            if (cachedEng != null) {
+                engagement = cachedEng;
+            } else {
+                String raw = gemini.getResponse(buildEngagementPrompt(content), GeminiClient.CONFIG_ANALYTICAL);
+                engagement = parseEngagement(raw);
+                SharedInterpretationCache.put(msgKey, engagement);
+            }
 
+            // ── Pnov — cached per content + recent window ─────────────────────
             List<String> recentWindow = past.size() > 3 ? past.subList(0, 3) : past;
-            String novKey = "nov\u0000" + normalise(content)
-                + "\u0000" + recentWindow.stream()
-                    .map(CoNVaIGeminiAgArch::normalise)
-                    .collect(java.util.stream.Collectors.joining("\u0000"));
 
-            double pnov = SharedInterpretationCache.getDouble(novKey, k ->
-                parseDouble(
-                    gemini.getResponse(buildNoveltyPrompt(content, recentWindow, past.size()),
-                                    GeminiClient.CONFIG_ANALYTICAL),
-                    "pnov"
-                )
-            );
+            String novKey = "nov\u0000" + normalise(content) + "\u0000" + String.join("\u0001", recentWindow);
+            Double cachedPnov = SharedInterpretationCache.getDoubleIfPresent(novKey);
+            double pnov;
+            if (cachedPnov != null) {
+                pnov = cachedPnov;
+            } else {
+                String novRaw = gemini.getResponse(buildNoveltyPrompt(content, recentWindow, past.size()), GeminiClient.CONFIG_ANALYTICAL);
+                pnov = parseDouble(novRaw, "pnov");
+                SharedInterpretationCache.putDouble(novKey, pnov);
+            }
 
+            // ── Merge & decay ─────────────────────────────────────────────────
             Map<String, Object> merged = new LinkedHashMap<>(engagement);
             merged.put("pnw",  pnw);
             merged.put("pnov", pnov);
 
-            Map<String, Object> decayed = applyTimeDecay(merged, currentCycle, past.size());
-
-            return decayed;
+            return applyTimeDecay(merged, currentCycle, past.size());
 
         } catch (Exception e) {
-            // Never let an exception silently stall the Jason agent plan
-            logger.severe("[CoNVaIGeminiAgArch] interpretContent failed, returning safe defaults: " + e.getMessage());
+            logger.severe(String.format("interpretContent failed, returning safe defaults: %s", e.getMessage()));
             return safeFallback();
         }
     }
@@ -100,20 +106,14 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
     // Time decay  (paper 4.2 / 4.3)
     // -------------------------------------------------------------------------
 
-    /**
-     * Applies Gaussian temporal decay to Pnov and combined temporal + saturation
-     * decay to Prpl.  Pnw is left unchanged (fixed property of the news piece).
-     *
-     * Prpl decay: e^(-0.1 * historySize) × max(0.05, 1 - t/1000)
-     */
     private Map<String, Object> applyTimeDecay(Map<String, Object> base,
                                                 int currentCycle,
                                                 int historySize) {
         Map<String, Object> result = new LinkedHashMap<>(base);
 
-        double historySat      = Math.exp(-0.1 * historySize);
-        double temporalScale   = Math.max(0.05, 1.0 - (currentCycle / 1000.0));
-        double prpl            = Math.min((double) base.get("prpl") * historySat * temporalScale, 1.0);
+        double historySat    = Math.exp(-0.1 * historySize);
+        double temporalScale = Math.max(0.05, 1.0 - (currentCycle / 1000.0));
+        double prpl          = Math.min((double) base.get("prpl") * historySat * temporalScale, 1.0);
 
         result.put("pnov", base.get("pnov"));
         result.put("prpl", prpl);
@@ -124,7 +124,6 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
     // Prompts
     // -------------------------------------------------------------------------
 
-    /** Pnw - cumulative influence; no reading history required. */
     private String buildInfluencePrompt(String content) {
         return String.format("""
             You are an analytical engine for a social media diffusion simulation.
@@ -142,7 +141,6 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
             content);
     }
 
-    /** Prpl + topics - intrinsic message properties, independent of the reader. */
     private String buildEngagementPrompt(String content) {
         return String.format("""
             You are an analytical engine for a social media diffusion simulation.
@@ -163,7 +161,6 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
             content);
     }
 
-    /** Pnov - novelty relative to what THIS agent has already read. */
     private String buildNoveltyPrompt(String content, List<String> recentWindow, int totalSeen) {
         String recentBlock = recentWindow.isEmpty()
             ? "(none - this is the first message this agent has seen)"
@@ -204,18 +201,12 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
     // createContent  (f function - Equation 3)
     // -------------------------------------------------------------------------
 
-    /**
-     * Generates a tweet for an agent that has decided to spread or debunk.
-     *
-     * @param topics    topics extracted during interpretContent
-     * @param variables must contain "state" (infected | vaccinated) and "content"
-     */
     @Override
     public String createContent(Term topics, Term variables) {
         Map<String, Object> varMap = JasonToJavaTranslator.translateVariables(variables);
 
-        boolean spreading  = "infected".equals(String.valueOf(varMap.get("state")));
-        String  content    = String.valueOf(varMap.get("content"));
+        boolean spreading = "infected".equals(String.valueOf(varMap.get("state")));
+        String  content   = String.valueOf(varMap.get("content"));
 
         List<String> topicList = JasonToJavaTranslator.translateTopics(topics);
         String topicHint = topicList.isEmpty() ? "" :
@@ -239,29 +230,32 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
     // Parsing helpers
     // -------------------------------------------------------------------------
 
-    /** Parses a single named double from a JSON response. */
     private double parseDouble(String raw, String key) {
+        if (raw == null || raw.isBlank()) {
+            return 0.0;
+        }
         try {
             String clean = raw.replaceAll("(?s)```json|```", "").trim();
             @SuppressWarnings("unchecked")
             Map<String, Object> parsed = MAPPER.readValue(clean, Map.class);
             if (parsed.containsKey(key)) {
                 return Math.max(0.0, Math.min(((Number) parsed.get(key)).doubleValue(), 1.0));
+            } else {
+                logger.warning(String.format("parseDouble('%s'): key not found in: %s", key, raw));
             }
         } catch (Exception e) {
-            logger.warning("[CoNVaIGeminiAgArch] Failed to parse '" + key + "': " + e.getMessage());
+            logger.warning(String.format("parseDouble('%s'): JSON parse failed: %s | raw=%s", key, e.getMessage(), raw));
         }
         return 0.0;
     }
 
-    /** Parses a prpl + topics response from buildEngagementPrompt. */
     private Map<String, Object> parseEngagement(String raw) {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("prpl",   0.0);
         result.put("topics", new ArrayList<String>());
 
         if (raw == null || raw.isBlank()) {
-            logger.warning("[CoNVaIGeminiAgArch] Empty engagement response from Gemini.");
+            logger.warning("parseEngagement: empty input");
             return result;
         }
 
@@ -273,6 +267,8 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
             if (parsed.containsKey("prpl")) {
                 double v = ((Number) parsed.get("prpl")).doubleValue();
                 result.put("prpl", Math.max(0.0, Math.min(v, 1.0)));
+            } else {
+                logger.warning(String.format("parseEngagement: 'prpl' key missing. parsed keys=%s | raw=%s", parsed.keySet(), raw));
             }
 
             if (parsed.containsKey("topics") && parsed.get("topics") instanceof List<?> list) {
@@ -280,16 +276,20 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
                     .filter(Objects::nonNull)
                     .map(Object::toString)
                     .toList());
+            } else {
+                logger.warning(String.format("parseEngagement: 'topics' key missing or wrong type. parsed keys=%s | raw=%s", parsed.keySet(), raw));
             }
         } catch (Exception e) {
-            logger.warning("[CoNVaIGeminiAgArch] Failed to parse engagement JSON: "
-                + e.getMessage() + " | raw=" + raw);
+            logger.warning(String.format("parseEngagement: JSON parse failed: %s | raw=%s", e.getMessage(), raw));
         }
 
         return result;
     }
 
-    /** Normalises a string for use as a cache key. */
+    // -------------------------------------------------------------------------
+    // Utilities
+    // -------------------------------------------------------------------------
+
     private static String normalise(String s) {
         return s.strip().replaceAll("\\s+", " ");
     }
