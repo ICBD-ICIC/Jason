@@ -18,13 +18,31 @@ Options:
     --stop-on-error     Abort as soon as one Gradle invocation fails.
 """
 
+"""
+Useful commands:
+    tasklist | grep -i "java\|gradle"
+    taskkill //F //IM java.exe //T
+"""
+
 import argparse
 import subprocess
 import sys
 import time
 from pathlib import Path
 import os
+import signal
 
+_current_proc = None
+
+def _kill_current(signum, frame):
+    global _current_proc
+    if _current_proc and _current_proc.poll() is None:
+        subprocess.call(["taskkill", "/F", "/T", "/PID", str(_current_proc.pid)],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    sys.exit(1)
+
+signal.signal(signal.SIGINT, _kill_current)
+signal.signal(signal.SIGTERM, _kill_current)
 
 # ---------------------------------------------------------------------------
 # Discovery
@@ -48,38 +66,44 @@ def run_gradle(
     dry_run: bool,
     base_dir: Path,
 ) -> tuple[bool, str]:
-    """
-    Run `gradle clean run -PgeneratedFolder=<name> -PmasFile=<mas_file>`
-    from inside *sim_dir*.
-
-    Returns (success, message).
-    """
     cmd = [
-        gradle_cmd,
+        str((base_dir / "gradlew.bat").resolve()),
         "clean",
         "run",
-        f"-PgeneratedFolder={sim_dir.name}",
+        f"-PgeneratedFolder=convai/600/{sim_dir.name}",
         f"-PmasFile={mas_file}",
     ]
 
     if dry_run:
-        print(f"  [dry] cd {sim_dir}  &&  {' '.join(cmd)}")
+        print(f"  [dry] cd {base_dir}  &&  {' '.join(cmd)}")
         return True, f"{sim_dir.name}: dry-run"
 
-    print(f"  [RUN] {sim_dir.name}  ->  gradlew.bat clean run -PgeneratedFolder=convai/600/{sim_dir.name} -PmasFile={mas_file}")
+    print(f"  [RUN] {sim_dir.name}  ->  gradlew.bat clean run "
+          f"-PgeneratedFolder=convai/600/{sim_dir.name} -PmasFile={mas_file}")
     t0 = time.monotonic()
 
     try:
-        gradlew_abs = str((base_dir / "gradlew.bat").resolve())
-
-        proc = subprocess.run(
-            [gradlew_abs, "clean", "run",
-            f"-PgeneratedFolder=convai/600/{sim_dir.name}",
-            f"-PmasFile={mas_file}"],
+        global _current_proc
+        proc = subprocess.Popen(
+            cmd,
             cwd=base_dir,
             text=True,
-            shell=True,
+            shell=False,                      
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,  
         )
+        _current_proc = proc
+        try:
+            proc.wait(timeout=10 * 60)
+        except subprocess.TimeoutExpired:
+            subprocess.call(
+                ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            proc.wait()
+            elapsed = time.monotonic() - t0
+            return False, f"{sim_dir.name}: TIMEOUT after {elapsed:.1f}s"
+
         elapsed = time.monotonic() - t0
         success = proc.returncode == 0
         status  = "OK" if success else f"FAILED (rc={proc.returncode})"
@@ -87,8 +111,7 @@ def run_gradle(
 
     except FileNotFoundError:
         return False, (
-            f"{sim_dir.name}: ERROR – gradle executable '{gradle_cmd}' not found. "
-            "Use --gradle ./gradlew for the Gradle wrapper."
+            f"{sim_dir.name}: ERROR – gradlew.bat not found at {base_dir}."
         )
 
 

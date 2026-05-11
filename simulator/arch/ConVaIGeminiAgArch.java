@@ -76,13 +76,7 @@ public class CoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
             merged.put("pnw",  pnw);
             merged.put("pnov", pnov);
 
-            logger.info(String.format("[CoNVaIGeminiAgArch] interpretContent results for content='%s': pnov=%.3f, prpl=%.3f, pnw=%.3f, topics=%s",
-                content, merged.get("pnov"), merged.get("prpl"), merged.get("pnw"), merged.get("topics")));
-
             Map<String, Object> decayed = applyTimeDecay(merged, currentCycle, past.size());
-
-            logger.info(String.format("[CoNVaIGeminiAgArch] interpretContent decayed for content='%s': pnov=%.3f, prpl=%.3f, pnw=%.3f, topics=%s",
-                content, decayed.get("pnov"), decayed.get("prpl"), decayed.get("pnw"), decayed.get("topics")));
 
             return decayed;
 
