@@ -142,11 +142,19 @@ def run_all(
     dry_run: bool,
     stop_on_error: bool,
 ) -> None:
-    convai_600 = base_dir / "convai" / "600"
-    sim_dirs   = discover_sim_folders(convai_600)
+    roots = [
+        base_dir / "convai" / "600",
+        base_dir / "convai" / "600_llm",
+    ]
+
+    sim_dirs = []
+    for root in roots:
+        sim_dirs.extend(discover_sim_folders(root))
+
+    sim_dirs = sorted(set(sim_dirs))  # deduplicate + stable order
 
     if not sim_dirs:
-        print(f"No subfolders found under {convai_600}.\n"
+        print(f"No subfolders found under {roots}.\n"
               "Run generate_sim_folders.py first.")
         return
 
