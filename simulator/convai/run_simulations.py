@@ -2,10 +2,10 @@
 """
 run_simulations.py
 
-Runs the Gradle task for every subfolder found directly under convai/600/.
+Runs the Gradle task for every subfolder found directly under convai/600_llm/.
 
 The command executed for each folder is:
-    gradle clean run -PgeneratedFolder=convai/600/<folder_name> -PmasFile=default_mas.mas2j
+    gradle clean run -PgeneratedFolder=convai/600_llm/<folder_name> -PmasFile=default_mas.mas2j
 
 Usage:
     python run_simulations.py [options]
@@ -48,11 +48,11 @@ signal.signal(signal.SIGTERM, _kill_current)
 # Discovery
 # ---------------------------------------------------------------------------
 
-def discover_sim_folders(convai_600: Path) -> list[Path]:
-    """Return every immediate subdirectory of convai/600/, sorted."""
-    if not convai_600.exists():
+def discover_sim_folders(convai_600_llm: Path) -> list[Path]:
+    """Return every immediate subdirectory of convai/600_llm/, sorted."""
+    if not convai_600_llm.exists():
         return []
-    return sorted(p for p in convai_600.iterdir() if p.is_dir())
+    return sorted(p for p in convai_600_llm.iterdir() if p.is_dir())
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +80,7 @@ def run_gradle(
         str((base_dir / "gradlew.bat").resolve()),
         "clean",
         "run",
-        f"-PgeneratedFolder=convai/600/{sim_dir.name}",
+        f"-PgeneratedFolder=convai/600_llm/{sim_dir.name}",
         f"-PmasFile={mas_file}",
     ]
 
@@ -89,7 +89,7 @@ def run_gradle(
         return True, f"{sim_dir.name}: dry-run"
 
     print(f"  [RUN] {sim_dir.name}  ->  gradlew.bat clean run "
-          f"-PgeneratedFolder=convai/600/{sim_dir.name} -PmasFile={mas_file}")
+          f"-PgeneratedFolder=convai/600_llm/{sim_dir.name} -PmasFile={mas_file}")
     t0 = time.monotonic()
 
     try:
@@ -127,7 +127,7 @@ def run_gradle(
 
     except FileNotFoundError:
         return False, (
-            f"{sim_dir.name}: ERROR – gradlew.bat not found at {base_dir}."
+            f"{sim_dir.name}: ERROR- gradlew.bat not found at {base_dir}."
         )
 
 
@@ -143,7 +143,6 @@ def run_all(
     stop_on_error: bool,
 ) -> None:
     roots = [
-        base_dir / "convai" / "600",
         base_dir / "convai" / "600_llm",
     ]
 
