@@ -3,7 +3,7 @@
 generate_sim_folders.py
 
 For each agent_probs_<thread>_<config>.csv found in
-datasets/convai-selected/news_sources_corr/, this script:
+convai/convai-selected/news_sources_corr/, this script:
 
   1. Identifies the source thread folder under convai/600/<thread>/
   2. Creates convai/600/<thread>_<config>/
@@ -289,7 +289,7 @@ def copy_thread_folder(src: Path, dest: Path, dry_run: bool) -> None:
 def generate_folders(base_dir: Path, dry_run: bool = False) -> None:
     convai_600     = base_dir / "convai" / "600"
     convai_600_llm = base_dir / "convai" / "600_llm"
-    dataset_dir    = base_dir / "datasets" / "convai-selected" / "news_sources_corr"
+    dataset_dir    = base_dir / "convai" / "convai-selected" / "news_sources_corr"
 
     if not convai_600.exists():
         sys.exit(f"ERROR: {convai_600} does not exist.")
