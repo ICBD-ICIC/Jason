@@ -1,5 +1,5 @@
 """
-plot_simulations.py
+analysis_results_plots.py
 
 Generates bar-chart PDFs comparing simulation configs per thread and metric.
 
@@ -20,7 +20,7 @@ Each PDF contains ONE figure with:
         (one bracket per variant: 600 and 600_llm)
 
 Usage:
-  python plot_simulations.py \\
+  python analysis_results_plots.py \\
       --summary  simulation_results.csv \\
       --pv_bl    simulation_results_pvalues_variant_vs_baseline.csv \\
       --out_dir  plots/
