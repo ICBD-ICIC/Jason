@@ -165,9 +165,10 @@ def make_agent_probs_raw(probs_df: pd.DataFrame) -> pd.DataFrame:
             "personality_description": description,
             "state":                   row["state"],
             "susceptible":             row["susceptible"],
+            "known_conversation":      row["known_conversation"]
         })
     return pd.DataFrame(
-        rows, columns=["agent", "personality_description", "state", "susceptible"]
+        rows, columns=["agent", "personality_description", "state", "susceptible", "known_conversation"]
     )
 
 
@@ -209,6 +210,8 @@ def generate_variant(df: pd.DataFrame, pct: int, agent_type: str) -> pd.DataFram
 def process_file(filepath: str) -> None:
     """Read one base CSV and write all 6 variants plus their raw NL counterparts."""
     df = pd.read_csv(filepath)
+    if "known_conversation" in df.columns:
+        df["known_conversation"] = df["known_conversation"].astype("Int64")
     basename = os.path.splitext(os.path.basename(filepath))[0]   # e.g. agent_probs_52499...
     out_dir   = os.path.dirname(filepath)
 
@@ -229,10 +232,6 @@ def process_file(filepath: str) -> None:
 
     print(f"\nProcessing: {basename}")
     print(f"  Agents: {len(df)}")
-    if has_raw_base:
-        print(f"  Base raw file found: {raw_base_name}.csv")
-    else:
-        print(f"  No base raw file found — state/susceptible taken from agent_probs variant.")
 
     for agent_type in ["cautious", "credulous"]:
         for pct in PERCENTAGES:
@@ -249,27 +248,6 @@ def process_file(filepath: str) -> None:
             out_df.to_csv(out_path, index=False)
 
             print(f"  ✓ {out_name}  ({n_converted}/{len(df)} agents nudged)")
-
-            # ── Generate the matching agent_probs_raw_ variant ────────────────
-            # The raw file needs state and susceptible columns.
-            # Prefer values from the base raw file (thread-specific); fall back
-            # to whatever is in the variant agent_probs itself.
-            if "state" not in variant_df.columns:
-                variant_df["state"] = "neutral"
-            if "susceptible" not in variant_df.columns:
-                variant_df["susceptible"] = "true"
-
-            # Override state/susceptible from base raw lookup when available
-            if has_raw_base:
-                def _state(agent):
-                    return raw_base_lookup.get(agent, {}).get("state", variant_df.loc[variant_df["agent"] == agent, "state"].iloc[0])
-
-                def _susceptible(agent):
-                    return raw_base_lookup.get(agent, {}).get("susceptible", variant_df.loc[variant_df["agent"] == agent, "susceptible"].iloc[0])
-
-                variant_df = variant_df.copy()
-                variant_df["state"] = variant_df["agent"].apply(_state)
-                variant_df["susceptible"] = variant_df["agent"].apply(_susceptible)
 
             raw_variant_df = make_agent_probs_raw(variant_df)
 

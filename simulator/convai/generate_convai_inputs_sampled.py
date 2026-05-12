@@ -413,6 +413,7 @@ def apply_thread_state(
     thread_df: pd.DataFrame,
     agent_map: dict[str, str],
     adj: dict[str, set],
+    conversation_id: int | None = None,
 ) -> pd.DataFrame:
     """
     Return a copy of base_probs with the thread initiator marked as 'infected'.
@@ -452,6 +453,10 @@ def apply_thread_state(
         df.loc[df["agent"] == initiator_agent, "state"] = "infected"
 
     df["susceptible"] = df["agent"].apply(_is_susceptible)
+
+    df["known_conversation"] = ""
+    if initiator_agent and conversation_id is not None:
+        df.loc[df["agent"] == initiator_agent, "known_conversation"] = str(conversation_id)
 
     return df
 
@@ -563,6 +568,7 @@ def make_agent_probs_raw(probs_df: pd.DataFrame) -> pd.DataFrame:
             "personality_description": description,
             "state":                   row["state"],
             "susceptible":             row["susceptible"],
+            "known_conversation":      row["known_conversation"],
         })
     return pd.DataFrame(
         rows, columns=["agent", "personality_description", "state", "susceptible"]
@@ -706,7 +712,7 @@ def main():
             thread_dir / f"messages_llm_{thread_id}.csv", index=False
         )
 
-        probs_df = apply_thread_state(base_probs, thread_df, agent_map, adj)
+        probs_df = apply_thread_state(base_probs, thread_df, agent_map, adj, conversation_id=conv_idx)
         probs_df.to_csv(
             thread_dir / f"agent_probs_{thread_id}.csv", index=False
         )
