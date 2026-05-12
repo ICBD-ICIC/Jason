@@ -6,11 +6,11 @@ Reads the CoNVaI simulator CSV outputs produced by generate_convai_inputs_sample
 and generates PDF graphs that mirror the style of pheme_graphs.py.
 
 Outputs (saved inside <output_dir>/graphs_output/):
-  <thread_id>.pdf   – 2-page PDF per thread
+  <thread_id>.pdf   - 2-page PDF per thread
                         Page 1: full agent graph (all agents + follow edges)
                         Page 2: susceptible subgraph (agents with a directed
                                 path to the initiator in the follow graph)
-  all.pdf           – cross-thread graph (one node per thread)
+  all.pdf           - cross-thread graph (one node per thread)
 
 Usage
 -----
@@ -37,20 +37,20 @@ import pandas as pd
 # ─────────────────────────────────────────────────────────────
 # Colour palette  (mirrors pheme_graphs.py)
 # ─────────────────────────────────────────────────────────────
-C_INITIATOR   = "#FFD700"   # gold   – infected / source agent
-C_REACTOR     = "#FF6B6B"   # coral  – agent that appears in thread messages
-C_FOLLOW_ONLY = "#4A90D9"   # blue   – in network only, not a message author
-C_FLOATING    = "#DA70D6"   # orchid – in agent_probs but has no follow edges
+C_INITIATOR   = "#FFD700"   # gold   - infected / source agent
+C_REACTOR     = "#FF6B6B"   # coral  - agent that appears in thread messages
+C_FOLLOW_ONLY = "#4A90D9"   # blue   - in network only, not a message author
+C_FLOATING    = "#DA70D6"   # orchid - in agent_probs but has no follow edges
 
-C_EDGE_FOLLOW = "#555555"   # dark grey – follow edge (per-thread)
-C_EDGE_SHARED = "#E8540B"   # orange-red – shared agents across threads
-C_EDGE_CROSS  = "#2196F3"   # blue       – follow relationship across threads
+C_EDGE_FOLLOW = "#555555"   # dark grey - follow edge (per-thread)
+C_EDGE_SHARED = "#E8540B"   # orange-red - shared agents across threads
+C_EDGE_CROSS  = "#2196F3"   # blue       - follow relationship across threads
 
-C_SUSC_REACTOR = "#56C55A"  # green – susceptible reactor
-C_SUSC_FOLLOW  = "#30B8A8"  # teal  – susceptible follow-only
+C_SUSC_REACTOR = "#56C55A"  # green - susceptible reactor
+C_SUSC_FOLLOW  = "#30B8A8"  # teal  - susceptible follow-only
 
 VERACITY_COLOURS = {
-    "infected":   "#F44336",  # red  – rumour initiator thread
+    "infected":   "#F44336",  # red  - rumour initiator thread
     "neutral":    "#4CAF50",  # green
     "recovered":  "#9E9E9E",  # grey
     "unknown":    "#FF9800",  # amber
@@ -71,7 +71,7 @@ LEGEND_SUSCEPTIBLE = [
 
 LEGEND_GLOBAL = [
     mpatches.Patch(color=C_INITIATOR,   label="Thread with infected initiator"),
-    mpatches.Patch(color=C_FOLLOW_ONLY, label="Thread – neutral majority"),
+    mpatches.Patch(color=C_FOLLOW_ONLY, label="Thread - neutral majority"),
     mpatches.Patch(color=C_EDGE_SHARED, label="Shared agent(s) between threads"),
     mpatches.Patch(color=C_EDGE_CROSS,  label="Follow relationship across threads"),
 ]
@@ -142,10 +142,10 @@ def build_thread_graph(
     Build a directed follow-graph for one thread.
 
     Node classification:
-      Initiator   – state == 'infected'
-      Reactor     – agent is a message author (but not the initiator)
-      Follow-only – in network edges but not a message author
-      Floating    – in agent_probs but has no follow edges at all
+      Initiator   - state == 'infected'
+      Reactor     - agent is a message author (but not the initiator)
+      Follow-only - in network edges but not a message author
+      Floating    - in agent_probs but has no follow edges at all
     """
     thread_id   = thread_data["thread_id"]
     initiators  = thread_data["initiators"]
@@ -269,7 +269,7 @@ def draw_thread_full(meta: dict, ax: plt.Axes) -> None:
     if G.number_of_nodes() == 0:
         ax.text(0.5, 0.5, "No agents found", ha="center", va="center",
                 transform=ax.transAxes, fontsize=12)
-        ax.set_title(f"Thread {tid} – no data")
+        ax.set_title(f"Thread {tid} - no data")
         ax.axis("off")
         return
 
@@ -326,7 +326,7 @@ def draw_thread_susceptible(meta: dict, ax: plt.Axes) -> None:
             ha="center", va="center", transform=ax.transAxes,
             fontsize=11, color="#666666",
         )
-        ax.set_title(f"Thread {tid} – Susceptible subgraph (empty)", fontsize=8)
+        ax.set_title(f"Thread {tid} - Susceptible subgraph (empty)", fontsize=8)
         ax.axis("off")
         return
 
@@ -368,7 +368,7 @@ def draw_thread_susceptible(meta: dict, ax: plt.Axes) -> None:
         f"Edges in subgraph: {S.number_of_edges()}"
     )
     ax.set_title(
-        f"Thread {tid} – Susceptible subgraph\n"
+        f"Thread {tid} - Susceptible subgraph\n"
         f"[INITIATOR: {_short_label(initiator)}]\n{stats}",
         fontsize=8, pad=10,
     )
@@ -384,7 +384,7 @@ def save_thread_pdf(meta: dict, output_dir: Path) -> Path:
     )
     pdf_path = output_dir / f"{tid}.pdf"
     with PdfPages(pdf_path) as pdf:
-        # Page 1 – full graph
+        # Page 1 - full graph
         fig, ax = plt.subplots(figsize=(15, 11))
         draw_thread_full(meta, ax)
         ax.legend(handles=LEGEND_THREAD, loc="lower left",
@@ -393,7 +393,7 @@ def save_thread_pdf(meta: dict, output_dir: Path) -> Path:
         pdf.savefig(fig, bbox_inches="tight")
         plt.close(fig)
 
-        # Page 2 – susceptible subgraph
+        # Page 2 - susceptible subgraph
         fig, ax = plt.subplots(figsize=(15, 11))
         draw_thread_susceptible(meta, ax)
         ax.legend(handles=LEGEND_SUSCEPTIBLE, loc="lower left",
@@ -546,7 +546,7 @@ def draw_global_graph(all_metas: list[dict], output_dir: Path) -> Path:
 
         total_susc = sum(len(m["susceptible"]) for m in all_metas)
         ax.set_title(
-            f"CoNVaI – Ottawa Shooting: All {len(all_tids)} Threads\n"
+            f"CoNVaI - Ottawa Shooting: All {len(all_tids)} Threads\n"
             f"Threads: {len(all_tids)}  |  "
             f"Total susceptible agents (sum): {total_susc}  |  "
             f"Shared-agent edges: {len(shared_el)}  |  "

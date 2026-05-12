@@ -327,6 +327,29 @@ function buildGrowthChart() {
 
 // ── Transition table ──────────────────────────────────────────────────────────
 function buildTransitionsTable() {
+  // Log agents with impossible reverse transitions
+  const reverseTransitions = [];
+  for (const name of agentNames) {
+    const tl = agentTimelines[name];
+    let prev = 'neutral';
+    for (const { state, timestamp } of tl) {
+      if (state !== prev) {
+        const isIllegal =
+          (prev === 'infected'   && state === 'neutral') ||
+          (prev === 'vaccinated' && state === 'neutral');
+        if (isIllegal) {
+          reverseTransitions.push({ agent: name, from: prev, to: state, timestamp });
+        }
+        prev = state;
+      }
+    }
+  }
+  if (reverseTransitions.length) {
+    console.warn(`[epidemic] ${reverseTransitions.length} illegal transition(s) detected:`);
+    console.table(reverseTransitions);
+  } else {
+    console.info('[epidemic] No illegal transitions found.');
+  }
   const trans = {};
   for (const name of agentNames) {
     const tl = agentTimelines[name];

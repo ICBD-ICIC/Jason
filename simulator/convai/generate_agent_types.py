@@ -17,6 +17,7 @@ All nudged values are clipped to stay within the original paper's PARAM_GRID bou
 
 Agent selection per condition: independent random draw (fixed seed per condition).
 Output naming: <original_name>_<pct>pct_<type>.csv
+               <original_name>_<pct>pct_<type>_raw.csv  (natural language translation)
 
 Usage
 -----
@@ -58,6 +59,118 @@ SEEDS = {
     (75, "credulous"): 600,
 }
 
+
+# ── Natural language personality description ───────────────────────────────────
+
+def _level(value: float, low: float, high: float) -> str:
+    """Map a probability value to a low/moderate/high label."""
+    if value <= low:
+        return "low"
+    elif value >= high:
+        return "high"
+    return "moderate"
+
+
+def make_personality_description(
+    pinf: float,
+    pmd:  float,
+    pad:  float,
+    popi: float,
+    prd:  float,
+) -> str:
+    """
+    Produce a second-person prompt directive that blends the five probability
+    parameters into a coherent personality sketch.
+
+    Parameter ranges (from PARAM_GRID):
+        pinf  in {0.05, 0.10, 0.15}       → low ≤0.05, high ≥0.15
+        pmd   in {0.05, 0.10}             → low ≤0.05, high ≥0.10
+        pad   in {0.05, 0.10, 0.15}       → low ≤0.05, high ≥0.15
+        popi  in {0.10, 0.15, 0.20, 0.25} → low ≤0.10, high ≥0.25
+        prd   in {0.10, 0.20, 0.30, 0.40} → low ≤0.10, high ≥0.40
+    """
+
+    # ---- pinf: susceptibility to being convinced on first contact ----
+    pinf_level = _level(pinf, 0.05, 0.15)
+    pinf_phrases = {
+        "low":      "You are highly resistant to new claims and rarely change your mind based on a single encounter.",
+        "moderate": "You are somewhat open to new information, but a single message is not enough to fully convince you.",
+        "high":     "You are quite impressionable and can be convinced by a compelling message on first contact.",
+    }
+
+    # ---- pmd: tendency to become sceptical / vaccinated on first contact ----
+    pmd_level = _level(pmd, 0.05, 0.10)
+    pmd_phrases = {
+        "low":      "You do not tend to develop scepticism readily - exposure to a claim does not typically make you dismissive of it.",
+        "moderate": "You sometimes develop a critical distance from claims you encounter, becoming harder to persuade thereafter.",
+        "high":     "You are quick to become sceptical: once you encounter a claim and resist it, you actively discount it going forward.",
+    }
+
+    # ---- pad: willingness to flip opinion when exposed to disagreement ----
+    pad_level = _level(pad, 0.05, 0.15)
+    pad_phrases = {
+        "low":      "When you disagree with a message, you almost never change your position - you hold your ground firmly.",
+        "moderate": "Encountering disagreement occasionally causes you to reconsider and adjust your stance.",
+        "high":     "You are sensitive to opposing views: disagreement with a message can lead you to adopt the other side's position.",
+    }
+
+    # ---- popi: tendency to reinforce one's own opinion ----
+    popi_level = _level(popi, 0.10, 0.25)
+    popi_phrases = {
+        "low":      "Agreement with a message does not particularly strengthen your existing beliefs.",
+        "moderate": "When you agree with a message or successfully resist a challenge, your convictions are moderately reinforced.",
+        "high":     "Confirmation of your views or resisting a contrary message significantly deepens your commitment to your current position.",
+    }
+
+    # ---- prd: how actively you read and process incoming messages ----
+    prd_level = _level(prd, 0.10, 0.40)
+    prd_phrases = {
+        "low":      "You read and process incoming messages slowly, engaging with only a small fraction of what reaches you.",
+        "moderate": "You read messages at an average pace, engaging with a reasonable share of the information flow.",
+        "high":     "You are a highly active reader who processes a large proportion of incoming messages quickly.",
+    }
+
+    paragraph = (
+        f"{pinf_phrases[pinf_level]} "
+        f"{pmd_phrases[pmd_level]} "
+        f"{pad_phrases[pad_level]} "
+        f"{popi_phrases[popi_level]} "
+        f"{prd_phrases[prd_level]}"
+    )
+    return paragraph
+
+
+def make_agent_probs_raw(probs_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Translate a per-thread agent_probs DataFrame into natural language
+    personality descriptions (one row per agent).
+
+    Columns:
+        agent                   - agent identifier
+        personality_description - paragraph built from the five prob values only
+        state                   - raw value from agent_probs (neutral / infected)
+        susceptible             - raw Jason atom from agent_probs (true / false)
+    """
+    rows = []
+    for _, row in probs_df.iterrows():
+        description = make_personality_description(
+            pinf=float(row["pinf"]),
+            pmd=float(row["pmd"]),
+            pad=float(row["pad"]),
+            popi=float(row["popi"]),
+            prd=float(row["prd"]),
+        )
+        rows.append({
+            "agent":                   row["agent"],
+            "personality_description": description,
+            "state":                   row["state"],
+            "susceptible":             row["susceptible"],
+        })
+    return pd.DataFrame(
+        rows, columns=["agent", "personality_description", "state", "susceptible"]
+    )
+
+
 # ── Core functions ─────────────────────────────────────────────────────────────
 
 def nudge_agent(row: pd.Series, agent_type: str) -> pd.Series:
@@ -94,13 +207,32 @@ def generate_variant(df: pd.DataFrame, pct: int, agent_type: str) -> pd.DataFram
 
 
 def process_file(filepath: str) -> None:
-    """Read one base CSV and write all 6 variants."""
+    """Read one base CSV and write all 6 variants plus their raw NL counterparts."""
     df = pd.read_csv(filepath)
     basename = os.path.splitext(os.path.basename(filepath))[0]   # e.g. agent_probs_52499...
     out_dir   = os.path.dirname(filepath)
 
+    # Determine the base name for the corresponding raw file, if it exists.
+    # e.g. agent_probs_<id>.csv → agent_probs_raw_<id>.csv
+    # Extract the thread-id suffix after "agent_probs_"
+    thread_suffix = basename[len("agent_probs_"):]  # e.g. "524991576163250176"
+    raw_base_name = f"agent_probs_raw_{thread_suffix}"
+    raw_base_path = os.path.join(out_dir, raw_base_name + ".csv")
+
+    has_raw_base = os.path.exists(raw_base_path)
+    if has_raw_base:
+        raw_base_df = pd.read_csv(raw_base_path)
+        # Build a lookup: agent -> {state, susceptible} from the base raw file
+        raw_base_lookup = raw_base_df.set_index("agent")[["state", "susceptible"]].to_dict("index")
+    else:
+        raw_base_lookup = {}
+
     print(f"\nProcessing: {basename}")
     print(f"  Agents: {len(df)}")
+    if has_raw_base:
+        print(f"  Base raw file found: {raw_base_name}.csv")
+    else:
+        print(f"  No base raw file found — state/susceptible taken from agent_probs variant.")
 
     for agent_type in ["cautious", "credulous"]:
         for pct in PERCENTAGES:
@@ -117,6 +249,35 @@ def process_file(filepath: str) -> None:
             out_df.to_csv(out_path, index=False)
 
             print(f"  ✓ {out_name}  ({n_converted}/{len(df)} agents nudged)")
+
+            # ── Generate the matching agent_probs_raw_ variant ────────────────
+            # The raw file needs state and susceptible columns.
+            # Prefer values from the base raw file (thread-specific); fall back
+            # to whatever is in the variant agent_probs itself.
+            if "state" not in variant_df.columns:
+                variant_df["state"] = "neutral"
+            if "susceptible" not in variant_df.columns:
+                variant_df["susceptible"] = "true"
+
+            # Override state/susceptible from base raw lookup when available
+            if has_raw_base:
+                def _state(agent):
+                    return raw_base_lookup.get(agent, {}).get("state", variant_df.loc[variant_df["agent"] == agent, "state"].iloc[0])
+
+                def _susceptible(agent):
+                    return raw_base_lookup.get(agent, {}).get("susceptible", variant_df.loc[variant_df["agent"] == agent, "susceptible"].iloc[0])
+
+                variant_df = variant_df.copy()
+                variant_df["state"] = variant_df["agent"].apply(_state)
+                variant_df["susceptible"] = variant_df["agent"].apply(_susceptible)
+
+            raw_variant_df = make_agent_probs_raw(variant_df)
+
+            raw_out_name = f"agent_probs_raw_{thread_suffix}_{pct}pct_{agent_type}.csv"
+            raw_out_path = os.path.join(out_dir, raw_out_name)
+            raw_variant_df.to_csv(raw_out_path, index=False)
+
+            print(f"  ✓ {raw_out_name}")
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
@@ -141,7 +302,7 @@ def main():
     base_files = [
         f for f in os.listdir(input_dir)
         if f.startswith("agent_probs_") and f.endswith(".csv")
-        and not any(tag in f for tag in ["cautious", "credulous"])  # skip if re-run
+        and not any(tag in f for tag in ["cautious", "credulous", "_raw_"])  # skip variants and raw files
     ]
 
     if not base_files:
@@ -153,8 +314,10 @@ def main():
     for fname in sorted(base_files):
         process_file(os.path.join(input_dir, fname))
 
-    print("\nDone. Generated 6 variants per base file.")
-    print("Naming convention: <original>_<pct>pct_<cautious|credulous>.csv")
+    print("\nDone. Generated 6 variants + 6 raw NL files per base file.")
+    print("Naming convention:")
+    print("  <original>_<pct>pct_<cautious|credulous>.csv")
+    print("  agent_probs_raw_<id>_<pct>pct_<cautious|credulous>.csv")
 
 
 if __name__ == "__main__":
