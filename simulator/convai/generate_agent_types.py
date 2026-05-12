@@ -110,7 +110,12 @@ def process_file(filepath: str) -> None:
             out_name = f"{basename}_{pct}pct_{agent_type}.csv"
             out_path = os.path.join(out_dir, out_name)
 
-            variant_df.to_csv(out_path, index=False)
+            # Preserve lowercase boolean strings to match original CSV format
+            out_df = variant_df.copy()
+            for col in out_df.select_dtypes(include="bool").columns:
+                out_df[col] = out_df[col].map({True: "true", False: "false"})
+            out_df.to_csv(out_path, index=False)
+
             print(f"  ✓ {out_name}  ({n_converted}/{len(df)} agents nudged)")
 
 
