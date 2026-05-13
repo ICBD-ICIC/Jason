@@ -784,9 +784,7 @@ def _build_belief_string(instance: dict) -> str:
         if not functor:
             continue
 
-        # If the value is not a structured multi-arg term, treat it as a single
-        # string argument — avoids splitting prose strings on internal commas.
-        if _is_plain_string(value):
+        if _is_plain_string(value) or _is_list_literal(value):
             rendered = _render_arg(value)
         else:
             args = _parse_fact_args(value)
@@ -796,33 +794,30 @@ def _build_belief_string(instance: dict) -> str:
     return ", ".join(parts)
 
 
-def _is_plain_string(value: str) -> bool:
-    """
-    Returns True if value should be treated as a single string atom rather
-    than a comma-separated argument list.  A value is a structured term if
-    it contains a top-level comma (i.e. a comma outside quotes/parens/brackets).
-    Plain prose like 'Hello, world' has top-level commas, but so does
-    'agent_1, neutral' — the difference is that structured terms also look
-    like identifiers/numbers, while plain strings contain spaces or other
-    non-atom characters.
-
-    Heuristic: if the value starts with a quote, or contains a space and is
-    not already a recognised literal (number, atom, list, dict), treat it
-    as a plain string.
-    """
+def _is_list_literal(value: str) -> bool:
+    """Returns True if value is a parseable Python/JSON list literal."""
     v = value.strip()
-    # Already explicitly quoted
+    if not (v.startswith("[") and v.endswith("]")):
+        return False
+    try:
+        parsed = ast.literal_eval(v)
+        return isinstance(parsed, list)
+    except Exception:
+        return False
+
+
+def _is_plain_string(value: str) -> bool:
+    v = value.strip()
     if (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'")):
         return True
-    # Number or bare atom (no spaces) — let the normal splitter handle it
     if _is_number(v):
         return False
     if re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', v):
         return False
-    # List or dict literal — let normal splitter handle it
-    if (v.startswith("[") and v.endswith("]")) or (v.startswith("{") and v.endswith("}")):
+    if v.startswith("[") and v.endswith("]"):
+        return False  # handled by _is_list_literal / _render_arg
+    if v.startswith("{") and v.endswith("}"):
         return False
-    # Anything with a space is prose / a plain string
     if " " in v:
         return True
     return False
@@ -848,13 +843,23 @@ def _render_arg(arg: str) -> str:
         try:
             parsed = ast.literal_eval(arg)
             if isinstance(parsed, list):
-                return "[" + ",".join(_render_arg(str(x)) for x in parsed) + "]"
+                if all(
+                    isinstance(x, (int, float)) or
+                    (isinstance(x, str) and re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', x))
+                    for x in parsed
+                ):
+                    return "[" + ",".join(_render_arg(str(x)) for x in parsed) + "]"
+
+                def render_list_elem(x):
+                    if isinstance(x, (int, float)):
+                        return str(x)
+                    if isinstance(x, str) and re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', x):
+                        return x
+                    return "'" + str(x).replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+                return "[" + ",".join(render_list_elem(x) for x in parsed) + "]"
         except Exception:
             pass
-        return f"'{arg}'"
-    if arg.startswith("{") and arg.endswith("}"):
-        return f"'{arg}'"
-    # Fallback: single-quoted string, strip any internal single-quotes
     return "'" + arg.replace("'", "") + "'"
 
 def _is_number(s: str) -> bool:

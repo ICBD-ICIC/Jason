@@ -150,6 +150,8 @@ def make_agent_probs_raw(probs_df: pd.DataFrame) -> pd.DataFrame:
         personality_description - paragraph built from the five prob values only
         state                   - raw value from agent_probs (neutral / infected)
         susceptible             - raw Jason atom from agent_probs (true / false)
+        known_conversation      - conversation id for the initiator, empty otherwise
+        read_history            - JSON array; source text for initiator, [] for others
     """
     rows = []
     for _, row in probs_df.iterrows():
@@ -165,10 +167,12 @@ def make_agent_probs_raw(probs_df: pd.DataFrame) -> pd.DataFrame:
             "personality_description": description,
             "state":                   row["state"],
             "susceptible":             row["susceptible"],
-            "known_conversation":      row["known_conversation"]
+            "known_conversation":      row["known_conversation"],
+            "read_history":            row["read_history"],
         })
     return pd.DataFrame(
-        rows, columns=["agent", "personality_description", "state", "susceptible", "known_conversation"]
+        rows, columns=["agent", "personality_description", "state", "susceptible",
+                        "known_conversation", "read_history"]
     )
 
 
@@ -212,6 +216,13 @@ def process_file(filepath: str) -> None:
     df = pd.read_csv(filepath)
     if "known_conversation" in df.columns:
         df["known_conversation"] = df["known_conversation"].astype("Int64")
+    # Ensure read_history is treated as a plain string column (JSON arrays).
+    # Missing values (e.g. from older files without the column) default to [].
+    if "read_history" not in df.columns:
+        df["read_history"] = "[]"
+    else:
+        df["read_history"] = df["read_history"].fillna("[]").astype(str)
+
     basename = os.path.splitext(os.path.basename(filepath))[0]   # e.g. agent_probs_52499...
     out_dir   = os.path.dirname(filepath)
 

@@ -99,6 +99,14 @@ def get_source_uid(thread_df: pd.DataFrame) -> str | None:
     return uid or None
 
 
+def get_source_text(thread_df: pd.DataFrame) -> str:
+    """Return the text of the source tweet, or empty string if not found."""
+    src = thread_df[thread_df["type_content"] == "source"]
+    if src.empty:
+        return ""
+    return str(src.iloc[0].get("text", "")).replace("\n", " ").replace("\r", " ")
+
+
 # ---------------------------------------------------------------------------
 # Dataset loading
 # ---------------------------------------------------------------------------
@@ -423,11 +431,15 @@ def apply_thread_state(
     agent whose corresponding node has no directed path to the initiator in
     the final (post-augmentation) adjacency graph, 'true' otherwise.
     The initiator itself is always 'true'.
+
+    Adds a 'read_history' column: for the initiator, a JSON array containing
+    the source tweet text; for all other agents, an empty JSON array '[]'.
     """
     import networkx as nx
 
     initiator_uid   = get_source_uid(thread_df)
     initiator_agent = agent_map.get(initiator_uid, None) if initiator_uid else None
+    source_text     = get_source_text(thread_df)
 
     G = nx.DiGraph()
     for src, targets in adj.items():
@@ -457,6 +469,12 @@ def apply_thread_state(
     df["known_conversation"] = ""
     if initiator_agent and conversation_id is not None:
         df.loc[df["agent"] == initiator_agent, "known_conversation"] = str(conversation_id)
+
+    # read_history: initiator gets [source_text], all others get []
+    initiator_history = json.dumps([source_text]) if source_text else "[]"
+    df["read_history"] = "[]"
+    if initiator_agent:
+        df.loc[df["agent"] == initiator_agent, "read_history"] = initiator_history
 
     return df
 
@@ -553,6 +571,7 @@ def make_agent_probs_raw(probs_df: pd.DataFrame) -> pd.DataFrame:
         personality_description - paragraph built from the five prob values only
         state                   - raw value from agent_probs (neutral / infected)
         susceptible             - raw Jason atom from agent_probs (true / false)
+        read_history            - JSON array; source text for initiator, [] for others
     """
     rows = []
     for _, row in probs_df.iterrows():
@@ -569,9 +588,11 @@ def make_agent_probs_raw(probs_df: pd.DataFrame) -> pd.DataFrame:
             "state":                   row["state"],
             "susceptible":             row["susceptible"],
             "known_conversation":      row["known_conversation"],
+            "read_history":            row["read_history"],
         })
     return pd.DataFrame(
-        rows, columns=["agent", "personality_description", "state", "susceptible"]
+        rows, columns=["agent", "personality_description", "state", "susceptible",
+                        "known_conversation", "read_history"]
     )
 
 

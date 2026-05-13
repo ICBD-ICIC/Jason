@@ -48,8 +48,6 @@
         f (Eq. 3)    Decision / action         -> +!act
    ========================================================== */
 
-read_history([]).
-
 // --- Cycle / idle tracking ---
 cycle(0).
 max_cycles(1000).
@@ -261,7 +259,8 @@ idle_limit_reached(false).
 /* f(state) */
 +!act(ActedNow):
     replying(CId, Id) & state(State) & message(Id, _, Content, _, _) &
-    message_topics(Id, Topics) & cycle(Cycle) & State \== neutral
+    read_history(PastMessages) & message_topics(Id, Topics) & 
+    cycle(Cycle) & State \== neutral
 <-
     ActedNow = true;
     PromptParams = [content(Content), state(State)];
@@ -271,7 +270,9 @@ idle_limit_reached(false).
     ia.saveLogs([info("Finished content generation.")]);
     comment(Id, Topics, Variables, GeneratedContent);
     -message_topics(Id, _);
-    -replying(CId, Id).
+    -replying(CId, Id);
+    -read_history(PastMessages);
+    +read_history([GeneratedContent | PastMessages]).
 
 +!act(ActedNow): true <-
     ActedNow = false;
