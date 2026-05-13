@@ -54,7 +54,7 @@ max_cycles(1000).
 max_cycles_reached(false).
 
 idle_cycles(0).
-inactivity_limit(60).
+inactivity_limit(100).
 idle_limit_reached(false).
 
 !init.
