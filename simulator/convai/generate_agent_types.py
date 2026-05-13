@@ -260,7 +260,7 @@ def process_file(filepath: str) -> None:
 
             print(f"  ✓ {out_name}  ({n_converted}/{len(df)} agents nudged)")
 
-            raw_variant_df = make_agent_probs_raw(variant_df)
+            raw_variant_df = make_agent_probs_raw(out_df)
 
             raw_out_name = f"agent_probs_raw_{thread_suffix}_{pct}pct_{agent_type}.csv"
             raw_out_path = os.path.join(out_dir, raw_out_name)

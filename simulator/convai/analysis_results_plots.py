@@ -41,11 +41,19 @@ import pandas as pd
 warnings.filterwarnings("ignore")
 
 # ── colour / style ────────────────────────────────────────────────────────────
-COLOUR = {600: "#4C72B0", "600_llm": "#DD8452"}
-VARIANT_LABEL = {600: "600", "600_llm": "600-LLM"}
+COLOUR = {"600": "#4C72B0", "600_llm": "#DD8452"}
+VARIANT_LABEL = {"600": "600", "600_llm": "600-LLM"}
 
 # ── significance thresholds ───────────────────────────────────────────────────
 STAR_THRESHOLDS = [(0.001, "***"), (0.01, "**"), (0.05, "*"), (1.0, "ns")]
+
+# ── fixed y-axis ceilings (percentage metrics always go to 100) ───────────────
+PCT_METRICS = {
+    "pct_infected", "pct_vaccinated", "pct_neutral",
+    "vax_effectiveness", "pct_msg_vaccinated", "pct_msg_infected",
+    "pct_agents_changed",
+}
+FIXED_CEIL = {metric: 100.0 for metric in PCT_METRICS}
 
 
 def stars(p: float | None) -> str:
@@ -96,6 +104,7 @@ def plot_group(
     pv_bl_llm: dict[str, float | None],   # pv_bl_llm[config] = p(baseline vs config) for llm
     metric: str,
     title: str,
+    y_ceil: float,               # shared ceiling for this metric across all plots
 ) -> None:
     """Fill a single Axes with the grouped bar chart + all annotations."""
 
@@ -104,7 +113,7 @@ def plot_group(
     group_gap  = 1.0          # distance between group centres
     x_centres  = np.arange(n_configs) * group_gap
 
-    variants = [600, "600_llm"]
+    variants = ["600", "600_llm"]
 
     # ── draw bars ────────────────────────────────────────────────────────────
     bar_objects: dict[str, list] = {}
@@ -123,15 +132,7 @@ def plot_group(
         )
         bar_objects[variant] = bars
 
-    # Determine a comfortable annotation ceiling
-    all_vals = []
-    for variant in variants:
-        for cfg in configs:
-            m = means[variant].get(cfg) or 0.0
-            s = stds[variant].get(cfg)  or 0.0
-            all_vals.append(m + s)
-    y_ceil = max(all_vals) if all_vals else 1.0
-    step   = y_ceil * 0.07   # vertical step between annotation levels
+    step = y_ceil * 0.07   # vertical step between annotation levels
 
     # ── 600 vs 600_llm annotation (above each group) ─────────────────────────
     for ci, cfg in enumerate(configs):
@@ -162,7 +163,7 @@ def plot_group(
             annotate_bracket(
                 ax, x_bl_600, x_var_600,
                 level_600, step * 0.4, lbl600,
-                fontsize=7, color=COLOUR[600],
+                fontsize=7, color=COLOUR["600"],
             )
             level_600 += step * 1.6
 
@@ -195,7 +196,7 @@ def plot_group(
 def load_summary(path: Path) -> pd.DataFrame:
     df = pd.read_csv(path)
     # keep only data rows (not the p_value_600_vs_llm rows)
-    df = df[df["variant"].isin([600, "600_llm"])].copy()
+    df = df[df["variant"].isin(["600", "600_llm"])].copy()
     return df
 
 
@@ -219,6 +220,29 @@ def get_thread_ids(summary_df: pd.DataFrame) -> list[str]:
 def get_metric_columns(summary_df: pd.DataFrame) -> list[str]:
     """Return metric names from columns ending in '_mean'."""
     return [c[:-5] for c in summary_df.columns if c.endswith("_mean")]
+
+
+def compute_y_ceilings(summary_df: pd.DataFrame) -> dict[str, float]:
+    """
+    For each metric, return the y-axis ceiling to use across ALL its plots.
+    - Percentage-style metrics are fixed at 100.
+    - All others use the global max(mean + std) across every row.
+    """
+    metrics = get_metric_columns(summary_df)
+    ceilings = {}
+    for metric in metrics:
+        if metric in FIXED_CEIL:
+            ceilings[metric] = FIXED_CEIL[metric]
+            continue
+        mean_col = f"{metric}_mean"
+        std_col  = f"{metric}_std"
+        if mean_col not in summary_df.columns:
+            continue
+        top = (
+            summary_df[mean_col].fillna(0) + summary_df[std_col].fillna(0)
+        ).max()
+        ceilings[metric] = float(top) if top > 0 else 1.0
+    return ceilings
 
 
 # ── main plotting loop ─────────────────────────────────────────────────────────
@@ -259,6 +283,7 @@ def make_plots(
 
     metrics    = get_metric_columns(summary_df)
     thread_ids = get_thread_ids(summary_df)
+    y_ceilings = compute_y_ceilings(summary_df)
 
     total = len(metrics) * len(thread_ids) * 2
     done  = 0
@@ -269,16 +294,18 @@ def make_plots(
         if mean_col not in summary_df.columns:
             continue
 
+        y_ceil = y_ceilings.get(metric, 1.0)
+
         metric_dir = out_dir / metric
         metric_dir.mkdir(parents=True, exist_ok=True)
 
         for thread_id in thread_ids:
 
             # ── collect means / stds per variant per config ───────────────
-            means: dict[str, dict[str, float]] = {600: {}, "600_llm": {}}
-            stds:  dict[str, dict[str, float]] = {600: {}, "600_llm": {}}
+            means: dict[str, dict[str, float]] = {"600": {}, "600_llm": {}}
+            stds:  dict[str, dict[str, float]] = {"600": {}, "600_llm": {}}
 
-            for variant in [600, "600_llm"]:
+            for variant in ["600", "600_llm"]:
                 sub = summary_df[
                     (summary_df["variant"] == variant) &
                     (summary_df["thread_config"].str.startswith(thread_id))
@@ -308,10 +335,10 @@ def make_plots(
                 ]
                 return dict(zip(sub["config"], sub["p_value"]))
 
-            pv_bl_600 = bl_pv(600)
+            pv_bl_600 = bl_pv("600")
             pv_bl_llm = bl_pv("600_llm")
 
-            # ── draw cautious PDF ─────────────────────────────────────────
+            # ── draw cautious / credulous PDFs ────────────────────────────
             for group_name, suffixes in [
                 ("cautious",  CAUTIOUS_SUFFIXES),
                 ("credulous", CREDULOUS_SUFFIXES),
@@ -332,14 +359,14 @@ def make_plots(
                     pv_bl_llm=pv_bl_llm,
                     metric=METRIC_LABEL.get(metric, metric),
                     title=f"{METRIC_LABEL.get(metric, metric)}  —  thread {thread_id}  ({group_name})",
+                    y_ceil=y_ceil,
                 )
 
                 # legend
                 handles = [
                     mpatches.Patch(color=COLOUR[v], alpha=0.85, label=VARIANT_LABEL[v])
-                    for v in [600, "600_llm"]
+                    for v in ["600", "600_llm"]
                 ]
-                # star legend
                 star_lines = [
                     mpatches.Patch(color="none", label="*** p<0.001"),
                     mpatches.Patch(color="none", label="**  p<0.01"),
