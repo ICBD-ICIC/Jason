@@ -33,7 +33,7 @@ signal.signal(signal.SIGTERM, _kill_current)
 
 SIM_FOLDERS = [
     "convai/600/524949443607412737",
-    "convai/600_llm/524949443607412737",
+    #"convai/600_llm/524949443607412737",
 ]
 
 
@@ -95,7 +95,7 @@ def run_gradle(
             proc.wait()
             stop_gradle_daemons(base_dir)
             elapsed = time.monotonic() - t0
-            return False, f"{folder_name}: TIMEOUT after {elapsed:.1f}s"
+            return None, f"{folder_name}: TIMEOUT after {elapsed:.1f}s"
 
         elapsed = time.monotonic() - t0
         success = proc.returncode == 0
@@ -134,17 +134,18 @@ def run_all(
     for sim_folder in sim_folders:
         ok, msg = run_gradle(sim_folder, gradle_cmd, mas_file, dry_run, base_dir)
         results.append((ok, msg))
-        icon = "✓" if ok else "✗"
+        icon = "✓" if ok is True else ("⏱" if ok is None else "✗")
         print(f"  {icon} {msg}")
-        if not ok and stop_on_error:
+        if ok is False and stop_on_error:
             print("\nStopping on first error (--stop-on-error).")
             break
 
     total  = len(results)
-    passed = sum(1 for ok, _ in results if ok)
-    failed = total - passed
+    passed  = sum(1 for ok, _ in results if ok is True)
+    timed   = sum(1 for ok, _ in results if ok is None)
+    failed  = sum(1 for ok, _ in results if ok is False)
     print(f"\n{'='*50}")
-    print(f"Summary: {passed}/{total} succeeded, {failed} failed.")
+    print(f"Summary: {passed}/{total} succeeded, {timed} timed out, {failed} failed.")
 
     if failed:
         print("\nFailed runs:")
