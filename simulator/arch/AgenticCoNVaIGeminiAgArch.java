@@ -99,15 +99,12 @@ public class AgenticCoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
                 followers, friends, listed, verified,
                 personality
             );
-            logger.info("[CoNVaILLMAgArch] Prompt built successfully, calling LLM...");
             String raw = gemini.getResponse(
                             decisionPrompt, 
                             GeminiClient.jsonConfigCreative(
                                 GeminiSchemas.DECISION_SCHEMA
                             )
                         );
-            logger.info("[CoNVaILLMAgArch] Decision prompt sent to LLM: " + decisionPrompt);
-            logger.info("[CoNVaILLMAgArch] Raw LLM response: " + raw);
             return parseDecision(raw, currentState);
 
         } catch (Exception e) {
