@@ -36,8 +36,9 @@ max_cycles(1000).
 max_cycles_reached(false).
 
 idle_cycles(0).
-inactivity_limit(100).
+inactivity_limit(60).
 idle_limit_reached(false).
+base_wait(10000).
 
 !init.
 
@@ -56,18 +57,21 @@ idle_limit_reached(false).
 -!start: true <-
     +restart.
 
-+feed_order([]): true <-
++feed_order([]): base_wait(BaseWait) <-
     ia.saveLogs([info("Feed is empty. Waiting before restart.")]);
-    .wait(1000);
+    .wait(BaseWait);
     .abolish(feed_order(_));
     !end_cycle(false);
     +restart.
 
-+feed_order(Ids): true <-
++feed_order(Ids): base_wait(BaseWait) <-
     -feed_order(Ids);
     ia.saveLogs([info("Started processing messages.")]);
     !process_messages(Ids, 0, ActCount);
-    ia.saveLogs([info("Finished processing messages.")]);
+    .length(Ids, Len);
+    WaitTime = BaseWait / (Len + 1);
+    ia.saveLogs([info("Finished processing messages. Waiting before restart."), wait_time(WaitTime), messages_processed(Len), actions_taken(ActCount)]);
+    .wait(WaitTime);
     !end_cycle(ActCount > 0);
     +restart.
 
@@ -142,6 +146,7 @@ idle_limit_reached(false).
                 PersonalityDesc),
         LLMResult
     );
+    ia.saveLogs([llm_result(LLMResult)]);
     .member(new_state(NewState),       LLMResult);
     .member(reply_content(ReplyText),  LLMResult);
     .member(topics(Topics),            LLMResult);
@@ -155,9 +160,15 @@ idle_limit_reached(false).
 
     -read_history(PastMessages);
     if (ReplyText \== "" & NewState \== neutral) {
+        Variables = [public(state(NewState), conversation_id(CId), cycle(C))];
+        comment(Id, Topics, Variables, ReplyText);
         +read_history([Content, ReplyText | PastMessages]);
+        ActedNow = true;
+        ia.saveLogs([info("Reply posted.")])
     } else {
         +read_history([Content | PastMessages]);
+        ActedNow = false;
+        ia.saveLogs([info("No reply.")])
     }.
 
 -!process_single_message(_Id, ActedNow): true <-

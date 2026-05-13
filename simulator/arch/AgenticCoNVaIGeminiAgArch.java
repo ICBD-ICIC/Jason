@@ -99,12 +99,15 @@ public class AgenticCoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
                 followers, friends, listed, verified,
                 personality
             );
+            logger.info("[CoNVaILLMAgArch] Prompt built successfully, calling LLM...");
             String raw = gemini.getResponse(
                             decisionPrompt, 
                             GeminiClient.jsonConfigCreative(
                                 GeminiSchemas.DECISION_SCHEMA
                             )
                         );
+            logger.info("[CoNVaILLMAgArch] Decision prompt sent to LLM: " + decisionPrompt);
+            logger.info("[CoNVaILLMAgArch] Raw LLM response: " + raw);
             return parseDecision(raw, currentState);
 
         } catch (Exception e) {
@@ -162,74 +165,101 @@ public class AgenticCoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
             : "You are currently \"" + currentState + "\". You may stay or switch to the other opinion state, "
                 + "but you MUST NOT revert to \"neutral\". That door is permanently closed.";
         
-        
+            text        = text.replace("%", "%%");
+            personality = personality.replace("%", "%%");
+            historyBlock = historyBlock.replace("%", "%%");
         return String.format("""
             %s
 
-            You are taking part in a social media simulation about misinformation diffusion.
-            You have just read the following message and must decide how it affects you.
+            You are an agent in a social media misinformation simulation.
+            You have just received a new message. Decide how it affects your belief and whether you respond.
+
+            === YOUR BELIEF STATE ===
+            Your state can be one of three values:
+            neutral    - no opinion formed; you do not post
+            infected   - you believe the claim and are inclined to spread it
+            vaccinated - you disbelieve the claim and are inclined to debunk it
+
+            Your current state: %s
 
             === MESSAGE AUTHOR'S SOCIAL PROFILE ===
-            Followers        : %d
-            Following        : %d
-            Times listed     : %d
-            Verified account : %s
+            Followers: %d  |  Following: %d  |  Listed: %d  |  Verified: %s
 
-            Use this profile to judge the author's credibility and reach.
-            A high follower count or verified status may increase the message's influence on you.
+            A high follower count or verified status increases the author's influence.
+            Factor this into how seriously you take the message.
 
-            === BELIEF STATES ===
-            neutral    - you have not yet formed an opinion
-            infected   - you believe the misinformation and are inclined to spread it
-            vaccinated - you disbelieve the misinformation and are inclined to debunk it
-
-            === YOUR CURRENT BELIEF STATE: %s ===
-
-            === ALL MESSAGES YOU HAVE READ SO FAR (most recent first) ===
+            === YOUR READING HISTORY (most recent first) ===
             %s
 
             === NEW MESSAGE ===
             "%s"
 
-            === YOUR TASK ===
-            Decide, in character, how this message affects you and whether you reply.
+            === TRANSITION RULES (follow exactly) ===
 
-            === HARD RULES — violating any of these is an error ===
-            RULE 1 — State irreversibility  : %s
-            RULE 2 — Replying requires commitment: if reply_content is non-empty,
-                    new_state MUST be "infected" or "vaccinated", never "neutral".
-                    A reply means you have formed an opinion; fence-sitters do not post.
-            RULE 3 — Silence is always allowed: you may change state WITHOUT replying,
-                    and you may stay silent WITHOUT changing state.
-            RULE 4 — No reply while neutral: if new_state is "neutral",
-                    reply_content MUST be "" and topics MUST be [].
+            If you are NEUTRAL:
+            - You may transition to infected or vaccinated based on message content and author influence.
+            - You may stay neutral if the message is weak or unconvincing.
+            - While neutral: reply_content MUST be "" and topics MUST be [].
 
-            Return ONLY a JSON object with exactly these keys:
+            If you are INFECTED or VACCINATED:
+            - If the message AGREES with your state you may reinforce your opinion (stay in same state).
+                Lean toward replying to express agreement or amplify the claim.
+            - If the message DISAGREES with your state you may be persuaded and switch states,
+                OR resist and stay in your current state.
+                Lean toward replying to push back or correct.
+            - In either case you may stay silent (no reply, no state change).
 
-            "new_state": string - one of "neutral", "infected", "vaccinated".
+            %s
 
-            "reply_content": string - your reply tweet (max 280 characters) if you
-            choose to engage, or "" to stay silent.
-            Write in first person, as a real social media user would.
-            Do NOT explain your reasoning — just write the tweet or leave it empty.
+            === REPEATED EXPOSURE ===
+            Check your reading history. If this same message (or claim) has appeared before:
+            - 1st exposure: normal evaluation.
+            - 2nd exposure: treat as mild additional pressure.
+            - 3rd exposure: you should be forming or reinforcing an opinion.
+            - 4th+ exposure: staying neutral requires explicit justification by your personality.
+                Your personality determines the direction: impressionable: infected, skeptical: vaccinated.
 
-            "topics": array of 1-5 strings — specific subjects raised IN YOUR REPLY.
-            1-3 words each, lowercase. E.g. ["police cover-up", "eyewitness accounts"].
-            If reply_content is "", this MUST be an empty array [].
+            Note: Repeated identical messages may indicate a stale feed (no new replies), not viral spread.
+            Weight later repetitions less than the first exposure - familiarity reduces novelty and impact.
 
-            No markdown. No explanation. Raw JSON only.
-            
-            EXAMPLE of the exact output format required:
-            {"new_state":"infected","reply_content":"Can't believe they're hiding this. There were definitely more incidents.","topics":["cover-up","incident count"]}
+            === POSTING BEHAVIOR ===
+            Base your likelihood of replying on your situation:
+            - Neutral and staying neutral: do NOT reply (silent by rule)
+            - Neutral transitioning to a new state: reply ~80%% of the time
+            - Already opinionated, message agrees : reply ~60%% of the time
+            - Already opinionated, message disagrees: reply ~70%% of the time
+            - Very high author influence: increase reply likelihood
+
+            Replies must feel authentic. Match your emotional register to your state:
+            infected: alarmed, convinced, urgent, curious, outraged
+            vaccinated: skeptical, corrective, sarcastic, dismissive, calm
+
+            Write like a real social media user. Short, direct, personal. No formal language.
+
+            === OUTPUT FORMAT ===
+            Return ONLY a raw JSON object - no markdown, no explanation, no extra keys.
+
+            {
+            "new_state":     "<neutral | infected | vaccinated>",
+            "reply_content": "<your tweet, max 280 characters, or empty string>",
+            "topics":        ["<1-3 word topic>", ...]
+            }
+
+            Hard constraints:
+            - If new_state is "neutral": reply_content MUST be ""  and topics MUST be []
+            - If reply_content is non-empty: new_state MUST be "infected" or "vaccinated"
+            - topics reflects only what you say in reply_content; if no reply, topics is []
+            - %s
 
             Your response:""",
             personality,
+            currentState,
             authorFollowers, authorFriends, authorListed, verifiedLabel,
-            currentState,      
             historyBlock,
             text,
+            rule1,
             rule1);
-    }           
+    }
     
     // -------------------------------------------------------------------------
     // Parsing helpers

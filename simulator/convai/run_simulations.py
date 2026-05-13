@@ -2,6 +2,8 @@
 """
 run_simulations.py
 ...
+
+taskkill //F //IM java.exe
 """
 
 import argparse
@@ -30,7 +32,7 @@ signal.signal(signal.SIGTERM, _kill_current)
 # ---------------------------------------------------------------------------
 
 SIM_FOLDERS = [
-    "convai/600/524949443607412737",
+    #"convai/600/524949443607412737",
     "convai/600_llm/524949443607412737",
 ]
 
