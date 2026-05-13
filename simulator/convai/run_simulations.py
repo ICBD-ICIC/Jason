@@ -36,8 +36,10 @@ SIM_FOLDERS = [
     #"convai/600_llm/524949443607412737",
     #"convai/600/524949443607412737_25pct_cautious",
     #"convai/600_llm/524949443607412737_25pct_cautious",
-    "convai/600/524949443607412737_50pct_cautious",
-    "convai/600_llm/524949443607412737_50pct_cautious",
+    #"convai/600/524949443607412737_50pct_cautious",
+    #"convai/600_llm/524949443607412737_50pct_cautious",
+    "convai/600/524949443607412737_75pct_cautious",
+    "convai/600_llm/524949443607412737_75pct_cautious",
 ]
 
 
