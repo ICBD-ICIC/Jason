@@ -49,7 +49,7 @@ public class AgenticCoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
     private static final Logger logger = Logger.getLogger(AgenticCoNVaIGeminiAgArch.class.getName());
     private static final Set<String> VALID_STATES = Set.of("neutral", "infected", "vaccinated");
 
-    private static final int HISTORY_CAP = 30;
+    private static final int HISTORY_CAP = 10;
 
     // -------------------------------------------------------------------------
     // interpretContent  - unified read + react + generate
@@ -157,81 +157,96 @@ public class AgenticCoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
 
         String verifiedLabel = authorVerified ? "yes (verified account)" : "no";
 
-        String rule1 = "neutral".equals(currentState)
-            ? "You are currently neutral. You may stay neutral, become \"infected\", or become \"vaccinated\"."
-            : "You are currently \"" + currentState + "\". You may stay or switch to the other opinion state, "
-                + "but you MUST NOT revert to \"neutral\". That door is permanently closed.";
+        String historySize = "You have read " + history.size() + " message/s so far from the conversation.";
         
-            text        = text.replace("%", "%%");
-            personality = personality.replace("%", "%%");
-            historyBlock = historyBlock.replace("%", "%%");
+        text        = text.replace("%", "%%");
+        personality = personality.replace("%", "%%");
+        historyBlock = historyBlock.replace("%", "%%");
+        
         return String.format("""
             %s
 
-            You are an agent in a social media misinformation simulation.
-            You have just received a new message. Decide how it affects your belief and whether you respond.
+            You are an agent in a social media information diffusion simulation.
+            You have just received a message. Follow the steps below exactly to decide
+            your new state and whether you reply.
 
             === YOUR BELIEF STATE ===
-            Your state can be one of three values:
-            neutral    - no opinion formed; you do not post
-            infected   - you believe the claim and are inclined to spread it
-            vaccinated - you disbelieve the claim and are inclined to debunk it
+            neutral    - you have not yet formed an opinion about the claim
+            infected   - you believe the claim is true and are inclined to share it
+            vaccinated - you believe the claim is false and are inclined to debunk it
 
             Your current state: %s
 
             === MESSAGE AUTHOR'S SOCIAL PROFILE ===
             Followers: %d  |  Following: %d  |  Listed: %d  |  Verified: %s
 
-            A high follower count or verified status increases the author's influence.
-            Factor this into how seriously you take the message.
-
-            === YOUR READING HISTORY (most recent first) ===
+            === YOUR READING HISTORY (last 10 messages, most recent first) ===
             %s
 
             === NEW MESSAGE ===
             "%s"
 
-            === TRANSITION RULES (follow exactly) ===
+            === DECISION PROCESS (follow each step in order) ===
 
-            If you are NEUTRAL:
-            - You may transition to infected or vaccinated based on message content and author influence.
-            - You may stay neutral if the message is weak or unconvincing.
-            - While neutral: reply_content MUST be "" and topics MUST be [].
+            STEP 1 - NOVELTY: Is this message familiar?
+            Compare the new message against your reading history.
+            If you have seen this exact message before, treat it as a repeat.
+            If your history is empty or the message is new to you, treat it as novel.
+            Note: seeing a message for the first time is always novel, regardless of topic.
 
-            If you are INFECTED or VACCINATED:
-            - If the message AGREES with your state you may reinforce your opinion (stay in same state).
-                Lean toward replying to express agreement or amplify the claim.
-            - If the message DISAGREES with your state you may be persuaded and switch states,
-                OR resist and stay in your current state.
+            STEP 2 - ENGAGEMENT: Do you bother reading this carefully?
+            Active readers engage with most messages they encounter.
+            Only skip if: the message is an exact repeat AND you have already formed an opinion about it.
+            If you are still neutral, always engage - you have not yet decided what to believe.
+
+            STEP 3 - AUTHOR INFLUENCE: How much weight does this author carry?
+            A high follower count, high listed count, or verified status increases influence.
+            A low-profile author carries less weight.
+            Factor this into Steps 4 and 5.
+
+            STEP 4 - STATE TRANSITION:
+            If your current state is NEUTRAL:
+            - You are reading this message for the first time. Form an opinion.
+            - Ask yourself: does this claim seem believable or not?
+            - Factor in the author's influence (Step 3). A verified or high-follower
+                author makes the claim harder to ignore in either direction.
+            - Your personality determines the threshold:
+                * Highly susceptible: believe the claim unless it is obviously false.
+                * Moderately susceptible: believe it if the author is credible or the claim is compelling.
+                * Resistant: default to disbelief unless the evidence is strong.
+                * Quick to scepticism: lean vaccinated when in doubt.
+            - Staying neutral is only appropriate if the message is completely incoherent,
+                the author has zero credibility, AND your personality makes you hard to move.
+                In all other cases, form an opinion - infected or vaccinated.
+
+            If your current state is INFECTED or VACCINATED:
+            - Does the message AGREE with your current state?
+                Based on your opinion-reinforcement tendency: stay in your state.
+                Lean toward replying to express agreement or amplify.
+            - Does the message DISAGREE with your current state?
+                Based on your willingness to flip (from your personality):
+                consider switching to the opposing state.
+                If you resist: based on your reinforcement tendency, hold your ground.
                 Lean toward replying to push back or correct.
-            - In either case you may stay silent (no reply, no state change).
 
+            STEP 5 - REPLY DECISION:
+            Only reply if you are infected or vaccinated after Step 4.
+            Your reply likelihood decreases as your reading history grows (fatigue),
+            meaning you change/keep your current state, but you do not reply.
             %s
+            A highly influential author or a provocative message can override fatigue.
+            Never reply if neutral.
 
-            === REPEATED EXPOSURE ===
-            Check your reading history. If this same message (or claim) has appeared before:
-            - 1st exposure: normal evaluation.
-            - 2nd exposure: treat as mild additional pressure.
-            - 3rd exposure: you should be forming or reinforcing an opinion.
-            - 4th+ exposure: staying neutral requires explicit justification by your personality.
-                Your personality determines the direction: impressionable: infected, skeptical: vaccinated.
-
-            Note: Repeated identical messages may indicate a stale feed (no new replies), not viral spread.
-            Weight later repetitions less than the first exposure - familiarity reduces novelty and impact.
-
-            === POSTING BEHAVIOR ===
-            Base your likelihood of replying on your situation:
-            - Neutral and staying neutral: do NOT reply (silent by rule)
-            - Neutral transitioning to a new state: reply ~80%% of the time
-            - Already opinionated, message agrees : reply ~60%% of the time
-            - Already opinionated, message disagrees: reply ~70%% of the time
-            - Very high author influence: increase reply likelihood
-
-            Replies must feel authentic. Match your emotional register to your state:
-            infected: alarmed, convinced, urgent, curious, outraged
+            Replies must feel authentic. Match your emotional register:
+            infected:   alarmed, convinced, urgent, curious, outraged
             vaccinated: skeptical, corrective, sarcastic, dismissive, calm
-
             Write like a real social media user. Short, direct, personal. No formal language.
+
+            === HARD RULES ===
+            - Once infected or vaccinated you can never return to neutral.
+            - If new_state is neutral: reply_content MUST be "" and topics MUST be [].
+            - If reply_content is non-empty: new_state MUST be infected or vaccinated.
+            - topics reflects only what you say in reply_content; if no reply, topics is [].
 
             === OUTPUT FORMAT ===
             Return ONLY a raw JSON object - no markdown, no explanation, no extra keys.
@@ -242,20 +257,14 @@ public class AgenticCoNVaIGeminiAgArch extends AgArch implements SocialAgArch {
             "topics":        ["<1-3 word topic>", ...]
             }
 
-            Hard constraints:
-            - If new_state is "neutral": reply_content MUST be ""  and topics MUST be []
-            - If reply_content is non-empty: new_state MUST be "infected" or "vaccinated"
-            - topics reflects only what you say in reply_content; if no reply, topics is []
-            - %s
-
-            Your response:""",
+            Your response:
+            """,
             personality,
             currentState,
             authorFollowers, authorFriends, authorListed, verifiedLabel,
             historyBlock,
             text,
-            rule1,
-            rule1);
+            historySize);
     }
     
     // -------------------------------------------------------------------------

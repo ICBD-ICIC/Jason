@@ -46,11 +46,11 @@ public class GeminiClient {
             GenerateContentConfig.builder().temperature(0.0f).build();
 
     public static final GenerateContentConfig CONFIG_CREATIVE =
-            GenerateContentConfig.builder().temperature(0.8f).build();
+            GenerateContentConfig.builder().temperature(1.0f).build();
 
     public static GenerateContentConfig jsonConfigCreative(Schema schema) {
         return GenerateContentConfig.builder()
-                .temperature(0.8f)
+                .temperature(1.0f)
                 .responseMimeType("application/json")
                 .responseSchema(schema)
                 .build();

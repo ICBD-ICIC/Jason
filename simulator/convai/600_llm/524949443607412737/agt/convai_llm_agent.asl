@@ -38,7 +38,6 @@ max_cycles_reached(false).
 idle_cycles(0).
 inactivity_limit(60).
 idle_limit_reached(false).
-base_wait(10000).
 
 !init.
 
@@ -57,21 +56,19 @@ base_wait(10000).
 -!start: true <-
     +restart.
 
-+feed_order([]): base_wait(BaseWait) <-
++feed_order([]): true <-
     ia.saveLogs([info("Feed is empty. Waiting before restart.")]);
-    .wait(BaseWait);
+    .wait(1000);
     .abolish(feed_order(_));
     !end_cycle(false);
     +restart.
 
-+feed_order(Ids): base_wait(BaseWait) <-
++feed_order(Ids): true <-
     -feed_order(Ids);
     ia.saveLogs([info("Started processing messages.")]);
     !process_messages(Ids, 0, ActCount);
     .length(Ids, Len);
-    WaitTime = BaseWait / (Len + 1);
-    ia.saveLogs([info("Finished processing messages. Waiting before restart."), wait_time(WaitTime), messages_processed(Len), actions_taken(ActCount)]);
-    .wait(WaitTime);
+    ia.saveLogs([info("Finished processing messages. Waiting before restart."), messages_processed(Len), actions_taken(ActCount)]);
     !end_cycle(ActCount > 0);
     +restart.
 
