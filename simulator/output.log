@@ -20,8 +20,13 @@ Config    is
 
 Using the jason.jar from classpath
 
-Runtime Services (RTS) is running at 192.168.1.135:62144
+Runtime Services (RTS) is running at 192.168.1.135:58218
 Agent mind inspector is running at http://192.168.1.135:3272
+
+[Incubating] Problems report is available at: file:///C:/Users/sam_p/Documents/Workspace/Jason/simulator/build/reports/problems/problems-report.html
+
+BUILD SUCCESSFUL in 2m 46s
+3 actionable tasks: 3 executed
 Base directory : C:\Users\sam_p\Documents\Workspace\Jason\simulator
 Gradle command : gradle
 Mas file       : default_mas.mas2j
@@ -33,7 +38,7 @@ Scheduled 1 simulation folder(s):
   convai/600/524990163446140928_75pct_cautious
 
   [RUN] 524990163446140928_75pct_cautious  ->  gradlew.bat clean run -PgeneratedFolder=convai/600/524990163446140928_75pct_cautious -PmasFile=default_mas.mas2j
-    524990163446140928_75pct_cautious: TIMEOUT after 601.3s
+    524990163446140928_75pct_cautious: OK  [167.0s]
 
 ==================================================
-Summary: 0/1 succeeded, 1 timed out, 0 failed.
+Summary: 1/1 succeeded, 0 timed out, 0 failed.
