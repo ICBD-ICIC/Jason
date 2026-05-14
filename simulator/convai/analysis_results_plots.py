@@ -219,7 +219,7 @@ def plot_diff(
     metric, title,
 ):
     """
-    Bar chart of (variant_mean − baseline_mean) for every suffix,
+    Bar chart of (variant_mean - baseline_mean) for every suffix,
     side-by-side for 600 and 600_llm.
     Baseline is the implicit zero line.
     Error bars propagate both stds in quadrature.
@@ -303,7 +303,7 @@ def plot_max_and_avg_cycles(
                means_max, stds_max,
                pv_pair_max, pv_bl_600_max, pv_bl_llm_max,
                METRIC_LABEL["max_cycles"],
-               f"Max cycles — {thread_label} ({group_name})")
+               f"Max cycles - {thread_label} ({group_name})")
 
     # avg_cycles might not exist if the column wasn't computed
     has_avg = any(
@@ -315,7 +315,7 @@ def plot_max_and_avg_cycles(
                    means_avg, stds_avg,
                    pv_pair_avg, pv_bl_600_avg, pv_bl_llm_avg,
                    "Avg cycles",
-                   f"Avg cycles — {thread_label} ({group_name})")
+                   f"Avg cycles - {thread_label} ({group_name})")
     else:
         ax_avg.set_visible(False)
 
@@ -463,7 +463,7 @@ def _std_fig_abs(thread_id, metric, group_name,
     plot_group(ax, configs, config_labels,
                means, stds, pv_pair, pv_bl_600, pv_bl_llm,
                METRIC_LABEL.get(metric, metric),
-               f"{METRIC_LABEL.get(metric, metric)}  —  thread {thread_id}  ({group_name})")
+               f"{METRIC_LABEL.get(metric, metric)}  -  thread {thread_id}  ({group_name})")
     _add_legend(ax)
     fig.tight_layout()
     return fig
@@ -483,7 +483,7 @@ def _std_fig_diff(thread_id, metric,
     plot_diff(ax, ALL_SUFFIXES, means, stds,
               pv_bl_600, pv_bl_llm,
               METRIC_LABEL.get(metric, metric),
-              f"Δ vs Baseline — {METRIC_LABEL.get(metric, metric)} — thread {thread_id}")
+              f"Δ vs Baseline - {METRIC_LABEL.get(metric, metric)} - thread {thread_id}")
     _add_legend(ax)
     fig.tight_layout()
     return fig
@@ -546,14 +546,14 @@ def _max_cycles_fig(thread_id, group_name,
                means_max, stds_max,
                pv_pair_max, pv_bl_600_max, pv_bl_llm_max,
                METRIC_LABEL["max_cycles"],
-               f"Max cycles — thread {thread_id} ({group_name})")
+               f"Max cycles - thread {thread_id} ({group_name})")
 
     if has_avg and ax_avg is not None:
         plot_group(ax_avg, configs, config_labels,
                    means_avg, stds_avg,
                    pv_pair_avg, pv_bl_600_avg, pv_bl_llm_avg,
                    "Avg cycles",
-                   f"Avg cycles — thread {thread_id} ({group_name})")
+                   f"Avg cycles - thread {thread_id} ({group_name})")
 
     _add_legend(ax_max)
     fig.tight_layout()
@@ -633,7 +633,7 @@ def _transitions_fig(thread_id, summary_df):
     fig, ax = plt.subplots(figsize=(10, 5))
     plot_transitions_stacked(
         ax, configs, config_labels, means,
-        f"State transitions (% of all) — thread {thread_id}",
+        f"State transitions (% of all) - thread {thread_id}",
     )
     fig.tight_layout()
     return fig
