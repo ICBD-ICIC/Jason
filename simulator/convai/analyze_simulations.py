@@ -1,7 +1,8 @@
 """
-analyze_simulations.py
+analyze_simulations.py  (adapted)
 
 Computes per-run and aggregate statistics for convai simulation logs.
+Adds avg_cycles metric alongside max_cycles.
 
 Expected directory structure:
   simulator/convai/600/<thread_id>/logs/<run_ts>/convai_agent_<n>.jsonl
@@ -54,7 +55,7 @@ def load_jsonl(path: Path) -> list[dict]:
     return records
 
 
-def p_to_stars(p: float | None) -> str:
+def p_to_stars(p) -> str:
     """Convert a p-value to a significance star string."""
     if p is None:
         return "n/a"
@@ -126,17 +127,35 @@ def agent_state_transitions(agent_dir: Path, variant: str) -> dict:
     }
 
 
-def max_cycles_from_agents(agent_dir: Path, variant: str) -> float | None:
-    """Return the maximum 'cycle' value seen across all agent log entries."""
+def cycles_from_agents(agent_dir: Path, variant: str) -> tuple[float | None, float | None]:
+    """
+    Return (max_cycle, avg_cycle) across all agent log entries.
+    avg_cycle is the mean of the maximum cycle reached by each agent.
+    """
     pattern = "convai_llm_agent_*.jsonl" if variant == "600_llm" else "convai_agent_*.jsonl"
-    max_cycle = None
+    all_max_per_agent: list[int] = []
+    global_max = None
+
     for fpath in agent_dir.glob(pattern):
+        agent_max = None
         for rec in load_jsonl(fpath):
             c = rec.get("cycle")
             if c is not None:
-                if max_cycle is None or c > max_cycle:
-                    max_cycle = c
-    return max_cycle
+                if global_max is None or c > global_max:
+                    global_max = c
+                if agent_max is None or c > agent_max:
+                    agent_max = c
+        if agent_max is not None:
+            all_max_per_agent.append(agent_max)
+
+    avg_cycle = float(np.mean(all_max_per_agent)) if all_max_per_agent else None
+    return global_max, avg_cycle
+
+
+# kept for backward compatibility (used nowhere new, but harmless)
+def max_cycles_from_agents(agent_dir: Path, variant: str) -> float | None:
+    max_c, _ = cycles_from_agents(agent_dir, variant)
+    return max_c
 
 
 def messages_stats(messages_path: Path) -> dict:
@@ -240,9 +259,10 @@ def compute_run_metrics(run_dir: Path, messages_path: Path, variant: str) -> dic
         if trans["transitions_per_agent"] else None
     )
 
-    max_cycles = max_cycles_from_agents(run_dir, variant)
-    msg        = messages_stats(messages_path)
+    max_cycles, avg_cycles = cycles_from_agents(run_dir, variant)
+    msg = messages_stats(messages_path)
 
+    total_transitions = sum(trans["transition_counts"].values())
     return {
         "n_agents":                  n_agents,
         "pct_infected":              pct_infected,
@@ -250,13 +270,17 @@ def compute_run_metrics(run_dir: Path, messages_path: Path, variant: str) -> dic
         "pct_neutral":               pct_neutral,
         "vax_effectiveness":         vax_effectiveness,
         "max_cycles":                max_cycles,
+        "avg_cycles":                avg_cycles,          # NEW
         "total_messages":            msg["total_messages"],
         "pct_msg_vaccinated":        msg["pct_msg_vaccinated"],
         "pct_msg_infected":          msg["pct_msg_infected"],
         "agents_changed":            agents_changed,
         "pct_agents_changed":        pct_agents_changed,
         "avg_transitions_per_agent": avg_trans,
-        "transition_counts":         trans["transition_counts"],
+        "transition_counts":         {
+            k: 100.0 * v / total_transitions if total_transitions else 0.0
+            for k, v in trans["transition_counts"].items()
+        },
     }
 
 
@@ -270,6 +294,7 @@ SCALAR_METRICS = [
     "pct_neutral",
     "vax_effectiveness",
     "max_cycles",
+    "avg_cycles",                   # NEW
     "total_messages",
     "pct_msg_vaccinated",
     "pct_msg_infected",
@@ -294,7 +319,7 @@ def aggregate_runs(run_metrics: list[dict]) -> dict:
     """Mean, std, and per-run value list for every metric."""
     agg = {}
     for m in SCALAR_METRICS:
-        vals = [r[m] for r in run_metrics if r[m] is not None]
+        vals = [r[m] for r in run_metrics if r.get(m) is not None]
         agg[f"{m}_mean"] = float(np.mean(vals)) if vals else None
         agg[f"{m}_std"]  = float(np.std(vals, ddof=1)) if len(vals) > 1 else 0.0
         agg[f"{m}_runs"] = vals
@@ -313,7 +338,7 @@ def aggregate_runs(run_metrics: list[dict]) -> dict:
 # p-value helpers
 # ---------------------------------------------------------------------------
 
-def mannwhitney(a: list, b: list) -> float | None:
+def mannwhitney(a: list, b: list):
     """Two-sided Mann-Whitney U; returns p-value or None if not enough data."""
     if len(a) >= 2 and len(b) >= 2:
         try:
@@ -452,11 +477,11 @@ def print_report(all_agg: dict, pv_600_llm: dict) -> None:
 def main():
     parser = argparse.ArgumentParser(description="Analyze convai simulation logs.")
     parser.add_argument(
-        "--base_dir", type=str, default="simulator/convai",
+        "--base_dir", type=str, default="convai",
         help="Path to the simulator/convai directory",
     )
     parser.add_argument(
-        "--output", type=str, default="simulation_results.csv",
+        "--output", type=str, default="convai/results.csv",
         help="Base path for output CSVs (suffixes added automatically)",
     )
     args = parser.parse_args()
@@ -485,12 +510,15 @@ def main():
                         pair["run_dir"], pair["messages_path"], variant
                     )
                     run_metrics_list.append(m)
+                    avg_c_str = f"{m['avg_cycles']:.1f}" if m['avg_cycles'] is not None else "n/a"
                     print(
                         f"  run {i+1}: {pair['run_dir'].name} | "
                         f"agents={m['n_agents']} | "
                         f"inf={m['pct_infected']:.1f}% | "
                         f"vax={m['pct_vaccinated']:.1f}% | "
-                        f"msgs={m['total_messages']}"
+                        f"msgs={m['total_messages']} | "
+                        f"max_cycles={m['max_cycles']} | "
+                        f"avg_cycles={avg_c_str}"
                     )
                 except Exception as e:
                     print(f"  [ERROR] run {i+1} ({pair['run_dir']}): {e}")
@@ -531,6 +559,7 @@ def main():
     print_report(all_agg, pv_600_llm)
 
     out = Path(args.output)
+    out.parent.mkdir(parents=True, exist_ok=True)
 
     # summary CSV
     summary_rows = build_summary_rows(all_agg, pv_600_llm)
@@ -549,7 +578,7 @@ def main():
                 for m in SCALAR_METRICS:
                     row[m] = rm.get(m)
                 for (f, t) in ALL_TRANSITIONS:
-                    row[f"trans_{f}_to_{t}"] = rm["transition_counts"].get((f, t), 0)
+                    row[f"trans_{f}_to_{t}"] = rm["transition_counts"].get((f, t), 0.0)
                 detail_rows.append(row)
 
     if detail_rows:
