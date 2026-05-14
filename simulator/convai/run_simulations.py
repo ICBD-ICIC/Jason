@@ -61,6 +61,20 @@ SIM_FOLDERS = [
     #"convai/600_llm/524990163446140928_50pct_credulous",
     #"convai/600/524990163446140928_75pct_credulous",
     #"convai/600_llm/524990163446140928_75pct_credulous",
+    #"convai/600/524922729485848576",
+    #"convai/600_llm/524922729485848576",
+    #"convai/600/524922729485848576_25pct_cautious",
+    #"convai/600_llm/524922729485848576_25pct_cautious",
+    #"convai/600/524922729485848576_50pct_cautious",
+    #"convai/600_llm/524922729485848576_50pct_cautious",
+    #"convai/600/524922729485848576_75pct_cautious",
+    #"convai/600_llm/524922729485848576_75pct_cautious",
+    #"convai/600/524922729485848576_25pct_credulous",
+    #"convai/600_llm/524922729485848576_25pct_credulous",
+    #"convai/600/524922729485848576_50pct_credulous",
+    #"convai/600_llm/524922729485848576_50pct_credulous",
+    #"convai/600/524922729485848576_75pct_credulous",
+    #"convai/600_llm/524922729485848576_75pct_credulous",
 ]
 
 

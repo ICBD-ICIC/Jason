@@ -1,0 +1,280 @@
+{"state":"neutral","timestamp":1778756655639}
+{"info":"Started processing messages.","timestamp":1778756655871}
+{"info":"Processing message with LLM.","cycle":0.0,"message_id":1.0,"timestamp":1778756655872}
+{"llm_result":[{"new_state":"neutral"},{"reply_content":""},{"topics":[]}],"timestamp":1778756660524}
+{"info":"State transition.","state":"neutral","timestamp":1778756660524}
+{"info":"No reply.","timestamp":1778756660525}
+{"info":"Finished processing messages. Waiting before restart.","messages_processed":1.0,"actions_taken":0.0,"timestamp":1778756660525}
+{"idle_cycles":1.0,"cycle":1.0,"timestamp":1778756660525}
+{"info":"Started processing messages.","timestamp":1778756660526}
+{"info":"Processing message with LLM.","cycle":1.0,"message_id":4.0,"timestamp":1778756660526}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"Omg 3 shooters?! This is insane, hope everyone is safe!!"},{"topics":["ottawa","shootings","news"]}],"timestamp":1778756665006}
+{"info":"State transition.","state":"infected","timestamp":1778756665006}
+{"info":"Reply posted.","timestamp":1778756665007}
+{"info":"Processing message with LLM.","cycle":1.0,"message_id":1.0,"timestamp":1778756665008}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG three shooters?! Stay safe everyone!"},{"topics":["ottawa","shootings","gunmen"]}],"timestamp":1778756669747}
+{"info":"No state transition.","state":"infected","timestamp":1778756669747}
+{"info":"Reply posted.","timestamp":1778756669748}
+{"info":"Finished processing messages. Waiting before restart.","messages_processed":2.0,"actions_taken":2.0,"timestamp":1778756669748}
+{"info":"Started processing messages.","timestamp":1778756670183}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":249.0,"timestamp":1778756670184}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG three shooters?! Stay safe everyone!"},{"topics":["ottawa shootings","safety"]}],"timestamp":1778756676978}
+{"info":"No state transition.","state":"infected","timestamp":1778756676978}
+{"info":"Reply posted.","timestamp":1778756676980}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":248.0,"timestamp":1778756676981}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"Yeah, total bs. 3 gunmen? They're really trying to sell us a story."},{"topics":["three gunmen","false narrative","disbelief"]}],"timestamp":1778756679824}
+{"info":"No state transition.","state":"infected","timestamp":1778756679824}
+{"info":"Reply posted.","timestamp":1778756679826}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":247.0,"timestamp":1778756679827}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"Oh really? That's what they want you to think."},{"topics":["conspiracy","manipulation"]}],"timestamp":1778756682385}
+{"info":"No state transition.","state":"infected","timestamp":1778756682386}
+{"info":"Reply posted.","timestamp":1778756682387}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":246.0,"timestamp":1778756682388}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"lol yeah right. definitely clickbait. there weren't 3 shooters."},{"topics":["clickbait","shooters"]}],"timestamp":1778756687408}
+{"info":"State transition.","state":"vaccinated","timestamp":1778756687409}
+{"info":"Reply posted.","timestamp":1778756687413}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":245.0,"timestamp":1778756687414}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Sketchy? It was old news from like, last week. You're late to the party."},{"topics":["old news","sketchy"]}],"timestamp":1778756690147}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756690147}
+{"info":"Reply posted.","timestamp":1778756690151}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":244.0,"timestamp":1778756690152}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Lol, you too? Yeah, definitely clickbait. Some things never change."},{"topics":["clickbait","repeat message"]}],"timestamp":1778756692508}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756692508}
+{"info":"Reply posted.","timestamp":1778756692510}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":243.0,"timestamp":1778756692510}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Yeah, definitely old news. Not falling for that again."},{"topics":["old news","clickbait"]}],"timestamp":1778756694915}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756694916}
+{"info":"Reply posted.","timestamp":1778756694917}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":242.0,"timestamp":1778756694918}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"That's exactly what I'm saying. Glad someone else gets it. Too much fake news out there."},{"topics":["fake news","reasonableness"]}],"timestamp":1778756697122}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756697122}
+{"info":"Reply posted.","timestamp":1778756697123}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":241.0,"timestamp":1778756697123}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Lol, this is old news and sounds like clickbait. Definitely not falling for this again."},{"topics":["old news","clickbait"]}],"timestamp":1778756699437}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756699437}
+{"info":"Reply posted.","timestamp":1778756699438}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":240.0,"timestamp":1778756699439}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Exactly. It's all just speculation right now, not solid info."},{"topics":["speculation","not convinced"]}],"timestamp":1778756701635}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756701635}
+{"info":"Reply posted.","timestamp":1778756701637}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":239.0,"timestamp":1778756701638}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Yup, still waiting. Sounds like the same old story."},{"topics":["developing situation","wait and see"]}],"timestamp":1778756704611}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756704611}
+{"info":"Reply posted.","timestamp":1778756704615}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":238.0,"timestamp":1778756704616}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Still sounds like speculation to me. Waiting for solid evidence."},{"topics":["speculation","evidence"]}],"timestamp":1778756706939}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756706939}
+{"info":"Reply posted.","timestamp":1778756706941}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":237.0,"timestamp":1778756706942}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":""},{"topics":[]}],"timestamp":1778756712873}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756712873}
+{"info":"No reply.","timestamp":1778756712875}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":235.0,"timestamp":1778756712876}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"I'm pretty sure you're right. It was one guy."},{"topics":["single shooter","misinformation"]}],"timestamp":1778756722557}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756722558}
+{"info":"Reply posted.","timestamp":1778756722560}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":236.0,"timestamp":1778756722560}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Wait, two shooters if three were involved? That makes no sense. Trying to cover something up?"},{"topics":["shooters","cover-up"]}],"timestamp":1778756727460}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756727461}
+{"info":"Reply posted.","timestamp":1778756727463}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":234.0,"timestamp":1778756727464}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Seriously? 'Fake news' because you doubt it? That's not how it works. I'm sticking with the idea of one shooter."},{"topics":["fake news","one shooter"]}],"timestamp":1778756736578}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756736578}
+{"info":"Reply posted.","timestamp":1778756736584}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":233.0,"timestamp":1778756736586}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Seriously? Two shooters? That sounds like a movie plot. I'm not buying it."},{"topics":["two shooters","movie plot","not buying it"]}],"timestamp":1778756741911}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756741912}
+{"info":"Reply posted.","timestamp":1778756741916}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":232.0,"timestamp":1778756741918}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Fake news? This is getting ridiculous. Definitely fake."},{"topics":["fake news","ridiculous"]}],"timestamp":1778756745383}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756745384}
+{"info":"Reply posted.","timestamp":1778756745388}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":231.0,"timestamp":1778756745389}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Source?? Seems a bit much to jump to conclusions."},{"topics":["source","conclusions"]}],"timestamp":1778756748669}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756748670}
+{"info":"Reply posted.","timestamp":1778756748675}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":229.0,"timestamp":1778756748676}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Still worried? Seriously? It's been debunked already."},{"topics":["debunked","fake news"]}],"timestamp":1778756750686}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756750686}
+{"info":"Reply posted.","timestamp":1778756750690}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":230.0,"timestamp":1778756750692}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Yeah, totally. I'm not buying the 3 shooters idea either. Sounds like fake news."},{"topics":["fake news","exaggeration"]}],"timestamp":1778756752996}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756752997}
+{"info":"Reply posted.","timestamp":1778756753006}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":228.0,"timestamp":1778756753007}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"OMG three shooters?! This is absolutely terrifying. Hope everyone is safe."},{"topics":["three shooters","terrifying"]}],"timestamp":1778756755573}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756755574}
+{"info":"Reply posted.","timestamp":1778756755578}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":227.0,"timestamp":1778756755580}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Yeah, doesn't sound right. Too early to say anything for sure."},{"topics":["too early","unclear"]}],"timestamp":1778756757999}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756757999}
+{"info":"Reply posted.","timestamp":1778756758005}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":226.0,"timestamp":1778756758007}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Yeah, I agree. Seems a bit too convenient, doesn't it? Definitely smells fishy."},{"topics":["skeptical","suspicious"]}],"timestamp":1778756760263}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756760263}
+{"info":"Reply posted.","timestamp":1778756760268}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":225.0,"timestamp":1778756760269}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Ugh, still going on about this? It's been debunked. Focus on something else."},{"topics":["debunked","focus"]}],"timestamp":1778756764524}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756764525}
+{"info":"Reply posted.","timestamp":1778756764569}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":224.0,"timestamp":1778756764571}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"lol, \"just a couple of idiots\"? yeah, that's what they always say when they don't want to admit they're covering something up."},{"topics":["cover-up","conspiracy"]}],"timestamp":1778756766715}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756766716}
+{"info":"Reply posted.","timestamp":1778756766720}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":223.0,"timestamp":1778756766721}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Lol, yeah, it definitely smells fishy. Good to know I'm not the only one seeing through it."},{"topics":["smells fishy","seeing through it"]}],"timestamp":1778756771476}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756771477}
+{"info":"Reply posted.","timestamp":1778756771694}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":222.0,"timestamp":1778756771704}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"lol, 'wait for more details'? This is old news, I'm not falling for it."},{"topics":["old news","skeptical"]}],"timestamp":1778756773248}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756773249}
+{"info":"Reply posted.","timestamp":1778756773335}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":221.0,"timestamp":1778756773336}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"OMG seriously!!! This is insane!"},{"topics":["insane","OMG"]}],"timestamp":1778756777330}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756777330}
+{"info":"Reply posted.","timestamp":1778756777336}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":220.0,"timestamp":1778756777338}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Lol, that's exactly what I was thinking. Seems like a fringe theory at this point."},{"topics":["two shooters","fringe theory"]}],"timestamp":1778756779966}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756779967}
+{"info":"Reply posted.","timestamp":1778756783465}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":219.0,"timestamp":1778756783467}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"3 shooters? seriously? lol this is getting out of hand. pretty sure it was just one guy."},{"topics":["ottawa shooting","three shooters"]}],"timestamp":1778756784790}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756784791}
+{"info":"Reply posted.","timestamp":1778756784796}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":217.0,"timestamp":1778756784798}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Lol, and you're worried about what I'm saying because...?"},{"topics":["burner account","low followers"]}],"timestamp":1778756792388}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756792389}
+{"info":"Reply posted.","timestamp":1778756792724}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":218.0,"timestamp":1778756792735}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Lol yeah right. Sounds like fake news to me."},{"topics":["fake news"]}],"timestamp":1778756806250}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756806251}
+{"info":"Reply posted.","timestamp":1778756806486}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":216.0,"timestamp":1778756806488}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Seriously? Sounds like another false alarm. You people need to calm down."},{"topics":["false alarm","calm down"]}],"timestamp":1778756810739}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756810739}
+{"info":"Reply posted.","timestamp":1778756811448}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":215.0,"timestamp":1778756811475}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Another one? Seems like a lot of fearmongering lately. Let's wait for actual facts before jumping to conclusions."},{"topics":["fearmongering","facts","ottawa"]}],"timestamp":1778756816659}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756816659}
+{"info":"Reply posted.","timestamp":1778756817170}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":214.0,"timestamp":1778756817172}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Lol yeah right."},{"topics":["fake news"]}],"timestamp":1778756839790}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756839791}
+{"info":"Reply posted.","timestamp":1778756844630}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":213.0,"timestamp":1778756844631}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"3 gunmen? Lol ok. You guys really need to chill. It's not that deep."},{"topics":["fearmongering","overreaction"]}],"timestamp":1778756881313}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756881314}
+{"info":"Reply posted.","timestamp":1778756881615}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":212.0,"timestamp":1778756881617}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Oh wow, look who's suddenly an expert. You should probably practice what you preach and do some digging yourself."},{"topics":["fear-mongering","digging"]}],"timestamp":1778756893560}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756893561}
+{"info":"Reply posted.","timestamp":1778756894261}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":211.0,"timestamp":1778756894264}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Exactly. This whole thing is ridiculous."},{"topics":["fake news","ridiculous"]}],"timestamp":1778756895980}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756895981}
+{"info":"Reply posted.","timestamp":1778756896246}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":210.0,"timestamp":1778756896248}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Yup, sounds like something's off with that number."},{"topics":["fishy","numbers"]}],"timestamp":1778756898324}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756898325}
+{"info":"Reply posted.","timestamp":1778756898387}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":209.0,"timestamp":1778756898390}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Yeah, hoping for the best but also like... was this even real? Feels a bit much."},{"topics":["shooting","ottawa","news"]}],"timestamp":1778756900828}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756900829}
+{"info":"Reply posted.","timestamp":1778756900841}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":208.0,"timestamp":1778756900843}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"OMG three shooters?? This is terrifying. Hope they catch them soon!"},{"topics":["shooters","terrifying","catch them"]}],"timestamp":1778756914014}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756914015}
+{"info":"Reply posted.","timestamp":1778756914831}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":207.0,"timestamp":1778756914833}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Yeah, I'm not buying it either. Waiting for real news."},{"topics":["real news","fake news"]}],"timestamp":1778756918232}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756918233}
+{"info":"Reply posted.","timestamp":1778756947136}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":206.0,"timestamp":1778756947139}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"No, I haven't seen anything else. This whole thing feels made up."},{"topics":["fake news","ottawa shooting"]}],"timestamp":1778756963170}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756963171}
+{"info":"Reply posted.","timestamp":1778756963731}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":205.0,"timestamp":1778756963733}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"OMG where did you see that?"},{"topics":["shooters","news"]}],"timestamp":1778756980099}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778756980100}
+{"info":"Reply posted.","timestamp":1778756995833}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":204.0,"timestamp":1778756995835}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"OMG is right. So scary. Has anyone confirmed this yet?"},{"topics":["three gunmen","confirmation"]}],"timestamp":1778757028520}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778757028522}
+{"info":"Reply posted.","timestamp":1778757031407}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":203.0,"timestamp":1778757031409}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Trying to change the subject? We're talking about the shooters."},{"topics":["subject change","shooters"]}],"timestamp":1778757051592}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778757051593}
+{"info":"Reply posted.","timestamp":1778757051632}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":202.0,"timestamp":1778757051634}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Lol yeah right. Sounds like BS to me."},{"topics":["skepticism","disagreement"]}],"timestamp":1778757055358}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778757055358}
+{"info":"Reply posted.","timestamp":1778757055364}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":201.0,"timestamp":1778757055365}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Is this even confirmed? Seems like a lot of panic."},{"topics":["confirmation","panic"]}],"timestamp":1778757059547}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778757059548}
+{"info":"Reply posted.","timestamp":1778757059552}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":200.0,"timestamp":1778757059555}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Yeah, you're right. Lots of noise out there."},{"topics":["speculation","noise"]}],"timestamp":1778757063564}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778757063564}
+{"info":"Reply posted.","timestamp":1778757063700}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":199.0,"timestamp":1778757063718}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Sounds like fear-mongering to me too."},{"topics":["fear-mongering"]}],"timestamp":1778757067943}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778757067944}
+{"info":"Reply posted.","timestamp":1778757067948}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":198.0,"timestamp":1778757067951}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Exactly. Sounds like a lot of nonsense."},{"topics":["nonsense","skepticism"]}],"timestamp":1778757077127}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778757077128}
+{"info":"Reply posted.","timestamp":1778757077179}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":197.0,"timestamp":1778757077180}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"What evidence? All I'm seeing is speculation."},{"topics":["evidence","speculation"]}],"timestamp":1778757082268}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778757082269}
+{"info":"Reply posted.","timestamp":1778757082283}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":196.0,"timestamp":1778757082284}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Seriously? More fear-mongering. Show me actual proof, not just speculation."},{"topics":["fear-mongering","proof"]}],"timestamp":1778757089245}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778757089246}
+{"info":"Reply posted.","timestamp":1778757089254}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":195.0,"timestamp":1778757089256}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Lol, yeah right. Sounds like BS to me."},{"topics":["two shooters","skepticism"]}],"timestamp":1778757113204}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778757113205}
+{"info":"Reply posted.","timestamp":1778757113391}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":194.0,"timestamp":1778757113393}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Yeah, sounds like fake news to me. Trying to stir things up."},{"topics":["fake news","stirring things up"]}],"timestamp":1778757114746}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778757114746}
+{"info":"Reply posted.","timestamp":1778757115417}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":193.0,"timestamp":1778757115419}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Yeah, sounds like fake news to me. Trying to stir things up."},{"topics":["fake news","fearmongering"]}],"timestamp":1778757118656}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778757118657}
+{"info":"Reply posted.","timestamp":1778757119595}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":192.0,"timestamp":1778757119597}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Seriously? Another day, another disaster. You really think this is legit?"},{"topics":["ottawashooting","fake news"]}],"timestamp":1778757122182}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778757122183}
+{"info":"Reply posted.","timestamp":1778757122713}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":191.0,"timestamp":1778757122715}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Seriously? Multiple shooters? Trying to cause panic again."},{"topics":["multiple shooters","panic"]}],"timestamp":1778757124855}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778757124856}
+{"info":"Reply posted.","timestamp":1778757124862}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":190.0,"timestamp":1778757124864}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Seriously? Trying to cause panic again."},{"topics":["panic","fake news"]}],"timestamp":1778757129729}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778757129738}
+{"info":"Reply posted.","timestamp":1778757129743}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":189.0,"timestamp":1778757129744}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"I mean, the police probably know more than random people online spreading rumors."},{"topics":["police","rumors"]}],"timestamp":1778757132737}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778757132738}
+{"info":"Reply posted.","timestamp":1778757132880}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":188.0,"timestamp":1778757132881}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Seriously? That's what you think? Cops said there were three."},{"topics":["fake news","conspiracy"]}],"timestamp":1778757147681}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778757147682}
+{"info":"Reply posted.","timestamp":1778757148004}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":187.0,"timestamp":1778757148006}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Seriously? You think they downplay it? That makes no sense. And yes, I wait for facts, unlike some people who just want to cause panic."},{"topics":["panic","facts","exaggeration"]}],"timestamp":1778757152665}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778757152666}
+{"info":"Reply posted.","timestamp":1778757153207}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":186.0,"timestamp":1778757153210}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Oh, so now you're the expert on what's credible? Says the one who doesn't even read carefully."},{"topics":["attention seeking","credibility"]}],"timestamp":1778757177770}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778757177771}
+{"info":"Reply posted.","timestamp":1778757177925}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":185.0,"timestamp":1778757177926}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"lol yeah right. 2 shooters? sounds like a stretch."},{"topics":["two shooters","stretch"]}],"timestamp":1778757198244}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778757198245}
+{"info":"Reply posted.","timestamp":1778757200222}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":184.0,"timestamp":1778757200224}

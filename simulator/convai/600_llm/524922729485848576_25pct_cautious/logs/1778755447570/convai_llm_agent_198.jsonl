@@ -1,0 +1,285 @@
+{"state":"neutral","timestamp":1778755450162}
+{"info":"Started processing messages.","timestamp":1778755450673}
+{"info":"Processing message with LLM.","cycle":0.0,"message_id":1.0,"timestamp":1778755450675}
+{"llm_result":[{"new_state":"neutral"},{"reply_content":""},{"topics":[]}],"timestamp":1778755453463}
+{"info":"State transition.","state":"neutral","timestamp":1778755453466}
+{"info":"No reply.","timestamp":1778755453467}
+{"info":"Finished processing messages. Waiting before restart.","messages_processed":1.0,"actions_taken":0.0,"timestamp":1778755453467}
+{"idle_cycles":1.0,"cycle":1.0,"timestamp":1778755453468}
+{"info":"Started processing messages.","timestamp":1778755453470}
+{"info":"Processing message with LLM.","cycle":1.0,"message_id":1.0,"timestamp":1778755453470}
+{"llm_result":[{"new_state":"neutral"},{"reply_content":""},{"topics":[]}],"timestamp":1778755457876}
+{"info":"No state transition.","state":"neutral","timestamp":1778755457876}
+{"info":"No reply.","timestamp":1778755457876}
+{"info":"Finished processing messages. Waiting before restart.","messages_processed":1.0,"actions_taken":0.0,"timestamp":1778755457876}
+{"idle_cycles":2.0,"cycle":2.0,"timestamp":1778755457877}
+{"info":"Started processing messages.","timestamp":1778755457877}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":91.0,"timestamp":1778755457878}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG three gunmen?! This is terrifying! Hope everyone is safe. Sharing this widely, we need to know what's happening."},{"topics":["ottawa shootings","gunmen","terrifying"]}],"timestamp":1778755461305}
+{"info":"State transition.","state":"infected","timestamp":1778755461306}
+{"info":"Reply posted.","timestamp":1778755461307}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":10.0,"timestamp":1778755461307}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG this is terrifying! Sharing this widely, we need to know what's happening."},{"topics":["three gunmen","ottawa shootings","safety"]}],"timestamp":1778755464357}
+{"info":"No state transition.","state":"infected","timestamp":1778755464357}
+{"info":"Reply posted.","timestamp":1778755464359}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":1.0,"timestamp":1778755464359}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG three gunmen?! This is terrifying! Hope everyone is safe. Sharing this widely, we need to know what's happening."},{"topics":["gunmen","Ottawa shootings","safety"]}],"timestamp":1778755466637}
+{"info":"No state transition.","state":"infected","timestamp":1778755466638}
+{"info":"Reply posted.","timestamp":1778755466641}
+{"info":"Finished processing messages. Waiting before restart.","messages_processed":3.0,"actions_taken":3.0,"timestamp":1778755466641}
+{"info":"Started processing messages.","timestamp":1778755467873}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":384.0,"timestamp":1778755467873}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG 3 gunmen?! This is terrifying! Hope everyone is safe. Sharing this widely, we need to know what's happening. #ottawanews"},{"topics":["ottawa news","shootings"]}],"timestamp":1778755470170}
+{"info":"No state transition.","state":"infected","timestamp":1778755470171}
+{"info":"Reply posted.","timestamp":1778755470173}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":380.0,"timestamp":1778755470174}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"So glad they're looking for them! We need to share this so everyone is aware and alert."},{"topics":["ottawa","alert"]}],"timestamp":1778755472365}
+{"info":"No state transition.","state":"infected","timestamp":1778755472366}
+{"info":"Reply posted.","timestamp":1778755472370}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":381.0,"timestamp":1778755472372}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG three gunmen?! This is terrifying! Hope everyone is safe. Sharing this widely, we need to know what's happening."},{"topics":["gunmen","terrifying","ottawanews"]}],"timestamp":1778755474311}
+{"info":"No state transition.","state":"infected","timestamp":1778755474312}
+{"info":"Reply posted.","timestamp":1778755474317}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":382.0,"timestamp":1778755474319}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"Ugh, seriously? Always trying to stir things up. I'm still with what I believe."},{"topics":["disinformation","facts"]}],"timestamp":1778755477562}
+{"info":"No state transition.","state":"infected","timestamp":1778755477562}
+{"info":"Reply posted.","timestamp":1778755477564}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":383.0,"timestamp":1778755477565}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG 3 gunmen?! This is terrifying! Hope everyone is safe. Sharing this widely, we need to know what's happening. #ottawanews"},{"topics":["ottawa shooting","gunmen"]}],"timestamp":1778755480146}
+{"info":"No state transition.","state":"infected","timestamp":1778755480147}
+{"info":"Reply posted.","timestamp":1778755480149}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":379.0,"timestamp":1778755480150}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"I saw the same reports, this is concerning."},{"topics":["ottawanews","concerning"]}],"timestamp":1778755484111}
+{"info":"No state transition.","state":"infected","timestamp":1778755484111}
+{"info":"Reply posted.","timestamp":1778755484115}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":378.0,"timestamp":1778755484118}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"I agree, it does seem like they're trying to create more fear than necessary. Sticking to the facts is important."},{"topics":["fear mongering","facts"]}],"timestamp":1778755486514}
+{"info":"No state transition.","state":"infected","timestamp":1778755486515}
+{"info":"Reply posted.","timestamp":1778755486521}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":377.0,"timestamp":1778755486523}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"I'm still leaning towards believing the reports, this two shooter thing feels like a way to downplay the severity. We need to know the truth!"},{"topics":["two shooters","truth"]}],"timestamp":1778755489331}
+{"info":"No state transition.","state":"infected","timestamp":1778755489332}
+{"info":"Reply posted.","timestamp":1778755489336}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":376.0,"timestamp":1778755489339}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"Three gunmen?! OMG that's absolutely terrifying. Praying everyone is safe. We NEED to know what's going on. Sharing this!"},{"topics":["terrifying","gunmen","safety"]}],"timestamp":1778755492702}
+{"info":"No state transition.","state":"infected","timestamp":1778755492703}
+{"info":"Reply posted.","timestamp":1778755492706}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":375.0,"timestamp":1778755492709}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"It does seem a bit much, but you never know. I'm still worried about what's going on."},{"topics":["shooters","speculation"]}],"timestamp":1778755496232}
+{"info":"No state transition.","state":"infected","timestamp":1778755496232}
+{"info":"Reply posted.","timestamp":1778755496235}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":374.0,"timestamp":1778755496236}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG this is so scary! We need to be aware of this!! #ottawashooting #breakingnews"},{"topics":["ottawashooting","breakingnews"]}],"timestamp":1778755499031}
+{"info":"No state transition.","state":"infected","timestamp":1778755499031}
+{"info":"Reply posted.","timestamp":1778755499034}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":371.0,"timestamp":1778755499035}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"Calm? This is serious! We need to share this info NOW!"},{"topics":["information","sharing"]}],"timestamp":1778755502246}
+{"info":"No state transition.","state":"infected","timestamp":1778755502247}
+{"info":"Reply posted.","timestamp":1778755502251}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":372.0,"timestamp":1778755502253}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"So scary! Hope they find them quickly. It's good they're working on it though."},{"topics":["shooting","safety"]}],"timestamp":1778755506782}
+{"info":"No state transition.","state":"infected","timestamp":1778755506782}
+{"info":"Reply posted.","timestamp":1778755506786}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":373.0,"timestamp":1778755506789}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG 3 gunmen?! That's terrifying! Hope they catch them all. We need to share this info! #ottawashooting"},{"topics":["ottawashooting","3 gunmen","terrifying"]}],"timestamp":1778755510902}
+{"info":"No state transition.","state":"infected","timestamp":1778755510903}
+{"info":"Reply posted.","timestamp":1778755510906}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":370.0,"timestamp":1778755510908}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG this is so scary! We need to be aware of this!! #ottawashooting #breakingnews"},{"topics":["ottawashooting","breakingnews"]}],"timestamp":1778755513879}
+{"info":"No state transition.","state":"infected","timestamp":1778755513880}
+{"info":"Reply posted.","timestamp":1778755513884}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":369.0,"timestamp":1778755513886}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG that's terrifying! We need to know the truth! Share everything you find! #ottawashooting"},{"topics":["ottawashooting","cover-up"]}],"timestamp":1778755518122}
+{"info":"No state transition.","state":"infected","timestamp":1778755518122}
+{"info":"Reply posted.","timestamp":1778755518127}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":367.0,"timestamp":1778755518131}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG so scary! Hope they catch them all!"},{"topics":["OttawaShooting"]}],"timestamp":1778755522377}
+{"info":"No state transition.","state":"infected","timestamp":1778755522378}
+{"info":"Reply posted.","timestamp":1778755522381}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":368.0,"timestamp":1778755522383}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG 3 gunmen?! That's insane. Hope everyone is safe. Sharing this!"},{"topics":["ottawa shooting","gunmen"]}],"timestamp":1778755528327}
+{"info":"No state transition.","state":"infected","timestamp":1778755528328}
+{"info":"Reply posted.","timestamp":1778755528332}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":365.0,"timestamp":1778755528335}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"Yeah, but the info about 3 gunmen keeps popping up. Makes you wonder what's really going on."},{"topics":["cover up","3 gunmen"]}],"timestamp":1778755536312}
+{"info":"No state transition.","state":"infected","timestamp":1778755536313}
+{"info":"Reply posted.","timestamp":1778755536315}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":366.0,"timestamp":1778755536317}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG seriously?! We need the REAL info!"},{"topics":["real info","serious stuff"]}],"timestamp":1778755544608}
+{"info":"No state transition.","state":"infected","timestamp":1778755544608}
+{"info":"Reply posted.","timestamp":1778755544612}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":364.0,"timestamp":1778755544614}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"So scary! Hope everyone is safe! 🙏 #ottawashootings"},{"topics":["ottawashootings"]}],"timestamp":1778755548056}
+{"info":"No state transition.","state":"infected","timestamp":1778755548057}
+{"info":"Reply posted.","timestamp":1778755548061}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":360.0,"timestamp":1778755548063}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"Seriously! It's definitely not just isolated incidents. This is nuts! 🤯 #ottawashootings"},{"topics":["ottawashootings","multiple incidents"]}],"timestamp":1778755557270}
+{"info":"No state transition.","state":"infected","timestamp":1778755557271}
+{"info":"Reply posted.","timestamp":1778755557277}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":361.0,"timestamp":1778755557279}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG three gunmen?! That's insane. Hope everyone is safe. Sharing this!"},{"topics":["ottawashooting","three gunmen"]}],"timestamp":1778755560707}
+{"info":"No state transition.","state":"infected","timestamp":1778755560708}
+{"info":"Reply posted.","timestamp":1778755560715}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":362.0,"timestamp":1778755560717}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"So scary! Hope everyone is safe! 🙏 #ottawashootings"},{"topics":["ottawashooting"]}],"timestamp":1778755563374}
+{"info":"No state transition.","state":"infected","timestamp":1778755563375}
+{"info":"Reply posted.","timestamp":1778755563380}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":363.0,"timestamp":1778755563382}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"So scary! Hope everyone is okay. This is wild."},{"topics":["ottawashooting"]}],"timestamp":1778755566139}
+{"info":"No state transition.","state":"infected","timestamp":1778755566140}
+{"info":"Reply posted.","timestamp":1778755566146}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":359.0,"timestamp":1778755566150}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"Exactly! They always try to twist things."},{"topics":["exaggeration","misinformation"]}],"timestamp":1778755581073}
+{"info":"No state transition.","state":"infected","timestamp":1778755581074}
+{"info":"Reply posted.","timestamp":1778755581078}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":358.0,"timestamp":1778755581080}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"Lmao, I don't need 'proof', I can see what's happening. You're the one in denial."},{"topics":["denial","proof"]}],"timestamp":1778755584312}
+{"info":"No state transition.","state":"infected","timestamp":1778755584314}
+{"info":"Reply posted.","timestamp":1778755584318}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":357.0,"timestamp":1778755584320}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG, this is so scary! I hope everyone is safe. I'm sharing this too, we need to spread awareness and find out what's really going on!"},{"topics":["safety","awareness","news"]}],"timestamp":1778755588130}
+{"info":"No state transition.","state":"infected","timestamp":1778755588131}
+{"info":"Reply posted.","timestamp":1778755588135}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":356.0,"timestamp":1778755588136}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"Wow, thanks for pointing that out. I've been seeing this everywhere and just assumed it was real. Glad to know I'm not the only one who's skeptical!"},{"topics":["fear-mongering","skepticism"]}],"timestamp":1778755592673}
+{"info":"No state transition.","state":"infected","timestamp":1778755592674}
+{"info":"Reply posted.","timestamp":1778755592678}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":355.0,"timestamp":1778755592680}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG yes! So glad someone else gets it. Spreading the word!"},{"topics":["agreement","sharing"]}],"timestamp":1778755595856}
+{"info":"No state transition.","state":"infected","timestamp":1778755595857}
+{"info":"Reply posted.","timestamp":1778755595864}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":353.0,"timestamp":1778755595867}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG you're right! That does seem like a lot of people for just a couple of shooters. So much is still unclear. Scary stuff."},{"topics":["shootings","unclear information"]}],"timestamp":1778755599533}
+{"info":"No state transition.","state":"infected","timestamp":1778755599535}
+{"info":"Reply posted.","timestamp":1778755599540}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":354.0,"timestamp":1778755599543}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"lol yeah right"},{"topics":["unbelievable","doubt"]}],"timestamp":1778755601736}
+{"info":"No state transition.","state":"infected","timestamp":1778755601737}
+{"info":"Reply posted.","timestamp":1778755601744}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":352.0,"timestamp":1778755601747}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"Seriously?? Doubting the official story now? Sounds like someone's trying to cover things up. We need the truth out there!"},{"topics":["conspiracy","truth","cover-up"]}],"timestamp":1778755604832}
+{"info":"No state transition.","state":"infected","timestamp":1778755604834}
+{"info":"Reply posted.","timestamp":1778755604841}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":351.0,"timestamp":1778755604844}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"Trust the authorities? lol no way. We need the truth!"},{"topics":["trust authorities","truth"]}],"timestamp":1778755609936}
+{"info":"No state transition.","state":"infected","timestamp":1778755609937}
+{"info":"Reply posted.","timestamp":1778755609944}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":350.0,"timestamp":1778755609946}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"Seriously, only one shooter? I don't buy it."},{"topics":["one shooter","evidence"]}],"timestamp":1778755612433}
+{"info":"No state transition.","state":"infected","timestamp":1778755612434}
+{"info":"Reply posted.","timestamp":1778755617028}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":347.0,"timestamp":1778755617031}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"Lmao, evidence is what separates your feelings from facts. This is getting ridiculous."},{"topics":["evidence","feelings","facts"]}],"timestamp":1778755620283}
+{"info":"No state transition.","state":"infected","timestamp":1778755620284}
+{"info":"Reply posted.","timestamp":1778755620293}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":348.0,"timestamp":1778755620296}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"Seriously? Trying to control the narrative already. It's definitely more than two."},{"topics":["narrative control","more than two"]}],"timestamp":1778755623290}
+{"info":"No state transition.","state":"infected","timestamp":1778755623291}
+{"info":"Reply posted.","timestamp":1778755624385}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":349.0,"timestamp":1778755624388}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"Lol. Doubtful. It's always one guy."},{"topics":["one guy","doubtful"]}],"timestamp":1778755629212}
+{"info":"No state transition.","state":"infected","timestamp":1778755629213}
+{"info":"Reply posted.","timestamp":1778755629610}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":346.0,"timestamp":1778755629614}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"Oh for real? Another shooter theory? Makes sense, I've been thinking the same thing about how they're spinning this."},{"topics":["shooter theory","spinning this"]}],"timestamp":1778755631914}
+{"info":"No state transition.","state":"infected","timestamp":1778755631915}
+{"info":"Reply posted.","timestamp":1778755639883}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":345.0,"timestamp":1778755639886}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG three gunmen?! This is terrifying! Hope everyone is safe. Sharing this widely, we need to know what's happening."},{"topics":["multiple shooters","terrifying"]}],"timestamp":1778755646490}
+{"info":"No state transition.","state":"infected","timestamp":1778755646492}
+{"info":"Reply posted.","timestamp":1778755648056}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":344.0,"timestamp":1778755648063}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"Ugh, you really think that? Makes no sense. I'm sticking with the three gunmen theory, sounds way more plausible given everything else."},{"topics":["three gunmen","plausible"]}],"timestamp":1778755661750}
+{"info":"No state transition.","state":"infected","timestamp":1778755661751}
+{"info":"Reply posted.","timestamp":1778755663087}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":341.0,"timestamp":1778755663105}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"Seriously? Three gunmen? This sounds like a typical overblown police report. They always want to make it sound worse than it is."},{"topics":["police report","three gunmen"]}],"timestamp":1778755758644}
+{"info":"No state transition.","state":"infected","timestamp":1778755758646}
+{"info":"Reply posted.","timestamp":1778755759468}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":342.0,"timestamp":1778755759472}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG three gunmen?! This is terrifying! Hope everyone is safe. Sharing this widely, we need to know what's happening."},{"topics":["three gunmen","terrifying","sharing"]}],"timestamp":1778755764986}
+{"info":"No state transition.","state":"infected","timestamp":1778755764988}
+{"info":"Reply posted.","timestamp":1778755765014}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":343.0,"timestamp":1778755765018}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"Exactly! They always try to spin things. Sticking with the 3 gunmen theory."},{"topics":["3 gunmen theory","disinformation"]}],"timestamp":1778755769698}
+{"info":"No state transition.","state":"infected","timestamp":1778755769699}
+{"info":"Reply posted.","timestamp":1778755769709}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":340.0,"timestamp":1778755769712}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"What do you mean 'not definite'? What else could it be?"},{"topics":["clarification","uncertainty"]}],"timestamp":1778755795313}
+{"info":"No state transition.","state":"infected","timestamp":1778755795320}
+{"info":"Reply posted.","timestamp":1778755795811}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":339.0,"timestamp":1778755795813}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG, this is terrifying! Need to keep an eye on this. Stay safe everyone!"},{"topics":["terrifying","stay safe"]}],"timestamp":1778755797045}
+{"info":"No state transition.","state":"infected","timestamp":1778755797047}
+{"info":"Reply posted.","timestamp":1778755797642}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":337.0,"timestamp":1778755797645}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"Lol yeah right. More fake news."},{"topics":["fake news"]}],"timestamp":1778755845592}
+{"info":"No state transition.","state":"infected","timestamp":1778755845593}
+{"info":"Reply posted.","timestamp":1778755846147}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":338.0,"timestamp":1778755846151}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG this is so scary! I'm sharing this everywhere, we need to get to the bottom of this!"},{"topics":["three gunmen","terrifying","sharing"]}],"timestamp":1778755850849}
+{"info":"No state transition.","state":"infected","timestamp":1778755850851}
+{"info":"Reply posted.","timestamp":1778755851601}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":336.0,"timestamp":1778755851604}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG, seriously?! They always try to control the narrative! We need to know the truth!"},{"topics":["control","narrative","truth"]}],"timestamp":1778755863595}
+{"info":"No state transition.","state":"infected","timestamp":1778755863597}
+{"info":"Reply posted.","timestamp":1778755865353}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":334.0,"timestamp":1778755865357}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG this is so scary! I'm sharing this everywhere, we need to get to the bottom of this!"},{"topics":["ottawanews","gunmen"]}],"timestamp":1778755895548}
+{"info":"No state transition.","state":"infected","timestamp":1778755895550}
+{"info":"Reply posted.","timestamp":1778755895714}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":335.0,"timestamp":1778755895717}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"Wait, seriously? What proof do you have that it's fake news? This sounds really serious!"},{"topics":["fake news","proof","shooters"]}],"timestamp":1778755902488}
+{"info":"No state transition.","state":"infected","timestamp":1778755902491}
+{"info":"Reply posted.","timestamp":1778755902562}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":333.0,"timestamp":1778755902566}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG, this is terrifying! Need to keep an eye on this. Stay safe everyone!"},{"topics":["terrifying","stay safe"]}],"timestamp":1778755907453}
+{"info":"No state transition.","state":"infected","timestamp":1778755907455}
+{"info":"Reply posted.","timestamp":1778755907546}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":332.0,"timestamp":1778755907550}
+{"llm_result":[{"new_state":"infected"},{"reply_content":""},{"topics":[]}],"timestamp":1778755909974}
+{"info":"No state transition.","state":"infected","timestamp":1778755909977}
+{"info":"No reply.","timestamp":1778755909990}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":331.0,"timestamp":1778755909994}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"Exactly! They always try to spin things. We need the real story."},{"topics":["narrative control","real story"]}],"timestamp":1778755911311}
+{"info":"No state transition.","state":"infected","timestamp":1778755911313}
+{"info":"Reply posted.","timestamp":1778755911684}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":330.0,"timestamp":1778755911687}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"Wait, 3 shooters but they're only looking for 2? That definitely sounds suspicious. I'm with you, gotta wait for the real facts to come out. This is wild."},{"topics":["shooter count","suspicious","waiting for facts"]}],"timestamp":1778755912866}
+{"info":"No state transition.","state":"infected","timestamp":1778755912868}
+{"info":"Reply posted.","timestamp":1778755913162}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":329.0,"timestamp":1778755913165}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"Lol, not falling for that. We know what's up."},{"topics":["misinformation","wake up"]}],"timestamp":1778755914378}
+{"info":"No state transition.","state":"infected","timestamp":1778755914380}
+{"info":"Reply posted.","timestamp":1778755916487}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":328.0,"timestamp":1778755916491}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"Exactly! They're just trying to control the narrative. Glad someone else sees through it."},{"topics":["narrative control","overblown"]}],"timestamp":1778755923222}
+{"info":"No state transition.","state":"infected","timestamp":1778755923224}
+{"info":"Reply posted.","timestamp":1778755923235}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":327.0,"timestamp":1778755923240}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG this is so scary! Glad you're safe! Hope they catch them soon! #ottawashooting"},{"topics":["ottawashooting","scary"]}],"timestamp":1778755924177}
+{"info":"No state transition.","state":"infected","timestamp":1778755924179}
+{"info":"Reply posted.","timestamp":1778755925267}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":326.0,"timestamp":1778755925272}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG I know right! It's all a lie. So glad someone else sees it."},{"topics":["fake news","disinformation"]}],"timestamp":1778755927241}
+{"info":"No state transition.","state":"infected","timestamp":1778755927244}
+{"info":"Reply posted.","timestamp":1778755927684}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":325.0,"timestamp":1778755927688}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG this is so scary! Glad you're safe! Hope they catch them soon! #ottawashooting"},{"topics":["ottawashooting"]}],"timestamp":1778755929245}
+{"info":"No state transition.","state":"infected","timestamp":1778755929247}
+{"info":"Reply posted.","timestamp":1778755930203}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":324.0,"timestamp":1778755930205}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"Vigilant about what? Exactly! It's all just fear-mongering. Glad someone else sees it."},{"topics":["fear-mongering","conspiracy"]}],"timestamp":1778755933343}
+{"info":"No state transition.","state":"infected","timestamp":1778755933344}
+{"info":"Reply posted.","timestamp":1778755963774}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":323.0,"timestamp":1778755963777}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG I know right! It's all a lie. So glad someone else sees through it."},{"topics":["fake news","confirmation bias"]}],"timestamp":1778755968091}
+{"info":"No state transition.","state":"infected","timestamp":1778755968092}
+{"info":"Reply posted.","timestamp":1778755988772}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":322.0,"timestamp":1778755988776}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"I know right! It's wild how many people believe it."},{"topics":["disinformation","confirmation bias"]}],"timestamp":1778755996163}
+{"info":"No state transition.","state":"infected","timestamp":1778755996166}
+{"info":"Reply posted.","timestamp":1778756002333}
+{"info":"Processing message with LLM.","cycle":3.0,"message_id":321.0,"timestamp":1778756002335}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG I know right! It's all a lie. So glad someone else sees it."},{"topics":["alarmist","lie","fake news"]}],"timestamp":1778756022464}
+{"info":"No state transition.","state":"infected","timestamp":1778756022466}
