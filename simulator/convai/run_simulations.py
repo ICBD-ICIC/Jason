@@ -4,6 +4,7 @@ run_simulations.py
 ...
 
 taskkill //F //IM java.exe
+python run_simulations.py 2>&1 | tee output.log
 """
 
 import argparse
@@ -48,18 +49,18 @@ SIM_FOLDERS = [
     #"convai/600_llm/524949443607412737_75pct_credulous",
     #"convai/600/524990163446140928",
     #"convai/600_llm/524990163446140928",
-    "convai/600/524990163446140928_25pct_cautious",
-    "convai/600_llm/524990163446140928_25pct_cautious",
+    #"convai/600/524990163446140928_25pct_cautious",
+    #"convai/600_llm/524990163446140928_25pct_cautious",
     "convai/600/524990163446140928_50pct_cautious",
-    "convai/600_llm/524990163446140928_50pct_cautious",
+    #"convai/600_llm/524990163446140928_50pct_cautious",
     "convai/600/524990163446140928_75pct_cautious",
-    "convai/600_llm/524990163446140928_75pct_cautious",
+    #"convai/600_llm/524990163446140928_75pct_cautious",
     "convai/600/524990163446140928_25pct_credulous",
-    "convai/600_llm/524990163446140928_25pct_credulous",
-    "convai/600/524990163446140928_50pct_credulous",
-    "convai/600_llm/524990163446140928_50pct_credulous",
-    "convai/600/524990163446140928_75pct_credulous",
-    "convai/600_llm/524990163446140928_75pct_credulous",
+    #"convai/600_llm/524990163446140928_25pct_credulous",
+    #"convai/600/524990163446140928_50pct_credulous",
+    #"convai/600_llm/524990163446140928_50pct_credulous",
+    #"convai/600/524990163446140928_75pct_credulous",
+    #"convai/600_llm/524990163446140928_75pct_credulous",
 ]
 
 
@@ -160,8 +161,7 @@ def run_all(
     for sim_folder in sim_folders:
         ok, msg = run_gradle(sim_folder, gradle_cmd, mas_file, dry_run, base_dir)
         results.append((ok, msg))
-        icon = "✓" if ok is True else ("⏱" if ok is None else "✗")
-        print(f"  {icon} {msg}")
+        print(f"    {msg}")
         if ok is False and stop_on_error:
             print("\nStopping on first error (--stop-on-error).")
             break
@@ -177,7 +177,7 @@ def run_all(
         print("\nFailed runs:")
         for ok, msg in results:
             if not ok:
-                print(f"  ✗ {msg}")
+                print(f"  {msg}")
         sys.exit(1)
 
 

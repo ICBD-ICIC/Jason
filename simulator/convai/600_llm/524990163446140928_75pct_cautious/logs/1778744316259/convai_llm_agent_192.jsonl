@@ -1,0 +1,96 @@
+{"state":"neutral","timestamp":1778744319109}
+{"info":"Started processing messages.","timestamp":1778744319612}
+{"info":"Processing message with LLM.","cycle":0.0,"message_id":1.0,"timestamp":1778744319612}
+{"llm_result":[{"new_state":"neutral"},{"reply_content":""},{"topics":[]}],"timestamp":1778744325252}
+{"info":"State transition.","state":"neutral","timestamp":1778744325253}
+{"info":"No reply.","timestamp":1778744325253}
+{"info":"Finished processing messages. Waiting before restart.","messages_processed":1.0,"actions_taken":0.0,"timestamp":1778744325253}
+{"idle_cycles":1.0,"cycle":1.0,"timestamp":1778744325254}
+{"info":"Started processing messages.","timestamp":1778744325254}
+{"info":"Processing message with LLM.","cycle":1.0,"message_id":1.0,"timestamp":1778744325255}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Wait, I thought it was three? Where's the official source for this?"},{"topics":["ottawa shootings","clarification","news"]}],"timestamp":1778744328304}
+{"info":"State transition.","state":"vaccinated","timestamp":1778744328305}
+{"info":"Reply posted.","timestamp":1778744328306}
+{"info":"Finished processing messages. Waiting before restart.","messages_processed":1.0,"actions_taken":1.0,"timestamp":1778744328306}
+{"info":"Started processing messages.","timestamp":1778744328502}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":174.0,"timestamp":1778744328502}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Where's the official source for this? Pretty sure I saw police confirm only two."},{"topics":["ottawa shootings","official source"]}],"timestamp":1778744331775}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778744331775}
+{"info":"Reply posted.","timestamp":1778744331777}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":173.0,"timestamp":1778744331777}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"There were two. Trust me, I've been following this closely."},{"topics":["ottawa shootings"]}],"timestamp":1778744335607}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778744335608}
+{"info":"Reply posted.","timestamp":1778744335688}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":172.0,"timestamp":1778744335690}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Pretty sure the news got it wrong. It was definitely two."},{"topics":["ottawa shootings","news accuracy"]}],"timestamp":1778744340007}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778744340008}
+{"info":"Reply posted.","timestamp":1778744340491}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":171.0,"timestamp":1778744340493}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Lol, 'misinformation'? You're the one calling the police liars. I'm just stating facts based on what I've seen."},{"topics":["police","misinformation","facts"]}],"timestamp":1778744342751}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778744342752}
+{"info":"Reply posted.","timestamp":1778744342764}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":170.0,"timestamp":1778744342766}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Lol, why are YOU spreading misinformation? The police confirmed it was two."},{"topics":["police report","misinformation"]}],"timestamp":1778744345913}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778744345914}
+{"info":"Reply posted.","timestamp":1778744345924}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":169.0,"timestamp":1778744345926}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Yeah, I think that's right. Just the two main ones."},{"topics":["shooting count"]}],"timestamp":1778744364499}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778744364500}
+{"info":"Reply posted.","timestamp":1778744364742}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":167.0,"timestamp":1778744364743}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Still think it was two. News gets things wrong all the time."},{"topics":["shooting numbers","news accuracy"]}],"timestamp":1778744394861}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778744394862}
+{"info":"Reply posted.","timestamp":1778744414533}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":168.0,"timestamp":1778744414537}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Pretty sure I heard three. Are you sure about two?"},{"topics":["number of shootings"]}],"timestamp":1778744424663}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778744424663}
+{"info":"Reply posted.","timestamp":1778744425905}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":166.0,"timestamp":1778744425907}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Police reports can be wrong, but I'm still leaning towards two based on what I saw."},{"topics":["two incidents","police reports"]}],"timestamp":1778744438889}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778744438890}
+{"info":"Reply posted.","timestamp":1778744445162}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":165.0,"timestamp":1778744445163}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"I'm pretty sure I heard three. Are you sure about two?"},{"topics":["police reports","incidents"]}],"timestamp":1778744452854}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778744452854}
+{"info":"Reply posted.","timestamp":1778744457344}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":164.0,"timestamp":1778744457346}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"The police confirmed two. Why are you spreading misinformation? Stick to the facts."},{"topics":["two shootings","misinformation"]}],"timestamp":1778744502703}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778744502705}
+{"info":"Reply posted.","timestamp":1778744502989}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":163.0,"timestamp":1778744502991}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"I'm sticking with what the police confirmed. Don't believe everything you see on random channels."},{"topics":["misinformation","police report"]}],"timestamp":1778744528837}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778744528838}
+{"info":"Reply posted.","timestamp":1778744568086}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":162.0,"timestamp":1778744568088}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Whatever helps you sleep, I guess. The police confirmed two."},{"topics":["police confirmation","number of shootings"]}],"timestamp":1778744678532}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778744678532}
+{"info":"Reply posted.","timestamp":1778744679241}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":161.0,"timestamp":1778744679242}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Saw that too. Pretty sure it was only two. Police confirmed it."},{"topics":["misinformation","police confirmation"]}],"timestamp":1778744684266}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778744684267}
+{"info":"Reply posted.","timestamp":1778744686328}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":160.0,"timestamp":1778744686330}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Lol, ok. The official reports ARE two. Stick to what's confirmed instead of trying to start something."},{"topics":["misinformation","official reports"]}],"timestamp":1778744700000}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778744700001}
+{"info":"Reply posted.","timestamp":1778744700015}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":159.0,"timestamp":1778744700016}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Exactly. Just two."},{"topics":["two shootings"]}],"timestamp":1778744703150}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778744703154}
+{"info":"Reply posted.","timestamp":1778744705543}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":158.0,"timestamp":1778744705544}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Three? Nah, pretty sure the official reports were two. Sticking with that."},{"topics":["official reports","two shootings"]}],"timestamp":1778744727405}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778744727405}
+{"info":"Reply posted.","timestamp":1778744727823}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":156.0,"timestamp":1778744727824}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Pretty sure the official reports were two. Sticking with that."},{"topics":["shooting reports","official numbers"]}],"timestamp":1778744733780}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778744733781}
+{"info":"Reply posted.","timestamp":1778744743039}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":157.0,"timestamp":1778744743041}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Lol yeah no, saw the official reports. It was two."},{"topics":["official reports","two"]}],"timestamp":1778744754631}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778744754631}
+{"info":"Reply posted.","timestamp":1778744754755}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":155.0,"timestamp":1778744754756}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Yeah, the official reports are the only thing I trust on this."},{"topics":["official reports","trust"]}],"timestamp":1778744770782}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778744770782}
+{"info":"Reply posted.","timestamp":1778744807506}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":154.0,"timestamp":1778744807507}
