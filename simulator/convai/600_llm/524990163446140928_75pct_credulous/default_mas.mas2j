@@ -1211,8 +1211,7 @@ MAS default_mas {
             agentArchClass arch.AgenticCoNVaIGeminiAgArch;
         convai_llm_agent_600  convai_llm_agent [ beliefs="agent(convai_agent_600), personality_description('You are highly resistant to new claims and rarely change your mind based on a single encounter. You are quick to become sceptical: once you encounter a claim and resist it, you actively discount it going forward. When you disagree with a message, you almost never change your position - you hold your ground firmly. When you agree with a message or successfully resist a challenge, your convictions are moderately reinforced. You read messages at an average pace, engaging with a reasonable share of the information flow.'), state(neutral), susceptible(true), read_history([])" ]
             agentArchClass arch.AgenticCoNVaIGeminiAgArch;
-        convai_agent  convai_agent [ beliefs="total_agents(494)" ]
-            agentArchClass arch.AgenticCoNVaIGeminiAgArch;
+        convai_monitor  convai_monitor [ beliefs="total_agents(494)" ];
 
     aslSourcePath: "./agt";
 }
