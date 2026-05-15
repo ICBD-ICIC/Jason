@@ -1,0 +1,104 @@
+{"state":"neutral","timestamp":1778786953322}
+{"info":"Started processing messages.","timestamp":1778786953558}
+{"info":"Processing message with LLM.","cycle":0.0,"message_id":1.0,"timestamp":1778786953559}
+{"llm_result":[{"new_state":"neutral"},{"reply_content":""},{"topics":[]}],"timestamp":1778786956926}
+{"info":"State transition.","state":"neutral","timestamp":1778786956942}
+{"info":"No reply.","timestamp":1778786956947}
+{"info":"Finished processing messages. Waiting before restart.","messages_processed":1.0,"actions_taken":0.0,"timestamp":1778786956951}
+{"idle_cycles":1.0,"cycle":1.0,"timestamp":1778786956953}
+{"info":"Started processing messages.","timestamp":1778786956964}
+{"info":"Processing message with LLM.","cycle":1.0,"message_id":1.0,"timestamp":1778786956964}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG another shooting?! This is getting out of control!"},{"topics":["ottawa","shooting","crime"]}],"timestamp":1778786959774}
+{"info":"State transition.","state":"infected","timestamp":1778786959774}
+{"info":"Reply posted.","timestamp":1778786959776}
+{"info":"Finished processing messages. Waiting before restart.","messages_processed":1.0,"actions_taken":1.0,"timestamp":1778786959776}
+{"info":"Started processing messages.","timestamp":1778786959808}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":69.0,"timestamp":1778786959809}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG, this is crazy! I'm so worried about safety right now. #ottawa"},{"topics":["ottawa","safety"]}],"timestamp":1778786963099}
+{"info":"No state transition.","state":"infected","timestamp":1778786963099}
+{"info":"Reply posted.","timestamp":1778786963101}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":70.0,"timestamp":1778786963101}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"This is absolutely wild, I can't believe this is happening again!"},{"topics":["ottawa shooting","unbelievable"]}],"timestamp":1778786965966}
+{"info":"No state transition.","state":"infected","timestamp":1778786965967}
+{"info":"Reply posted.","timestamp":1778786965968}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":67.0,"timestamp":1778786965969}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG that's terrifying, hope everyone is safe!! Stay alert out there."},{"topics":["shooting","ottawa","safety"]}],"timestamp":1778786970415}
+{"info":"No state transition.","state":"infected","timestamp":1778786970415}
+{"info":"Reply posted.","timestamp":1778786970417}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":68.0,"timestamp":1778786970418}
+{"llm_result":[{"new_state":"infected"},{"reply_content":"OMG this is so scary!! I hope everyone is safe too. 😥"},{"topics":["ottawa shooting","rideau centre"]}],"timestamp":1778786974129}
+{"info":"No state transition.","state":"infected","timestamp":1778786974129}
+{"info":"Reply posted.","timestamp":1778786974133}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":66.0,"timestamp":1778786974134}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Fake news? It's not fake news when the police are reporting it. Maybe try getting your info from actual sources instead of spreading conspiracy theories."},{"topics":["fake news","ottawa police","conspiracy"]}],"timestamp":1778786977669}
+{"info":"State transition.","state":"vaccinated","timestamp":1778786977670}
+{"info":"Reply posted.","timestamp":1778786977677}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":65.0,"timestamp":1778786977678}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Seriously? Another shooting? This is getting ridiculous. Seems like fearmongering to me."},{"topics":["shooting","fearmongering","ottawa"]}],"timestamp":1778786981005}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778786981006}
+{"info":"Reply posted.","timestamp":1778786982629}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":63.0,"timestamp":1778786982630}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"The source is the police reports and multiple news outlets. Seems pretty credible to me."},{"topics":["police reports","credible sources"]}],"timestamp":1778786983683}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778786983683}
+{"info":"Reply posted.","timestamp":1778786983912}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":64.0,"timestamp":1778786983913}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"It's not fake news if it's being reported by multiple sources and the police."},{"topics":["fake news","ottawa police"]}],"timestamp":1778786988021}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778786988022}
+{"info":"Reply posted.","timestamp":1778786992439}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":62.0,"timestamp":1778786992440}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"OMG is this real? The police haven't confirmed anything. Sounds like a rumor."},{"topics":["rumor","unconfirmed"]}],"timestamp":1778786993470}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778786993470}
+{"info":"Reply posted.","timestamp":1778786995351}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":61.0,"timestamp":1778786995352}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"lol, and I'm supposed to believe that from someone with barely any followers? Get outta here with that fake news."},{"topics":["fake news","credibility"]}],"timestamp":1778787001088}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778787001089}
+{"info":"Reply posted.","timestamp":1778787001192}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":60.0,"timestamp":1778787001193}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"OMG another shooting?? Sounds like fake news again. Police haven't confirmed anything."},{"topics":["fake news","Rideau Centre","rumor"]}],"timestamp":1778787007254}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778787007254}
+{"info":"Reply posted.","timestamp":1778787007641}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":59.0,"timestamp":1778787007643}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Lol, third shooting? Get outta here with that fake news. You need to check your sources."},{"topics":["fake news","check sources"]}],"timestamp":1778787015045}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778787015045}
+{"info":"Reply posted.","timestamp":1778787015299}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":58.0,"timestamp":1778787015300}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"lol ok"},{"topics":["fake news"]}],"timestamp":1778787023935}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778787023936}
+{"info":"Reply posted.","timestamp":1778787030271}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":57.0,"timestamp":1778787030272}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Sounds like fake news again. Police haven't confirmed anything."},{"topics":["fake news","unconfirmed"]}],"timestamp":1778787056882}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778787056883}
+{"info":"Reply posted.","timestamp":1778787056950}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":56.0,"timestamp":1778787056951}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"OMG, another shooting at Rideau? This is getting scary!"},{"topics":["shooting","Rideau"]}],"timestamp":1778787101926}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778787101927}
+{"info":"Reply posted.","timestamp":1778787104501}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":55.0,"timestamp":1778787104502}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Sounds like fake news again. Police haven't confirmed anything."},{"topics":["fake news","police confirmation"]}],"timestamp":1778787110069}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778787110070}
+{"info":"Reply posted.","timestamp":1778787110902}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":54.0,"timestamp":1778787110904}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Sounds like fake news again. Police haven't confirmed anything."},{"topics":["fake news","unconfirmed"]}],"timestamp":1778787157141}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778787157142}
+{"info":"Reply posted.","timestamp":1778787157581}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":53.0,"timestamp":1778787157582}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Sounds like fake news again. Police haven't confirmed anything."},{"topics":["fake news","unconfirmed"]}],"timestamp":1778787168687}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778787168687}
+{"info":"Reply posted.","timestamp":1778787170073}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":52.0,"timestamp":1778787170074}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Seems like fake news to me. Police haven't confirmed anything."},{"topics":["fake news","unconfirmed report"]}],"timestamp":1778787315699}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778787315700}
+{"info":"Reply posted.","timestamp":1778787332582}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":51.0,"timestamp":1778787332585}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Sounds like fake news again. Police haven't confirmed anything."},{"topics":["fake news","unconfirmed"]}],"timestamp":1778787343986}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778787343987}
+{"info":"Reply posted.","timestamp":1778787389589}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":50.0,"timestamp":1778787389590}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Another fake news alert. Police haven't confirmed anything."},{"topics":["fake news","ottawa"]}],"timestamp":1778787502122}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778787502122}
+{"info":"Reply posted.","timestamp":1778787502147}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":49.0,"timestamp":1778787502148}
+{"llm_result":[{"new_state":"vaccinated"},{"reply_content":"Sounds like fake news again. Police haven't confirmed anything."},{"topics":["fake news","unverified reports"]}],"timestamp":1778787507431}
+{"info":"No state transition.","state":"vaccinated","timestamp":1778787507432}
+{"info":"Reply posted.","timestamp":1778787510371}
+{"info":"Processing message with LLM.","cycle":2.0,"message_id":48.0,"timestamp":1778787510372}
