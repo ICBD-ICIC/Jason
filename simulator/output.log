@@ -1,4 +1,4 @@
-Starting a Gradle Daemon, 4 stopped Daemons could not be reused, use --status for details
+Starting a Gradle Daemon (subsequent builds will be faster)
 > Task :clean
 
 > Task :compileJava
@@ -20,116 +20,20 @@ Config    is
 
 Using the jason.jar from classpath
 
-Runtime Services (RTS) is running at 192.168.1.135:54592
+Runtime Services (RTS) is running at 192.168.1.135:59096
 Agent mind inspector is running at http://192.168.1.135:3272
-
-[Incubating] Problems report is available at: file:///C:/Users/sam_p/Documents/Workspace/Jason/simulator/build/reports/problems/problems-report.html
-
-BUILD SUCCESSFUL in 2m 11s
-3 actionable tasks: 3 executed
-Starting a Gradle Daemon, 5 stopped Daemons could not be reused, use --status for details
-> Task :clean
-
-> Task :compileJava
-Note: C:\Users\sam_p\Documents\Workspace\Jason\simulator\initializer\MessageLoader.java uses unchecked or unsafe operations.
-Note: Recompile with -Xlint:unchecked for details.
-
-> Task :processResources NO-SOURCE
-> Task :classes
-
-> Task :run
-
-
-*** The jason.jar from classpath is different than jason.jar from configuration, consider to delete the configuration (file ~/.jason/user.properties) or 'unset JASON_HOME'.
-Classpath is
-   C:\Users\sam_p\.gradle\caches\modules-2\files-2.1\io.github.jason-lang\jason-interpreter\3.3.0\3c0fae64839e6566abeb9ed42ab63255e570f972\jason-interpreter-3.3.0.jar
-Config    is
-   /C:/Users/sam_p/.gradle/caches/modules-2/files-2.1/io.github.jason-lang/jason-interpreter/3.3.0/3c0fae64839e6566abeb9ed42ab63255e570f972/jason-interpreter-3.3.0.jar
-
-
-Using the jason.jar from classpath
-
-Runtime Services (RTS) is running at 192.168.1.135:56536
-Agent mind inspector is running at http://192.168.1.135:3272
-Starting a Gradle Daemon, 5 stopped Daemons could not be reused, use --status for details
-> Task :clean
-
-> Task :compileJava
-Note: C:\Users\sam_p\Documents\Workspace\Jason\simulator\initializer\MessageLoader.java uses unchecked or unsafe operations.
-Note: Recompile with -Xlint:unchecked for details.
-
-> Task :processResources NO-SOURCE
-> Task :classes
-
-> Task :run
-
-
-*** The jason.jar from classpath is different than jason.jar from configuration, consider to delete the configuration (file ~/.jason/user.properties) or 'unset JASON_HOME'.
-Classpath is
-   C:\Users\sam_p\.gradle\caches\modules-2\files-2.1\io.github.jason-lang\jason-interpreter\3.3.0\3c0fae64839e6566abeb9ed42ab63255e570f972\jason-interpreter-3.3.0.jar
-Config    is
-   /C:/Users/sam_p/.gradle/caches/modules-2/files-2.1/io.github.jason-lang/jason-interpreter/3.3.0/3c0fae64839e6566abeb9ed42ab63255e570f972/jason-interpreter-3.3.0.jar
-
-
-Using the jason.jar from classpath
-
-Runtime Services (RTS) is running at 192.168.1.135:50387
-Agent mind inspector is running at http://192.168.1.135:3272
-
-[Incubating] Problems report is available at: file:///C:/Users/sam_p/Documents/Workspace/Jason/simulator/build/reports/problems/problems-report.html
-
-BUILD SUCCESSFUL in 2m 5s
-3 actionable tasks: 3 executed
-Starting a Gradle Daemon, 5 stopped Daemons could not be reused, use --status for details
-> Task :clean
-
-> Task :compileJava
-Note: C:\Users\sam_p\Documents\Workspace\Jason\simulator\initializer\MessageLoader.java uses unchecked or unsafe operations.
-Note: Recompile with -Xlint:unchecked for details.
-
-> Task :processResources NO-SOURCE
-> Task :classes
-
-> Task :run
-
-
-*** The jason.jar from classpath is different than jason.jar from configuration, consider to delete the configuration (file ~/.jason/user.properties) or 'unset JASON_HOME'.
-Classpath is
-   C:\Users\sam_p\.gradle\caches\modules-2\files-2.1\io.github.jason-lang\jason-interpreter\3.3.0\3c0fae64839e6566abeb9ed42ab63255e570f972\jason-interpreter-3.3.0.jar
-Config    is
-   /C:/Users/sam_p/.gradle/caches/modules-2/files-2.1/io.github.jason-lang/jason-interpreter/3.3.0/3c0fae64839e6566abeb9ed42ab63255e570f972/jason-interpreter-3.3.0.jar
-
-
-Using the jason.jar from classpath
-
-Runtime Services (RTS) is running at 192.168.1.135:62465
-Agent mind inspector is running at http://192.168.1.135:3272
-
-[Incubating] Problems report is available at: file:///C:/Users/sam_p/Documents/Workspace/Jason/simulator/build/reports/problems/problems-report.html
-
-BUILD SUCCESSFUL in 2m 7s
-3 actionable tasks: 3 executed
 Base directory : C:\Users\sam_p\Documents\Workspace\Jason\simulator
 Gradle command : gradle
 Mas file       : default_mas.mas2j
 Dry run        : False
 Stop on error  : False
 
-Scheduled 4 simulation folder(s):
+Scheduled 1 simulation folder(s):
 
-  convai/600/524990163446140928_25pct_cautious
-  convai/600/524990163446140928_25pct_credulous
-  convai/600/524990163446140928_50pct_credulous
   convai/600/524990163446140928_75pct_credulous
 
-  [RUN] 524990163446140928_25pct_cautious  ->  gradlew.bat clean run -PgeneratedFolder=convai/600/524990163446140928_25pct_cautious -PmasFile=default_mas.mas2j
-    524990163446140928_25pct_cautious: OK  [132.7s]
-  [RUN] 524990163446140928_25pct_credulous  ->  gradlew.bat clean run -PgeneratedFolder=convai/600/524990163446140928_25pct_credulous -PmasFile=default_mas.mas2j
-    524990163446140928_25pct_credulous: TIMEOUT after 602.1s
-  [RUN] 524990163446140928_50pct_credulous  ->  gradlew.bat clean run -PgeneratedFolder=convai/600/524990163446140928_50pct_credulous -PmasFile=default_mas.mas2j
-    524990163446140928_50pct_credulous: OK  [126.1s]
   [RUN] 524990163446140928_75pct_credulous  ->  gradlew.bat clean run -PgeneratedFolder=convai/600/524990163446140928_75pct_credulous -PmasFile=default_mas.mas2j
-    524990163446140928_75pct_credulous: OK  [128.1s]
+    524990163446140928_75pct_credulous: TIMEOUT after 602.7s
 
 ==================================================
-Summary: 3/4 succeeded, 1 timed out, 0 failed.
+Summary: 0/1 succeeded, 1 timed out, 0 failed.
