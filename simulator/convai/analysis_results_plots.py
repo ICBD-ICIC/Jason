@@ -1,29 +1,38 @@
 """
 analysis_results_plots.py
 
-Generates bar-chart PDFs comparing simulation configs per thread and metric.
+Generates analysis plots for convai simulation results.
 
-Reads three CSVs produced by analyze_simulations.py:
-  --summary   simulation_results.csv
-  --pv_bl     simulation_results_pvalues_variant_vs_baseline.csv
+Reads CSVs produced by analyze_simulations.py:
+  --summary    results.csv
+  --pv_bl      results_pvalues_variant_vs_baseline.csv   (per-thread, kept for
+               compatibility but STARS now come from --pv_pooled)
+  --pv_pooled  results_pvalues_pooled.csv                (NEW: pooled across
+               threads; columns: variant, config, metric, n, mean_delta,
+               p_wilcoxon, sig_label)
+  --per_run    results_per_run.csv   (optional, for scatter/jitter)
 
-For every (metric, thread_id) pair it produces:
-  <out_dir>/<metric>/<thread_id>_cautious.pdf         absolute values, cautious variants
-  <out_dir>/<metric>/<thread_id>_credulous.pdf        absolute values, credulous variants
-  <out_dir>/<metric>/<thread_id>_diff.pdf             Δ vs baseline, all 6 variants, 600 & 600_llm
-  <out_dir>/max_cycles/<thread_id>_avg.pdf            max_cycles + avg_cycles side-by-side (if available)
+Plot suite:
+  transitions/    - Δ% vs baseline for the 4 key transitions, per thread + all
+  outcomes/       - % infected & vaccinated from susceptibles, absolute + Δ
+  effectiveness/  - Vaccination effectiveness from susceptibles
+  llm_behaviour/  - Message rate (msgs/cycle) and total_messages vs max_cycles scatter
 
-Plus one "all-threads" aggregate for every metric:
-  <out_dir>/<metric>/all_cautious.pdf
-  <out_dir>/<metric>/all_credulous.pdf
-  <out_dir>/<metric>/all_diff.pdf
-  <out_dir>/max_cycles/all_avg.pdf
+Each plot:
+  - Pink (#FF2D8B) = 600,  Green (#00E676) = 600_llm
+  - Hatching for colorblind accessibility
+  - Individual run points shown as jitter when per_run CSV is available
+  - Significance stars from POOLED p-values (--pv_pooled)
 
 Usage:
   python analysis_results_plots.py \\
-      --summary  simulation_results.csv \\
-      --pv_bl    simulation_results_pvalues_variant_vs_baseline.csv \\
-      --out_dir  plots/
+      --summary    convai/results.csv \\
+      --pv_pooled  convai/results_pvalues_pooled.csv \\
+      --per_run    convai/results_per_run.csv \\
+      --out_dir    convai/plots/
+
+  # Optional legacy arg (no longer drives stars):
+      --pv_bl      convai/results_pvalues_variant_vs_baseline.csv
 """
 
 import argparse
@@ -35,292 +44,142 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
 
 warnings.filterwarnings("ignore")
 
-# ── colour / style ────────────────────────────────────────────────────────────
-COLOUR = {"600": "#4C72B0", "600_llm": "#DD8452"}
+# -- Colours & styles ----------------------------------------------------------
+COLOUR  = {"600": "#FF2D8B", "600_llm": "#00E676"}
+HATCH   = {"600": "///",     "600_llm": "..."}
 VARIANT_LABEL = {"600": "600", "600_llm": "600-LLM"}
 
 CAUTIOUS_SUFFIXES  = ["25pct_cautious",  "50pct_cautious",  "75pct_cautious"]
 CREDULOUS_SUFFIXES = ["25pct_credulous", "50pct_credulous", "75pct_credulous"]
 ALL_SUFFIXES       = CAUTIOUS_SUFFIXES + CREDULOUS_SUFFIXES
 
-DIFF_LABELS = {
-    "25pct_cautious":  "25% Caut",
-    "50pct_cautious":  "50% Caut",
-    "75pct_cautious":  "75% Caut",
-    "25pct_credulous": "25% Cred",
-    "50pct_credulous": "50% Cred",
-    "75pct_credulous": "75% Cred",
-}
-
-CONFIG_LABEL = {
+CASE_LABELS = {
     "baseline":         "Baseline",
-    "25pct_cautious":   "25 %",
-    "50pct_cautious":   "50 %",
-    "75pct_cautious":   "75 %",
-    "25pct_credulous":  "25 %",
-    "50pct_credulous":  "50 %",
-    "75pct_credulous":  "75 %",
+    "25pct_cautious":   "Caut 25%",
+    "50pct_cautious":   "Caut 50%",
+    "75pct_cautious":   "Caut 75%",
+    "25pct_credulous":  "Cred 25%",
+    "50pct_credulous":  "Cred 50%",
+    "75pct_credulous":  "Cred 75%",
 }
 
-METRIC_LABEL = {
-    "pct_infected":              "Infected agents (%)",
-    "pct_vaccinated":            "Vaccinated agents (%)",
-    "pct_neutral":               "Neutral agents (%)",
-    "vax_effectiveness":         "Vaccination effectiveness (%)",
-    "max_cycles":                "Max cycles",
-    "total_messages":            "Total messages",
-    "pct_msg_vaccinated":        "Messages from vaccinated (%)",
-    "pct_msg_infected":          "Messages from infected (%)",
-    "pct_agents_changed":        "Agents that changed state (%)",
-    "avg_transitions_per_agent": "Avg transitions / agent",
-}
-
-# Metrics where a "difference vs baseline" makes physical sense
-# Colours for the 6 transition types in stacked bars
-TRANS_KEYS = [
+KEY_TRANSITIONS = [
     "trans_neutral_to_infected",
     "trans_neutral_to_vaccinated",
-    "trans_infected_to_neutral",
     "trans_infected_to_vaccinated",
-    "trans_vaccinated_to_neutral",
     "trans_vaccinated_to_infected",
 ]
-TRANS_COLOURS = {
-    "trans_neutral_to_infected":    "#E15759",
-    "trans_neutral_to_vaccinated":  "#4E79A7",
-    "trans_infected_to_neutral":    "#F28E2B",
-    "trans_infected_to_vaccinated": "#76B7B2",
-    "trans_vaccinated_to_neutral":  "#B07AA1",
-    "trans_vaccinated_to_infected": "#FF9DA7",
-}
 TRANS_LABELS = {
-    "trans_neutral_to_infected":    "Neutral → Infected",
-    "trans_neutral_to_vaccinated":  "Neutral → Vaccinated",
-    "trans_infected_to_neutral":    "Infected → Neutral",
-    "trans_infected_to_vaccinated": "Infected → Vaccinated",
-    "trans_vaccinated_to_neutral":  "Vaccinated → Neutral",
-    "trans_vaccinated_to_infected": "Vaccinated → Infected",
+    "trans_neutral_to_infected":   "Neutral → Infected",
+    "trans_neutral_to_vaccinated": "Neutral → Vaccinated",
+    "trans_infected_to_vaccinated":"Infected → Vaccinated",
+    "trans_vaccinated_to_infected":"Vaccinated → Infected",
+}
+TRANS_EXPECTED = {
+    # (cautious_direction, credulous_direction)  +1=up, -1=down
+    "trans_neutral_to_infected":   (-1, +1),
+    "trans_neutral_to_vaccinated": (+1, -1),
+    "trans_infected_to_vaccinated":(+1, -1),
+    "trans_vaccinated_to_infected":(-1, +1),
 }
 
-DIFF_ELIGIBLE_METRICS = {
-    "pct_infected", "pct_vaccinated", "pct_neutral",
-    "vax_effectiveness",
-    "max_cycles",
-    "total_messages",
-    "pct_msg_vaccinated", "pct_msg_infected",
-    "pct_agents_changed", "avg_transitions_per_agent",
+OUTCOME_METRICS = [
+    "pct_infected_susc",
+    "pct_vaccinated_susc",
+    "vax_effectiveness_susc",
+]
+OUTCOME_LABELS = {
+    "pct_infected_susc":      "% Infected (of susceptibles)",
+    "pct_vaccinated_susc":    "% Vaccinated (of susceptibles)",
+    "vax_effectiveness_susc": "Vaccination Effectiveness (of susceptibles)",
+}
+# Shorter versions used on y-axis labels to avoid repetition with the title
+OUTCOME_YLABEL = {
+    "pct_infected_susc":      "% Infected",
+    "pct_vaccinated_susc":    "% Vaccinated",
+    "vax_effectiveness_susc": "% Vaccination Effectiveness",
+}
+# Short transition labels for y-axis (full label goes in suptitle)
+TRANS_YLABEL = {
+    "trans_neutral_to_infected":   "Δ % Neutral→Infected",
+    "trans_neutral_to_vaccinated": "Δ % Neutral→Vaccinated",
+    "trans_infected_to_vaccinated":"Δ % Infected→Vaccinated",
+    "trans_vaccinated_to_infected":"Δ % Vaccinated→Infected",
 }
 
-# ── significance thresholds ───────────────────────────────────────────────────
 STAR_THRESHOLDS = [(0.001, "***"), (0.01, "**"), (0.05, "*"), (1.0, "ns")]
 
+# -- Font sizes (single source of truth) --------------------------------------
+FS_BASE       = 16   # rcParams default
+FS_TITLE      = 16   # axes title
+FS_SUPTITLE   = 16   # figure suptitle
+FS_AXLABEL    = 16   # x/y axis labels
+FS_TICK       = 16   # tick labels
+FS_LEGEND     = 16   # legend text
+FS_ANNOT      = 16   # significance stars
+FS_CBAR       = 16   # colorbar label / tick labels
+
+plt.rcParams.update({
+    "figure.facecolor": "white",
+    "axes.facecolor":   "white",
+    "axes.edgecolor":   "#333333",
+    "axes.labelcolor":  "#111111",
+    "xtick.color":      "#333333",
+    "ytick.color":      "#333333",
+    "text.color":       "#111111",
+    "grid.color":       "#dddddd",
+    "grid.linewidth":   0.6,
+    "font.size":        FS_BASE,
+    "axes.titlesize":   FS_TITLE,
+    "axes.labelsize":   FS_AXLABEL,
+    "xtick.labelsize":  FS_TICK,
+    "ytick.labelsize":  FS_TICK,
+    "legend.fontsize":  FS_LEGEND,
+    "figure.titlesize": FS_SUPTITLE,
+})
+
+# -- Significance --------------------------------------------------------------
 
 def stars(p) -> str:
     if p is None or (isinstance(p, float) and np.isnan(p)):
         return ""
-    for threshold, label in STAR_THRESHOLDS:
-        if p < threshold:
-            return label
-    return "ns"
+    for thr, lbl in STAR_THRESHOLDS:
+        if p < thr:
+            return lbl
+    return ""   # "ns" omitted for clean plots; annotate only significant results
 
 
-# ── annotation helpers ────────────────────────────────────────────────────────
-
-def annotate_bracket(ax, x1, x2, y, h, label, fontsize=7, color="black"):
-    if not label or label == "ns":
+def annotate_bar(ax, x, bar_value, error, label, fontsize=FS_ANNOT):
+    """
+    Place significance label at the *outer* end of the bar:
+      - positive bar  → above  the top  (bar_value + error + small gap)
+      - negative bar  → below  the bottom (bar_value - error - small gap)
+    """
+    if not label:
         return
-    ax.plot([x1, x1, x2, x2], [y, y + h, y + h, y], lw=0.8, c=color)
-    ax.text((x1 + x2) / 2, y + h, label,
-            ha="center", va="bottom", fontsize=fontsize, color=color)
+    # Determine a sensible gap relative to the axis range
+    ylim = ax.get_ylim()
+    axis_span = max(abs(ylim[1] - ylim[0]), 1e-6)
+    gap = axis_span * 0.025
 
-
-# ── absolute-value grouped bar chart ─────────────────────────────────────────
-
-def plot_group(
-    ax,
-    configs, config_labels,
-    means, stds,
-    pv_pair, pv_bl_600, pv_bl_llm,
-    metric, title,
-):
-    """Side-by-side bars (600 / 600_llm) with significance brackets."""
-    variants  = ["600", "600_llm"]
-    bar_width = 0.35
-    x_centres = np.arange(len(configs)) * 1.0
-
-    for vi, variant in enumerate(variants):
-        offset = (vi - 0.5) * bar_width
-        xs = x_centres + offset
-        ys = [means[variant].get(cfg, 0.0) or 0.0 for cfg in configs]
-        es = [stds[variant].get(cfg,  0.0) or 0.0 for cfg in configs]
-        ax.bar(xs, ys, bar_width, yerr=es, capsize=3,
-               color=COLOUR[variant], alpha=0.85,
-               label=VARIANT_LABEL[variant],
-               error_kw={"elinewidth": 0.8, "ecolor": "black"})
-
-    all_vals = [
-        (means[v].get(c) or 0.0) + (stds[v].get(c) or 0.0)
-        for v in variants for c in configs
-    ]
-    y_ceil = max(all_vals) if all_vals else 1.0
-    step   = max(y_ceil * 0.07, 0.5)
-
-    for ci, cfg in enumerate(configs):
-        p = pv_pair.get(cfg)
-        lbl = stars(p)
-        if lbl and lbl != "ns":
-            x0 = x_centres[ci] - bar_width / 2
-            x1 = x_centres[ci] + bar_width / 2
-            annotate_bracket(ax, x0, x1, y_ceil + step, step * 0.4, lbl,
-                             fontsize=7, color="dimgray")
-
-    x_bl_600 = x_centres[0] - bar_width / 2
-    x_bl_llm = x_centres[0] + bar_width / 2
-    level_600 = level_llm = y_ceil + step * 2.5
-
-    for ci, cfg in enumerate(configs[1:], start=1):
-        p600 = pv_bl_600.get(cfg); lbl600 = stars(p600)
-        if lbl600 and lbl600 != "ns":
-            annotate_bracket(ax, x_bl_600, x_centres[ci] - bar_width / 2,
-                             level_600, step * 0.4, lbl600,
-                             fontsize=7, color=COLOUR["600"])
-            level_600 += step * 1.6
-
-        pllm = pv_bl_llm.get(cfg); lblllm = stars(pllm)
-        if lblllm and lblllm != "ns":
-            annotate_bracket(ax, x_bl_llm, x_centres[ci] + bar_width / 2,
-                             level_llm, step * 0.4, lblllm,
-                             fontsize=7, color=COLOUR["600_llm"])
-            level_llm += step * 1.6
-
-    top_y = max(level_600, level_llm) + step * 2
-    ax.set_ylim(bottom=0, top=top_y)
-    ax.set_xticks(x_centres)
-    ax.set_xticklabels(config_labels, fontsize=8)
-    ax.set_ylabel(metric, fontsize=8)
-    ax.set_title(title, fontsize=9, pad=4)
-    ax.yaxis.grid(True, linewidth=0.4, alpha=0.5)
-    ax.set_axisbelow(True)
-    ax.spines[["top", "right"]].set_visible(False)
-
-
-# ── DIFFERENCE plot ───────────────────────────────────────────────────────────
-
-def plot_diff(
-    ax,
-    suffixes,           # all 6 non-baseline suffixes, in order
-    means, stds,        # means[variant][cfg], stds[variant][cfg]
-    pv_bl_600, pv_bl_llm,
-    metric, title,
-):
-    """
-    Bar chart of (variant_mean - baseline_mean) for every suffix,
-    side-by-side for 600 and 600_llm.
-    Baseline is the implicit zero line.
-    Error bars propagate both stds in quadrature.
-    Significance brackets compare each variant to baseline (coloured by variant).
-    """
-    variants  = ["600", "600_llm"]
-    bar_width = 0.35
-    n         = len(suffixes)
-    x_centres = np.arange(n) * 1.0
-
-    diffs = {v: [] for v in variants}
-    errs  = {v: [] for v in variants}
-    for suf in suffixes:
-        for v in variants:
-            bm  = means[v].get("baseline", 0.0) or 0.0
-            vm  = means[v].get(suf,        0.0) or 0.0
-            bs  = stds[v].get("baseline",  0.0) or 0.0
-            vs_ = stds[v].get(suf,         0.0) or 0.0
-            diffs[v].append(vm - bm)
-            errs[v].append(np.sqrt(bs**2 + vs_**2))
-
-    for vi, v in enumerate(variants):
-        offset = (vi - 0.5) * bar_width
-        xs = x_centres + offset
-        ys = diffs[v]
-        es = errs[v]
-        ax.bar(xs, ys, bar_width, yerr=es, capsize=3,
-               color=COLOUR[v], alpha=0.85,
-               label=VARIANT_LABEL[v],
-               error_kw={"elinewidth": 0.8, "ecolor": "black"})
-
-    ax.axhline(0, color="black", linewidth=0.8, linestyle="--", alpha=0.6)
-
-    # annotation ceiling/floor
-    all_with_err = []
-    for v in variants:
-        for d, e in zip(diffs[v], errs[v]):
-            all_with_err.append(d + e)
-            all_with_err.append(d - e)
-    y_top  = max(all_with_err) if all_with_err else 1.0
-    y_bot  = min(all_with_err) if all_with_err else -1.0
-    span   = max(abs(y_top), abs(y_bot))
-    step   = max(span * 0.07, 0.5)
-    ceil   = y_top + step
-
-    for ci, suf in enumerate(suffixes):
-        p600 = pv_bl_600.get(suf); lbl600 = stars(p600)
-        if lbl600 and lbl600 != "ns":
-            x0 = x_centres[ci] - bar_width / 2
-            annotate_bracket(ax, x0, x0, ceil, step * 0.4, lbl600,
-                             fontsize=7, color=COLOUR["600"])
-
-        pllm = pv_bl_llm.get(suf); lblllm = stars(pllm)
-        if lblllm and lblllm != "ns":
-            x1 = x_centres[ci] + bar_width / 2
-            annotate_bracket(ax, x1, x1, ceil + step * 0.6, step * 0.4, lblllm,
-                             fontsize=7, color=COLOUR["600_llm"])
-
-    ax.set_xticks(x_centres)
-    ax.set_xticklabels([DIFF_LABELS[s] for s in suffixes], fontsize=7, rotation=15, ha="right")
-    ax.set_ylabel(f"Δ {metric} vs Baseline", fontsize=8)
-    ax.set_title(title, fontsize=9, pad=4)
-    ax.yaxis.grid(True, linewidth=0.4, alpha=0.5)
-    ax.set_axisbelow(True)
-    ax.spines[["top", "right"]].set_visible(False)
-
-
-# ── max_cycles: absolute + avg side-by-side ───────────────────────────────────
-
-def plot_max_and_avg_cycles(
-    ax_max, ax_avg,
-    configs, config_labels,
-    means_max, stds_max,
-    means_avg, stds_avg,
-    pv_pair_max, pv_bl_600_max, pv_bl_llm_max,
-    pv_pair_avg, pv_bl_600_avg, pv_bl_llm_avg,
-    group_name, thread_label,
-):
-    """Fill two axes: left = max_cycles, right = avg_cycles (if available)."""
-    plot_group(ax_max, configs, config_labels,
-               means_max, stds_max,
-               pv_pair_max, pv_bl_600_max, pv_bl_llm_max,
-               METRIC_LABEL["max_cycles"],
-               f"Max cycles - {thread_label} ({group_name})")
-
-    # avg_cycles might not exist if the column wasn't computed
-    has_avg = any(
-        means_avg[v].get(c) is not None
-        for v in ["600", "600_llm"] for c in configs
-    )
-    if has_avg:
-        plot_group(ax_avg, configs, config_labels,
-                   means_avg, stds_avg,
-                   pv_pair_avg, pv_bl_600_avg, pv_bl_llm_avg,
-                   "Avg cycles",
-                   f"Avg cycles - {thread_label} ({group_name})")
+    if bar_value >= 0:
+        y   = bar_value + error + gap
+        va  = "bottom"
     else:
-        ax_avg.set_visible(False)
+        y   = bar_value - error - gap
+        va  = "top"
+
+    ax.text(x, y, label, ha="center", va=va, fontsize=fontsize,
+            fontweight="bold", color="#222222")
 
 
-# ── CSV loading ───────────────────────────────────────────────────────────────
+# -- CSV loading ---------------------------------------------------------------
 
 def load_summary(path: Path) -> pd.DataFrame:
     df = pd.read_csv(path)
@@ -329,462 +188,545 @@ def load_summary(path: Path) -> pd.DataFrame:
     return df
 
 
-def load_pv_600_llm(path: Path) -> pd.DataFrame:
-    df = pd.read_csv(path)
-    df = df[df["variant"] == "p_value_600_vs_llm"].copy()
-    return df
-
-
 def load_pv_baseline(path: Path) -> pd.DataFrame:
+    """Legacy per-thread p-value file (kept for compatibility)."""
     df = pd.read_csv(path)
     df["variant"] = df["variant"].astype(str)
     return df
 
 
-def get_thread_ids(summary_df: pd.DataFrame) -> list:
-    tcs = summary_df["thread_config"].unique()
-    return sorted(tc for tc in tcs if re.fullmatch(r"\d+", str(tc)))
-
-
-def get_metric_columns(summary_df: pd.DataFrame) -> list:
-    return [c[:-5] for c in summary_df.columns if c.endswith("_mean")]
-
-
-# ── data extraction helpers ───────────────────────────────────────────────────
-
-def extract_means_stds(summary_df, thread_id):
+def load_pv_pooled(path: Path | None) -> pd.DataFrame | None:
     """
-    Returns means[variant][cfg], stds[variant][cfg] for all configs
-    whose thread_config starts with thread_id.
+    Pooled p-value file.  Expected columns:
+        variant, config, metric, n, mean_delta, p_wilcoxon, sig_label
+
+    'config' holds values like '25pct_cautious', '50pct_credulous', etc.
+    (no thread_id column - pooled across all threads).
     """
-    means = {"600": {}, "600_llm": {}}
-    stds  = {"600": {}, "600_llm": {}}
-    for variant in ["600", "600_llm"]:
-        sub = summary_df[
-            (summary_df["variant"] == variant) &
-            (summary_df["thread_config"].astype(str).str.startswith(str(thread_id)))
-        ]
-        for _, row in sub.iterrows():
-            tc  = str(row["thread_config"])
-            cfg = "baseline" if tc == str(thread_id) else tc[len(str(thread_id)) + 1:]
-            for col in summary_df.columns:
-                if col.endswith("_mean"):
-                    metric = col[:-5]
-                    means[variant].setdefault(metric, {})[cfg] = row.get(col)
-                elif col.endswith("_std"):
-                    metric = col[:-4]
-                    stds[variant].setdefault(metric, {})[cfg] = row.get(col)
-    return means, stds
+    if path is None or not path.exists():
+        return None
+    df = pd.read_csv(path)
+    df["variant"] = df["variant"].astype(str)
+    return df
 
 
-def extract_pv_pair(pv_600llm_df, thread_id, metric):
-    mean_col = f"{metric}_mean"
-    sub = pv_600llm_df[
-        pv_600llm_df["thread_config"].astype(str).str.startswith(str(thread_id))
+def load_per_run(path: Path | None) -> pd.DataFrame | None:
+    if path is None or not path.exists():
+        return None
+    df = pd.read_csv(path)
+    df["variant"] = df["variant"].astype(str)
+    return df
+
+
+def get_thread_ids(summary_df: pd.DataFrame) -> list[str]:
+    tcs = summary_df["thread_config"].astype(str).unique()
+    return sorted(tc for tc in tcs if re.fullmatch(r"\d+", tc))
+
+
+# -- Data extraction -----------------------------------------------------------
+
+def get_mean_std(summary_df: pd.DataFrame, variant: str, tc: str, metric: str):
+    row = summary_df[(summary_df["variant"] == variant) &
+                     (summary_df["thread_config"].astype(str) == tc)]
+    if row.empty:
+        return None, 0.0
+    return row.iloc[0].get(f"{metric}_mean"), row.iloc[0].get(f"{metric}_std", 0.0)
+
+
+# -- P-value lookups -----------------------------------------------------------
+
+def get_pv(pv_df: pd.DataFrame, variant: str, thread_id: str, config: str, metric: str):
+    """Legacy per-thread lookup (used only when no pooled file is available)."""
+    row = pv_df[
+        (pv_df["variant"]   == variant) &
+        (pv_df["thread_id"].astype(str) == str(thread_id)) &
+        (pv_df["config"]    == config) &
+        (pv_df["metric"]    == metric)
     ]
-    result = {}
-    for _, row in sub.iterrows():
-        tc  = str(row["thread_config"])
-        cfg = "baseline" if tc == str(thread_id) else tc[len(str(thread_id)) + 1:]
-        result[cfg] = row.get(mean_col)
-    return result
+    if row.empty:
+        return None
+    return row.iloc[0]["p_value"]
 
 
-def extract_pv_bl(pv_baseline_df, variant, thread_id, metric):
-    sub = pv_baseline_df[
-        (pv_baseline_df["variant"]   == variant) &
-        (pv_baseline_df["thread_id"].astype(str) == str(thread_id)) &
-        (pv_baseline_df["metric"]    == metric)
+def get_pv_pooled(pv_pooled_df: pd.DataFrame | None,
+                  variant: str, config: str, metric: str) -> float | None:
+    """
+    Look up a pooled p-value.
+
+    The pooled CSV has columns: variant, config, metric, p_wilcoxon (and others).
+    'config' stores the condition suffix, e.g. '25pct_cautious'.
+    """
+    if pv_pooled_df is None:
+        return None
+    row = pv_pooled_df[
+        (pv_pooled_df["variant"] == variant) &
+        (pv_pooled_df["config"]  == config) &
+        (pv_pooled_df["metric"]  == metric)
     ]
-    return dict(zip(sub["config"].astype(str), sub["p_value"]))
+    if row.empty:
+        return None
+    return row.iloc[0]["p_wilcoxon"]
 
 
-# ── aggregate across threads ("all") ─────────────────────────────────────────
-
-def build_all_threads_data(summary_df: pd.DataFrame, thread_ids: list) -> pd.DataFrame:
+def resolve_pv(pv_pooled_df, pv_df, variant, thread_id, config, metric):
     """
-    Return a synthetic summary_df where thread_config is replaced by
-    'all' / 'all_<suffix>' rows whose means are the across-thread averages
-    and whose stds are the across-thread standard deviations of per-thread means.
+    Return the best available p-value:
+      1. Pooled file (preferred, thread-agnostic).
+      2. Legacy per-thread file (fallback).
     """
-    metric_cols = [c for c in summary_df.columns
-                   if c.endswith("_mean") or c.endswith("_std")]
+    p = get_pv_pooled(pv_pooled_df, variant, config, metric)
+    if p is not None:
+        return p
+    return get_pv(pv_df, variant, thread_id, config, metric)
+
+
+def get_run_vals(per_run_df: pd.DataFrame | None, variant: str, tc: str, metric: str) -> list:
+    if per_run_df is None:
+        return []
+    sub = per_run_df[(per_run_df["variant"] == variant) &
+                     (per_run_df["thread_config"].astype(str) == tc)]
+    vals = sub[metric].dropna().tolist()
+    return vals
+
+
+# -- Legend (bottom, outside, horizontal) -------------------------------------
+
+def add_legend(fig, extra_patches=None):
+    """
+    Attach a single horizontal legend to the *figure*, centred below all axes.
+    Call this after tight_layout / subplots_adjust so the bbox is stable.
+    """
+    handles = []
+    for v in ["600", "600_llm"]:
+        handles.append(mpatches.Patch(
+            facecolor=COLOUR[v], hatch=HATCH[v], edgecolor="#333333",
+            alpha=0.85, label=VARIANT_LABEL[v]
+        ))
+    if extra_patches:
+        handles += extra_patches
+    fig.legend(
+        handles=handles,
+        loc="lower center",
+        bbox_to_anchor=(0.5, 0.025),
+        ncol=len(handles),
+        fontsize=FS_LEGEND,
+        framealpha=0.7,
+        edgecolor="#aaaaaa",
+    )
+
+
+# -- Generic grouped bar (absolute values) ------------------------------------
+
+def plot_grouped_bars(ax, configs, summary_df, thread_id, metric,
+                      pv_df, pv_pooled_df, ylabel, title, per_run_df=None,
+                      show_ylabel=True):
+    """
+    Side-by-side bars (600 | 600_llm) for each config.
+    configs: list of suffix strings (e.g. ['baseline','25pct_cautious',...])
+    Stars come from pooled p-values when available.
+    """
+    bar_w = 0.35
+    x     = np.arange(len(configs))
+
+    for vi, variant in enumerate(["600", "600_llm"]):
+        offset = (vi - 0.5) * bar_w
+        ys, es = [], []
+        for cfg in configs:
+            tc = thread_id if cfg == "baseline" else f"{thread_id}_{cfg}"
+            m, s = get_mean_std(summary_df, variant, tc, metric)
+            ys.append(m or 0.0)
+            es.append(s or 0.0)
+
+        ax.bar(x + offset, ys, bar_w,
+               color=COLOUR[variant], hatch=HATCH[variant],
+               edgecolor="#333333", linewidth=0.6,
+               alpha=0.85, label=VARIANT_LABEL[variant],
+               yerr=es, capsize=3,
+               error_kw={"elinewidth": 0.8, "ecolor": "#555555"})
+
+        # Jitter individual run points
+        if per_run_df is not None:
+            for ci, cfg in enumerate(configs):
+                tc = thread_id if cfg == "baseline" else f"{thread_id}_{cfg}"
+                vals = get_run_vals(per_run_df, variant, tc, metric)
+                if vals:
+                    jx = np.random.normal(x[ci] + offset, 0.04, size=len(vals))
+                    ax.scatter(jx, vals, color="black", s=14, zorder=5,
+                               alpha=0.7, linewidths=0)
+
+        # Significance stars at outer end of bar (vs baseline) - pooled p-values
+        for ci, cfg in enumerate(configs):
+            if cfg == "baseline":
+                continue
+            p = resolve_pv(pv_pooled_df, pv_df, variant, thread_id, cfg, metric)
+            s = stars(p)
+            if s:
+                annotate_bar(ax, x[ci] + offset, ys[ci], es[ci], s)
+
+    ax.set_xticks(x)
+    ax.set_xticklabels([CASE_LABELS.get(c, c) for c in configs],
+                       fontsize=FS_TICK, rotation=20, ha="right")
+    if show_ylabel:
+        ax.set_ylabel(ylabel, fontsize=FS_AXLABEL)
+    else:
+        ax.set_ylabel("")
+        ax.tick_params(labelleft=False)
+    ax.set_title(title, fontsize=FS_TITLE, pad=5)
+    ax.yaxis.grid(True)
+    ax.set_axisbelow(True)
+    ax.spines[["top", "right"]].set_visible(False)
+
+
+# -- Delta vs baseline bar -----------------------------------------------------
+
+def plot_delta_bars(ax, suffixes, summary_df, thread_id, metric,
+                    pv_df, pv_pooled_df, ylabel, title, per_run_df=None,
+                    show_ylabel=True):
+    """
+    Δ vs baseline bars for each non-baseline suffix.
+    Stars come from pooled p-values when available.
+    """
+    bar_w = 0.35
+    x     = np.arange(len(suffixes))
+
+    for vi, variant in enumerate(["600", "600_llm"]):
+        offset = (vi - 0.5) * bar_w
+        tc_bl  = thread_id
+        bl_m, bl_s = get_mean_std(summary_df, variant, tc_bl, metric)
+        bl_m = bl_m or 0.0
+
+        ys, es = [], []
+        for suf in suffixes:
+            tc = f"{thread_id}_{suf}"
+            m, s = get_mean_std(summary_df, variant, tc, metric)
+            ys.append((m or 0.0) - bl_m)
+            # propagate error in quadrature
+            es.append(np.sqrt((s or 0.0) ** 2 + (bl_s or 0.0) ** 2))
+
+        ax.bar(x + offset, ys, bar_w,
+               color=COLOUR[variant], hatch=HATCH[variant],
+               edgecolor="#333333", linewidth=0.6,
+               alpha=0.85, label=VARIANT_LABEL[variant],
+               yerr=es, capsize=3,
+               error_kw={"elinewidth": 0.8, "ecolor": "#555555"})
+
+        # Jitter deltas from individual runs
+        if per_run_df is not None:
+            bl_vals = get_run_vals(per_run_df, variant, tc_bl, metric)
+            bl_mean_run = float(np.mean(bl_vals)) if bl_vals else bl_m
+            for ci, suf in enumerate(suffixes):
+                tc = f"{thread_id}_{suf}"
+                vals = get_run_vals(per_run_df, variant, tc, metric)
+                if vals:
+                    deltas = [v - bl_mean_run for v in vals]
+                    jx = np.random.normal(x[ci] + offset, 0.04, size=len(deltas))
+                    ax.scatter(jx, deltas, color="black", s=14, zorder=5,
+                               alpha=0.7, linewidths=0)
+
+        # Stars at outer end of bar - pooled p-values
+        for ci, suf in enumerate(suffixes):
+            p = resolve_pv(pv_pooled_df, pv_df, variant, thread_id, suf, metric)
+            s = stars(p)
+            if s:
+                annotate_bar(ax, x[ci] + offset, ys[ci], es[ci], s)
+
+    ax.axhline(0, color="#333333", linewidth=0.9, linestyle="--", alpha=0.7)
+    ax.set_xticks(x)
+    ax.set_xticklabels([CASE_LABELS.get(s, s) for s in suffixes],
+                       fontsize=FS_TICK, rotation=20, ha="right")
+    if show_ylabel:
+        ax.set_ylabel(ylabel, fontsize=FS_AXLABEL)
+    else:
+        ax.set_ylabel("")
+        ax.tick_params(labelleft=False)
+    ax.set_title(title, fontsize=FS_TITLE, pad=5)
+    ax.yaxis.grid(True)
+    ax.set_axisbelow(True)
+    ax.spines[["top", "right"]].set_visible(False)
+
+
+# -- Thread label helper -------------------------------------------------------
+
+THREAD_LABELS = {
+    "524922729485848576": "Thread A (108 susc.)",
+    "524949443607412737": "Thread B (236 susc.)",
+    "524990163446140928": "Thread C (494 susc.)",
+    "all": "All threads (mean)",
+}
+
+def tlabel(tid):
+    return THREAD_LABELS.get(str(tid), str(tid))
+
+
+# -- Build "all threads" aggregate rows ----------------------------------------
+
+def build_all_rows(summary_df: pd.DataFrame, thread_ids: list[str]) -> pd.DataFrame:
+    """
+    Create synthetic rows for thread_id='all' / 'all_<suffix>' by averaging
+    per-thread means and propagating std.
+    """
+    metric_bases = [c[:-5] for c in summary_df.columns if c.endswith("_mean")]
     rows = []
     for variant in ["600", "600_llm"]:
         sub = summary_df[summary_df["variant"] == variant].copy()
-        # collect all unique configs (raw thread_config values)
-        all_tcs = sub["thread_config"].astype(str).unique()
-
-        # map each thread_config to its canonical suffix
-        suffix_map: dict[str, str] = {}
-        for tc in all_tcs:
-            for tid in map(str, thread_ids):
-                if tc == tid:
-                    suffix_map[tc] = "baseline"; break
-                elif tc.startswith(tid + "_"):
-                    suffix_map[tc] = tc[len(tid) + 1:]; break
-
-        sub = sub[sub["thread_config"].astype(str).isin(suffix_map)].copy()
-        sub["_suffix"] = sub["thread_config"].astype(str).map(suffix_map)
-
+        sub["_suffix"] = sub["thread_config"].astype(str).apply(
+            lambda tc: next(
+                ("baseline" if tc == tid else tc[len(tid) + 1:]
+                 for tid in thread_ids if tc == tid or tc.startswith(tid + "_")),
+                None
+            )
+        )
+        sub = sub.dropna(subset=["_suffix"])
         for suffix, grp in sub.groupby("_suffix"):
             tc_label = "all" if suffix == "baseline" else f"all_{suffix}"
-            row: dict = {"variant": variant, "thread_config": tc_label}
-            for col in metric_cols:
-                if col.endswith("_mean"):
-                    vals = grp[col].dropna().values
-                    row[col] = float(np.mean(vals)) if len(vals) else None
-                    row[col.replace("_mean", "_std")] = (
-                        float(np.std(vals, ddof=1)) if len(vals) > 1 else 0.0
-                    )
+            row = {"variant": variant, "thread_config": tc_label}
+            for m in metric_bases:
+                vals = grp[f"{m}_mean"].dropna().values
+                row[f"{m}_mean"] = float(np.mean(vals)) if len(vals) else None
+                row[f"{m}_std"]  = float(np.std(vals, ddof=1)) if len(vals) > 1 else 0.0
             rows.append(row)
-
     return pd.DataFrame(rows)
 
 
-# ── standard figure for absolute-value grouped bars ──────────────────────────
+# ════════════════════════════════════════════════════════════════════════════
+# Plot generators
+# ════════════════════════════════════════════════════════════════════════════
 
-def _std_fig_abs(thread_id, metric, group_name,
-                 summary_df, pv_600llm_df, pv_baseline_df):
-    """Return (fig, ax) with a grouped bar chart for one thread+metric+group."""
-    suffixes = CAUTIOUS_SUFFIXES if group_name == "cautious" else CREDULOUS_SUFFIXES
-    configs  = ["baseline"] + suffixes
-    config_labels = [CONFIG_LABEL[c] for c in configs]
+# -- 1. Transition Δ% plots ----------------------------------------------------
 
-    means_all, stds_all = extract_means_stds(summary_df, thread_id)
-    means = {v: means_all[v].get(metric, {}) for v in ["600", "600_llm"]}
-    stds  = {v: stds_all[v].get(metric, {})  for v in ["600", "600_llm"]}
+def make_transition_plots(summary_df, pv_df, pv_pooled_df, out_dir, thread_ids, per_run_df=None):
+    trans_dir = out_dir / "transitions"
+    trans_dir.mkdir(parents=True, exist_ok=True)
 
-    pv_pair   = extract_pv_pair(pv_600llm_df, thread_id, metric)
-    pv_bl_600 = extract_pv_bl(pv_baseline_df, "600",     thread_id, metric)
-    pv_bl_llm = extract_pv_bl(pv_baseline_df, "600_llm", thread_id, metric)
-
-    fig, ax = plt.subplots(figsize=(7, 4.5))
-    plot_group(ax, configs, config_labels,
-               means, stds, pv_pair, pv_bl_600, pv_bl_llm,
-               METRIC_LABEL.get(metric, metric),
-               f"{METRIC_LABEL.get(metric, metric)}  -  thread {thread_id}  ({group_name})")
-    _add_legend(ax)
-    fig.tight_layout()
-    return fig
-
-
-def _std_fig_diff(thread_id, metric,
-                  summary_df, pv_baseline_df):
-    """Return (fig, ax) with a difference-vs-baseline chart for one thread+metric."""
-    means_all, stds_all = extract_means_stds(summary_df, thread_id)
-    means = {v: means_all[v].get(metric, {}) for v in ["600", "600_llm"]}
-    stds  = {v: stds_all[v].get(metric, {})  for v in ["600", "600_llm"]}
-
-    pv_bl_600 = extract_pv_bl(pv_baseline_df, "600",     thread_id, metric)
-    pv_bl_llm = extract_pv_bl(pv_baseline_df, "600_llm", thread_id, metric)
-
-    fig, ax = plt.subplots(figsize=(8, 4.5))
-    plot_diff(ax, ALL_SUFFIXES, means, stds,
-              pv_bl_600, pv_bl_llm,
-              METRIC_LABEL.get(metric, metric),
-              f"Δ vs Baseline - {METRIC_LABEL.get(metric, metric)} - thread {thread_id}")
-    _add_legend(ax)
-    fig.tight_layout()
-    return fig
-
-
-def _add_legend(ax):
-    handles = [
-        mpatches.Patch(color=COLOUR[v], alpha=0.85, label=VARIANT_LABEL[v])
-        for v in ["600", "600_llm"]
-    ]
-    star_lines = [
-        mpatches.Patch(color="none", label="*** p<0.001"),
-        mpatches.Patch(color="none", label="**  p<0.01"),
-        mpatches.Patch(color="none", label="*   p<0.05"),
-    ]
-    ax.legend(handles=handles + star_lines,
-              fontsize=7, loc="upper right",
-              framealpha=0.6, edgecolor="none")
-
-
-# ── max_cycles special figure (max + avg, side-by-side) ──────────────────────
-
-def _max_cycles_fig(thread_id, group_name,
-                    summary_df, pv_600llm_df, pv_baseline_df):
-    """Two side-by-side panels: max_cycles and avg_cycles (if present)."""
-    suffixes = CAUTIOUS_SUFFIXES if group_name == "cautious" else CREDULOUS_SUFFIXES
-    configs  = ["baseline"] + suffixes
-    config_labels = [CONFIG_LABEL[c] for c in configs]
-
-    means_all, stds_all = extract_means_stds(summary_df, thread_id)
-
-    def _ms(metric):
-        return (
-            {v: means_all[v].get(metric, {}) for v in ["600", "600_llm"]},
-            {v: stds_all[v].get(metric, {})  for v in ["600", "600_llm"]},
+    for metric in KEY_TRANSITIONS:
+        metric_label = TRANS_LABELS[metric]
+        caut_dir, cred_dir = TRANS_EXPECTED[metric]
+        direction_note = (
+            f"Expected: Cautious {'↓' if caut_dir < 0 else '↑'}  "
+            f"Credulous {'↓' if cred_dir < 0 else '↑'}"
         )
 
-    means_max, stds_max = _ms("max_cycles")
-    means_avg, stds_avg = _ms("avg_cycles")   # may be empty dicts
+        for tid in thread_ids + ["all"]:
+            fig, axes = plt.subplots(1, 2, figsize=(13, 5.5), sharey=True)
+            # FIX 2: reduced y and tighter rect top to close gap between
+            # suptitle and subplot titles
+            fig.suptitle(
+                f"{metric_label}  -  {tlabel(tid)}\n{direction_note}",
+                fontsize=FS_SUPTITLE, y=1.00
+            )
 
-    pv_pair_max   = extract_pv_pair(pv_600llm_df, thread_id, "max_cycles")
-    pv_bl_600_max = extract_pv_bl(pv_baseline_df, "600",     thread_id, "max_cycles")
-    pv_bl_llm_max = extract_pv_bl(pv_baseline_df, "600_llm", thread_id, "max_cycles")
-    pv_pair_avg   = extract_pv_pair(pv_600llm_df, thread_id, "avg_cycles")
-    pv_bl_600_avg = extract_pv_bl(pv_baseline_df, "600",     thread_id, "avg_cycles")
-    pv_bl_llm_avg = extract_pv_bl(pv_baseline_df, "600_llm", thread_id, "avg_cycles")
+            for i, (ax, (group_name, suffixes)) in enumerate(zip(
+                axes, [("Cautious", CAUTIOUS_SUFFIXES), ("Credulous", CREDULOUS_SUFFIXES)]
+            )):
+                thread_id = "all" if tid == "all" else str(tid)
+                plot_delta_bars(
+                    ax, suffixes, summary_df, thread_id, metric,
+                    pv_df, pv_pooled_df,
+                    ylabel=TRANS_YLABEL[metric],
+                    title=group_name,
+                    per_run_df=per_run_df,
+                    show_ylabel=(i == 0),
+                )
 
-    has_avg = any(
-        means_avg[v].get(c) is not None
-        for v in ["600", "600_llm"] for c in configs
-    )
+            fig.tight_layout(rect=[0, 0.08, 1, 0.93])
+            add_legend(fig)
 
-    if has_avg:
-        fig, (ax_max, ax_avg) = plt.subplots(1, 2, figsize=(14, 4.5))
-    else:
-        fig, ax_max = plt.subplots(figsize=(7, 4.5))
-        ax_avg = None
-
-    plot_group(ax_max, configs, config_labels,
-               means_max, stds_max,
-               pv_pair_max, pv_bl_600_max, pv_bl_llm_max,
-               METRIC_LABEL["max_cycles"],
-               f"Max cycles - thread {thread_id} ({group_name})")
-
-    if has_avg and ax_avg is not None:
-        plot_group(ax_avg, configs, config_labels,
-                   means_avg, stds_avg,
-                   pv_pair_avg, pv_bl_600_avg, pv_bl_llm_avg,
-                   "Avg cycles",
-                   f"Avg cycles - thread {thread_id} ({group_name})")
-
-    _add_legend(ax_max)
-    fig.tight_layout()
-    return fig
-
-
-# ── main ──────────────────────────────────────────────────────────────────────
-
-def plot_transitions_stacked(ax, configs, config_labels, means, title):
-    """
-    100% stacked bar chart of all transition types.
-    For each config, two bars side-by-side: 600 (left) and 600_llm (right).
-    Each bar is subdivided into the 6 transition types, always summing to 100%.
-    """
-    variants  = ["600", "600_llm"]
-    bar_width = 0.35
-    x_centres = np.arange(len(configs)) * 1.0
-
-    for vi, variant in enumerate(variants):
-        offset = (vi - 0.5) * bar_width
-        xs = x_centres + offset
-
-        bottoms = np.zeros(len(configs))
-        for tkey in TRANS_KEYS:
-            vals = np.array([
-                means[variant].get(tkey, {}).get(cfg, 0.0) or 0.0
-                for cfg in configs
-            ])
-            ax.bar(xs, vals, bar_width,
-                   bottom=bottoms,
-                   color=TRANS_COLOURS[tkey],
-                   label=TRANS_LABELS[tkey] if vi == 0 else "_nolegend_",
-                   alpha=0.88)
-            bottoms += vals
-
-    ax.set_ylim(0, 105)
-    ax.set_xticks(x_centres)
-    ax.set_xticklabels(config_labels, fontsize=8)
-    # secondary x labels: 600 / 600_llm under each pair
-    for ci, xc in enumerate(x_centres):
-        ax.text(xc - bar_width / 2, -7, "600",     ha="center", va="top",
-                fontsize=6, color=COLOUR["600"])
-        ax.text(xc + bar_width / 2, -7, "LLM",     ha="center", va="top",
-                fontsize=6, color=COLOUR["600_llm"])
-    ax.set_ylabel("% of all transitions", fontsize=8)
-    ax.set_title(title, fontsize=9, pad=4)
-    ax.yaxis.grid(True, linewidth=0.4, alpha=0.4)
-    ax.set_axisbelow(True)
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.legend(fontsize=6, loc="upper right", framealpha=0.6,
-              edgecolor="none", ncol=2)
-
-
-def _transitions_fig(thread_id, summary_df):
-    """One figure: all configs (baseline + all 6 suffixes) as 100% stacked bars."""
-    configs       = ["baseline"] + ALL_SUFFIXES
-    trans_config_labels = {
-        "baseline":         "Baseline",
-        "25pct_cautious":   "25% Caut",
-        "50pct_cautious":   "50% Caut",
-        "75pct_cautious":   "75% Caut",
-        "25pct_credulous":  "25% Cred",
-        "50pct_credulous":  "50% Cred",
-        "75pct_credulous":  "75% Cred",
-    }
-    config_labels = [trans_config_labels.get(c, c) for c in configs]
-
-    # collect means for every transition metric
-    means_all, _ = extract_means_stds(summary_df, thread_id)
-
-    # build means[variant][trans_key][cfg]
-    means = {"600": {}, "600_llm": {}}
-    for v in ["600", "600_llm"]:
-        for tkey in TRANS_KEYS:
-            means[v][tkey] = means_all[v].get(tkey, {})
-
-    fig, ax = plt.subplots(figsize=(10, 5))
-    plot_transitions_stacked(
-        ax, configs, config_labels, means,
-        f"State transitions (% of all) - thread {thread_id}",
-    )
-    fig.tight_layout()
-    return fig
-
-
-def make_plots(summary_df, pv_600llm_df, pv_baseline_df, out_dir: Path):
-    metrics    = get_metric_columns(summary_df)
-    thread_ids = get_thread_ids(summary_df)
-
-    # Build the "all-threads" aggregate rows and merge into a combined df
-    all_df = build_all_threads_data(summary_df, thread_ids)
-    # For "all" we use thread_id token "all" (matches 'all' prefix)
-    all_thread_id = "all"
-    combined_df = pd.concat([summary_df, all_df], ignore_index=True)
-
-    # We won't have real p-values for "all" (different thread counts),
-    # but we still create empty frames so the helpers don't crash.
-    empty_pv_bl = pd.DataFrame(columns=pv_baseline_df.columns)
-    empty_pv_pair = pd.DataFrame(columns=pv_600llm_df.columns)
-
-    work_items = []
-
-    for thread_id in thread_ids:
-        work_items.append(("thread", thread_id))
-    work_items.append(("all", all_thread_id))
-
-    total_done = 0
-
-    for wtype, thread_id in work_items:
-        # choose the right dataframe
-        if wtype == "all":
-            s_df     = combined_df  # all_df rows have 'all' / 'all_<suffix>' configs
-            pv_pair_df = empty_pv_pair
-            pv_bl_df   = empty_pv_bl
-            label      = "all threads"
-        else:
-            s_df     = summary_df
-            pv_pair_df = pv_600llm_df
-            pv_bl_df   = pv_baseline_df
-            label      = str(thread_id)
-
-        for metric in metrics:
-            metric_dir = out_dir / metric
-            metric_dir.mkdir(parents=True, exist_ok=True)
-
-            # ── absolute cautious / credulous ────────────────────────────
-            for group_name in ["cautious", "credulous"]:
-                try:
-                    fig = _std_fig_abs(thread_id, metric, group_name,
-                                       s_df, pv_pair_df, pv_bl_df)
-                    # update title to reflect "all"
-                    if wtype == "all":
-                        for ax in fig.axes:
-                            t = ax.get_title()
-                            ax.set_title(t.replace(f"thread {thread_id}", "all threads"))
-                    fname = f"{thread_id}_{group_name}.pdf"
-                    fig.savefig(metric_dir / fname, format="pdf", bbox_inches="tight")
-                    plt.close(fig)
-                    total_done += 1
-                    print(f"  saved {metric}/{fname}")
-                except Exception as e:
-                    print(f"  [WARN] {metric}/{thread_id}_{group_name}: {e}")
-
-            # ── difference vs baseline ───────────────────────────────────
-            if metric in DIFF_ELIGIBLE_METRICS:
-                try:
-                    fig = _std_fig_diff(thread_id, metric, s_df, pv_bl_df)
-                    if wtype == "all":
-                        for ax in fig.axes:
-                            t = ax.get_title()
-                            ax.set_title(t.replace(f"thread {thread_id}", "all threads"))
-                    fname = f"{thread_id}_diff.pdf"
-                    fig.savefig(metric_dir / fname, format="pdf", bbox_inches="tight")
-                    plt.close(fig)
-                    total_done += 1
-                    print(f"  saved {metric}/{fname}")
-                except Exception as e:
-                    print(f"  [WARN] {metric}/{thread_id}_diff: {e}")
-
-        # ── max_cycles special: max + avg side-by-side ───────────────────
-        if "max_cycles" in metrics:
-            mc_dir = out_dir / "max_cycles"
-            mc_dir.mkdir(parents=True, exist_ok=True)
-            for group_name in ["cautious", "credulous"]:
-                try:
-                    fig = _max_cycles_fig(thread_id, group_name,
-                                          s_df, pv_pair_df, pv_bl_df)
-                    if wtype == "all":
-                        for ax in fig.axes:
-                            t = ax.get_title()
-                            ax.set_title(t.replace(f"thread {thread_id}", "all threads"))
-                    fname = f"{thread_id}_{group_name}_with_avg.pdf"
-                    fig.savefig(mc_dir / fname, format="pdf", bbox_inches="tight")
-                    plt.close(fig)
-                    total_done += 1
-                    print(f"  saved max_cycles/{fname}")
-                except Exception as e:
-                    print(f"  [WARN] max_cycles/{thread_id}_{group_name}_with_avg: {e}")
-
-        # ── transitions stacked 100% bar ────────────────────────────────
-        try:
-            trans_dir = out_dir / "transitions"
-            trans_dir.mkdir(parents=True, exist_ok=True)
-            fig = _transitions_fig(thread_id, s_df)
-            if wtype == "all":
-                for ax in fig.axes:
-                    ax.set_title(ax.get_title().replace(
-                        f"thread {thread_id}", "all threads"))
-            fname = f"{thread_id}_transitions.pdf"
+            fname = f"{tid}_{metric}.pdf"
             fig.savefig(trans_dir / fname, format="pdf", bbox_inches="tight")
             plt.close(fig)
-            total_done += 1
             print(f"  saved transitions/{fname}")
-        except Exception as e:
-            print(f"  [WARN] transitions/{thread_id}: {e}")
 
-    print(f"\nDone. {total_done} PDFs saved under '{out_dir}/'.")
 
+# -- 2. Outcome plots (absolute + delta) --------------------------------------
+
+def make_outcome_plots(summary_df, pv_df, pv_pooled_df, out_dir, thread_ids, per_run_df=None):
+    out_dir2 = out_dir / "outcomes"
+    out_dir2.mkdir(parents=True, exist_ok=True)
+
+    configs_all = ["baseline"] + ALL_SUFFIXES
+
+    for metric in OUTCOME_METRICS:
+        label = OUTCOME_LABELS[metric]
+
+        for tid in thread_ids + ["all"]:
+            thread_id = "all" if tid == "all" else str(tid)
+
+            # Absolute values: all 7 configs side by side
+            fig, ax = plt.subplots(figsize=(11, 5.5))
+            plot_grouped_bars(
+                ax, configs_all, summary_df, thread_id, metric,
+                pv_df, pv_pooled_df, ylabel=OUTCOME_YLABEL[metric],
+                title=f"{label}  -  {tlabel(tid)}  (absolute)",
+                per_run_df=per_run_df,
+            )
+            fig.tight_layout(rect=[0, 0.08, 1, 1])
+            add_legend(fig)
+            fname = f"{tid}_{metric}_abs.pdf"
+            fig.savefig(out_dir2 / fname, format="pdf", bbox_inches="tight")
+            plt.close(fig)
+            print(f"  saved outcomes/{fname}")
+
+            # Delta: cautious + credulous side by side
+            fig, axes = plt.subplots(1, 2, figsize=(13, 5.5), sharey=True)
+            fig.suptitle(f"Δ {label}  -  {tlabel(tid)}", fontsize=FS_SUPTITLE, y=1.12)
+            for i, (ax, (group_name, suffixes)) in enumerate(zip(
+                axes, [("Cautious", CAUTIOUS_SUFFIXES), ("Credulous", CREDULOUS_SUFFIXES)]
+            )):
+                plot_delta_bars(
+                    ax, suffixes, summary_df, thread_id, metric,
+                    pv_df, pv_pooled_df,
+                    ylabel=f"Δ {OUTCOME_YLABEL[metric]}",
+                    title=group_name,
+                    per_run_df=per_run_df,
+                    show_ylabel=(i == 0),
+                )
+            fig.tight_layout(rect=[0, 0.08, 1, 1.2])
+            add_legend(fig)
+            fname = f"{tid}_{metric}_delta.pdf"
+            fig.savefig(out_dir2 / fname, format="pdf", bbox_inches="tight")
+            plt.close(fig)
+            print(f"  saved outcomes/{fname}")
+
+def make_llm_behaviour_plots(summary_df, pv_df, pv_pooled_df, out_dir, thread_ids, per_run_df=None):
+    llm_dir = out_dir / "llm_behaviour"
+    llm_dir.mkdir(parents=True, exist_ok=True)
+
+    configs_all = ["baseline"] + ALL_SUFFIXES
+
+    # 4a. Messages per cycle - absolute, all cases
+    for tid in thread_ids + ["all"]:
+        thread_id = "all" if tid == "all" else str(tid)
+        fig, ax = plt.subplots(figsize=(11, 5.5))
+        plot_grouped_bars(
+            ax, configs_all, summary_df, thread_id, "messages_per_cycle",
+            pv_df, pv_pooled_df, ylabel="Messages / cycle",
+            title=f"Messages per cycle  -  {tlabel(tid)}",
+            per_run_df=per_run_df,
+        )
+        fig.tight_layout(rect=[0, 0.08, 1, 1])
+        add_legend(fig)
+        fname = f"{tid}_messages_per_cycle.pdf"
+        fig.savefig(llm_dir / fname, format="pdf", bbox_inches="tight")
+        plt.close(fig)
+        print(f"  saved llm_behaviour/{fname}")
+
+    # 4b. Total messages vs max_cycles scatter - all threads in one plot
+    if per_run_df is not None:
+        THREAD_MARKERS = {
+            thread_ids[0]: "o",
+            thread_ids[1]: "s",
+            thread_ids[2]: "^",
+        }
+
+        fig, ax = plt.subplots(figsize=(8, 5.5))
+        fig.suptitle("Total messages vs max cycles (per run)", fontsize=FS_SUPTITLE)
+
+        for variant in ["600", "600_llm"]:
+            for tid in thread_ids:
+                thread_id = str(tid)
+                marker = THREAD_MARKERS.get(thread_id, "D")
+
+                sub = per_run_df[
+                    (per_run_df["variant"] == variant) &
+                    (per_run_df["thread_config"].astype(str).str.startswith(thread_id))
+                ]
+                if sub.empty:
+                    continue
+
+                ax.scatter(
+                    sub["max_cycles"], sub["total_messages"],
+                    color=COLOUR[variant], alpha=0.75, s=45,
+                    marker=marker,
+                    edgecolors="#333333", linewidths=0.5,
+                )
+
+        # Build legend: variant patches + thread markers
+        variant_patches = [
+            mpatches.Patch(facecolor=COLOUR[v], edgecolor="#333333",
+                           alpha=0.85, label=VARIANT_LABEL[v])
+            for v in ["600", "600_llm"]
+        ]
+        thread_handles = [
+            plt.Line2D([0], [0], marker=THREAD_MARKERS.get(str(tid), "D"),
+                       color="none", markerfacecolor="#888888",
+                       markeredgecolor="#333333", markersize=7,
+                       label=tlabel(tid))
+            for tid in thread_ids
+        ]
+
+        ax.set_xlabel("Max cycles", fontsize=FS_AXLABEL)
+        ax.set_ylabel("Total messages", fontsize=FS_AXLABEL)
+        ax.tick_params(labelsize=FS_TICK)
+        ax.yaxis.grid(True)
+        ax.spines[["top", "right"]].set_visible(False)
+
+        fig.tight_layout(rect=[0, 0.1, 1, 1])
+        fig.legend(
+            handles=variant_patches + thread_handles,
+            loc="lower center",
+            bbox_to_anchor=(0.5, -0.06),
+            ncol=len(variant_patches + thread_handles),
+            fontsize=FS_LEGEND,
+            framealpha=0.7,
+            edgecolor="#aaaaaa",
+        )
+
+        fname = "all_scatter_messages_vs_cycles.pdf"
+        fig.savefig(llm_dir / fname, format="pdf", bbox_inches="tight")
+        plt.close(fig)
+        print(f"  saved llm_behaviour/{fname}")
+
+# -- Main ----------------------------------------------------------------------
 
 def main():
-    parser = argparse.ArgumentParser(description="Plot convai simulation results.")
-    parser.add_argument("--summary",  type=str, default="convai/results.csv")
-    parser.add_argument("--pv_bl",    type=str,
-                        default="convai/results_pvalues_variant_vs_baseline.csv")
-    parser.add_argument("--out_dir",  type=str, default="convai/plots")
+    np.random.seed(42)  # reproducible jitter
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--summary",    default="convai/results.csv")
+    parser.add_argument("--pv_bl",      default="convai/results_pvalues_variant_vs_baseline.csv",
+                        help="Legacy per-thread p-value file (fallback only).")
+    parser.add_argument("--pv_pooled",  default="convai/results_pooled_delta.csv",
+                        help="Pooled p-value file (variant, config, metric, p_wilcoxon). "
+                             "Stars in all plots come from this file when provided.")
+    parser.add_argument("--per_run",    default="convai/results_per_run.csv")
+    parser.add_argument("--out_dir",    default="convai/plots")
     args = parser.parse_args()
 
-    summary_path = Path(args.summary)
-    pv_bl_path   = Path(args.pv_bl)
-    out_dir      = Path(args.out_dir)
+    summary_df    = load_summary(Path(args.summary))
+    pv_df         = load_pv_baseline(Path(args.pv_bl))
+    pv_pooled_df  = load_pv_pooled(Path(args.pv_pooled))
+    per_run_df    = load_per_run(Path(args.per_run))
+    out_dir       = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"Loading summary:            {summary_path}")
-    print(f"Loading baseline p-values:  {pv_bl_path}")
-
-    summary_df     = load_summary(summary_path)
-    pv_600llm_df   = load_pv_600_llm(summary_path)
-    pv_baseline_df = load_pv_baseline(pv_bl_path)
+    if pv_pooled_df is not None:
+        print(f"Pooled p-values loaded: {len(pv_pooled_df)} rows from '{args.pv_pooled}'")
+    else:
+        print(f"WARNING: pooled p-value file not found at '{args.pv_pooled}'. "
+              "Falling back to per-thread file for significance stars.")
 
     thread_ids = get_thread_ids(summary_df)
-    metrics    = get_metric_columns(summary_df)
-    print(f"Found {len(thread_ids)} thread(s), {len(metrics)} metric(s).")
+    print(f"Threads found: {thread_ids}")
 
-    make_plots(summary_df, pv_600llm_df, pv_baseline_df, out_dir)
+    # Build and merge "all threads" aggregate rows
+    all_rows = build_all_rows(summary_df, thread_ids)
+    combined_df = pd.concat([summary_df, all_rows], ignore_index=True)
 
-    print(f"\nOutput structure:")
-    print(f"  <out_dir>/<metric>/<thread_id>_cautious.pdf       absolute values")
-    print(f"  <out_dir>/<metric>/<thread_id>_credulous.pdf      absolute values")
-    print(f"  <out_dir>/<metric>/<thread_id>_diff.pdf           Δ vs baseline, all 6 variants")
-    print(f"  <out_dir>/max_cycles/<thread_id>_*_with_avg.pdf   max + avg cycles")
-    print(f"  (same files with 'all' prefix = cross-thread averages)")
+    print("\n-- Transition Δ% plots --")
+    make_transition_plots(combined_df, pv_df, pv_pooled_df, out_dir, thread_ids, per_run_df)
+
+    print("\n-- Outcome plots --")
+    make_outcome_plots(combined_df, pv_df, pv_pooled_df, out_dir, thread_ids, per_run_df)
+
+    print("\n-- LLM behaviour plots --")
+    make_llm_behaviour_plots(combined_df, pv_df, pv_pooled_df, out_dir, thread_ids, per_run_df)
+
+    print(f"\nDone. All plots saved under '{out_dir}/'")
+    print("\nOutput structure:")
+    print("  transitions/  - Δ% for each of the 4 key transitions, per thread + all")
+    print("  outcomes/     - % infected/vaccinated/effectiveness, absolute + delta")
+    print("  heatmap/      - Δ% heatmap: 4 transitions × 6 cases")
+    print("  llm_behaviour/- msgs/cycle bar charts + total messages vs max_cycles scatter")
 
 
 if __name__ == "__main__":
