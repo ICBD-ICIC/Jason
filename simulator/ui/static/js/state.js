@@ -1,6 +1,6 @@
 // state.js — global app state + boot
 
-let options = { asl_files: [], arch_classes: [], bb_classes: [], initializer_schemas: {} };
+let options = { asl_files: [], arch_classes: [], bb_classes: [], content_managers: [], knowledge_managers: [], initializer_schemas: {} };
 let types        = [];   // [{id, asl, arch_class, bb_class, columns, instances}]
 let activeTypeId = null;
 let activeInit   = null;
@@ -50,6 +50,19 @@ function getAllAgentNames() {
   return names;
 }
 
+/** Populate the Content Manager / Knowledge Manager dropdowns from server options,
+ *  defaulting to the built-in env.Default* class when present. */
+function renderEnvManagerSelectors() {
+  const cms = options.content_managers   || [];
+  const kms = options.knowledge_managers || [];
+
+  const defaultCm = cms.find(c => c.split('.').pop() === 'DefaultContentManager')   || cms[0]   || '';
+  const defaultKm = kms.find(k => k.split('.').pop() === 'DefaultKnowledgeManager') || kms[0]   || '';
+
+  setHtml('#content-manager',   optTags(cms, defaultCm));
+  setHtml('#knowledge-manager', optTags(kms, defaultKm));
+}
+
 // Boot: fetch server options, seed initializer state
 (async () => {
   try {
@@ -59,6 +72,7 @@ function getAllAgentNames() {
       initializers[name] = { rows: [], schema: options.initializer_schemas[name] || [] };
     }
     renderInitNav();
+    renderEnvManagerSelectors();
   } catch {
     showToast('Cannot reach server. Is Flask running?');
   }

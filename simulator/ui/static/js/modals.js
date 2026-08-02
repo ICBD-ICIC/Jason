@@ -31,13 +31,15 @@ async function generate() {
   const threadPool    = (isNaN(threadPoolRaw) || threadPoolRaw < 1) ? 4 : threadPoolRaw;
 
   const payload = {
-    mas_name:       $('#mas-name').value.trim(),
-    output_folder:  $('#output-folder').value.trim(),
-    mind_inspector: $('#mind-inspector').checked,
-    silent_logging: $('#silent-logging').checked,
-    agent_types:    types.map(({ asl, arch_class, bb_class, instances }) => ({ asl, arch_class, bb_class, instances })),
-    initializers:   initPayload,
-    thread_pool:    threadPool,
+    mas_name:          $('#mas-name').value.trim(),
+    output_folder:     $('#output-folder').value.trim(),
+    mind_inspector:    $('#mind-inspector').checked,
+    silent_logging:    $('#silent-logging').checked,
+    agent_types:       types.map(({ asl, arch_class, bb_class, instances }) => ({ asl, arch_class, bb_class, instances })),
+    initializers:      initPayload,
+    thread_pool:       threadPool,
+    content_manager:   $('#content-manager')?.value   || '',
+    knowledge_manager: $('#knowledge-manager')?.value || '',
   };
 
   try {

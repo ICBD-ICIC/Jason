@@ -52,10 +52,17 @@ public class MessageLoader {
             String reactionsRaw = row.getString("reactions");
             String originalCsvId = row.getString("original");
             String variablesRaw = row.getString("variables");
-            List<String> topics = Arrays.stream(row.getString("topics").split(";"))
-                                                                        .map(String::trim)
-                                                                        .filter(s -> !s.isBlank())
-                                                                        .toList();
+            List<String> topics;
+            String topicsRaw = row.getString("topics");
+            if (topicsRaw == null || topicsRaw.isBlank()) {
+                topics = List.of();
+            } else {
+                try {
+                    topics = MAPPER.readValue(topicsRaw, new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {});
+                } catch (Exception e) {
+                    throw new IOException("Row " + rowIdx + ": malformed topics JSON.", e);
+                }
+            }
             if (author == null || author.isBlank())
                 throw new IOException("Row " + rowIdx + " is missing an author.");
 

@@ -14,18 +14,33 @@ import initializer.MessageLoader;
 import initializer.NetworkLoader;
 import initializer.PublicProfileLoader;
 
+import java.lang.reflect.Constructor;
+
+
 public class Env extends Environment {
 
     private static final Logger logger = Logger.getLogger(Env.class.getName());
 
     private final NetworkManager networkManager = new NetworkManager();
-    // private final ContentManager contentManager = new DefaultContentManager(networkManager, logger);
-    private final ContentManager contentManager = new CoNVaIContentManager(networkManager, logger);
-    private final KnowledgeManager knowledgeManager = new DefaultKnowledgeManager();
+    private ContentManager contentManager;
+    private KnowledgeManager knowledgeManager;
     private final Map<String, Map<String, Object>> publicProfiles = new ConcurrentHashMap<>();
+    private final Map<String, List<Literal>> lastFeedPercepts = new ConcurrentHashMap<>();
+
+    private static final String DEFAULT_CONTENT_MANAGER   = "DefaultContentManager";
+    private static final String DEFAULT_KNOWLEDGE_MANAGER  = "DefaultKnowledgeManager";
+
 
     @Override
     public void init(String[] args) {
+        Map<String, String> options = parseArgs(args);
+
+        String contentManagerClass   = options.getOrDefault("contentManager", DEFAULT_CONTENT_MANAGER);
+        String knowledgeManagerClass = options.getOrDefault("knowledgeManager", DEFAULT_KNOWLEDGE_MANAGER);
+
+        this.contentManager   = instantiateContentManager(contentManagerClass);
+        this.knowledgeManager = instantiateKnowledgeManager(knowledgeManagerClass);
+
         try {
             MessageLoader.load(contentManager, "initializer/messages.csv", logger);
             PublicProfileLoader.load(publicProfiles, "initializer/public_profiles.csv", logger);
@@ -33,6 +48,47 @@ public class Env extends Environment {
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize: " + e.getMessage(), e);
         }
+    }
+
+    private Map<String, String> parseArgs(String[] args) {
+        Map<String, String> options = new HashMap<>();
+        for (String arg : args) {
+            int idx = arg.indexOf('=');
+            if (idx > 0) {
+                options.put(arg.substring(0, idx).trim(), arg.substring(idx + 1).trim());
+            } else {
+                logger.warning("[Env] Ignoring malformed environment argument: " + arg);
+            }
+        }
+        return options;
+    }
+
+    private ContentManager instantiateContentManager(String className) {
+        try {
+            Class<?> clazz = resolveClass(className);
+            Constructor<?> ctor = clazz.getConstructor(NetworkManager.class, Logger.class);
+            return (ContentManager) ctor.newInstance(networkManager, logger);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(
+                "Failed to instantiate ContentManager '" + className + "'. " +
+                "Expected a public constructor(NetworkManager, Logger): " + e.getMessage(), e);
+        }
+    }
+
+    private KnowledgeManager instantiateKnowledgeManager(String className) {
+        try {
+            Class<?> clazz = resolveClass(className);
+            Constructor<?> ctor = clazz.getConstructor();
+            return (KnowledgeManager) ctor.newInstance();
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(
+                "Failed to instantiate KnowledgeManager '" + className + "'. " +
+                "Expected a public no-arg constructor: " + e.getMessage(), e);
+        }
+    }
+
+    private Class<?> resolveClass(String className) throws ClassNotFoundException {
+        return className.contains(".") ? Class.forName(className) : Class.forName("env." + className);
     }
 
     @Override
@@ -81,37 +137,58 @@ public class Env extends Environment {
     }
 
     private void updatePercepts(String agent, List<MessageWithVars> messages, boolean includePublicVars) {
-        clearPercepts(agent);
+        // Remove only the feed-related literals added on the previous call.
+        List<Literal> previous = lastFeedPercepts.get(agent);
+        if (previous != null) {
+            previous.forEach(lit -> removePercept(agent, lit));
+        }
+
+        List<Literal> current = new ArrayList<>();
 
         messages.forEach(mwv -> {
             Message m = mwv.message();
-            addPercept(agent, createLiteral("message",
+
+            Literal messageLit = createLiteral("message",
                 createNumber(m.id),
                 createString(m.author),
                 createString(m.content),
                 createNumber(m.original),
                 createNumber(m.timestamp)
-            ));
-            m.reactions.forEach(r -> addPercept(agent, createLiteral("reaction",
-                createNumber(m.id),
-                createString(r.author()),
-                createString(r.reaction())
-            )));
+            );
+            addPercept(agent, messageLit);
+            current.add(messageLit);
+
+            m.reactions.forEach(r -> {
+                Literal reactionLit = createLiteral("reaction",
+                    createNumber(m.id),
+                    createString(r.author()),
+                    createString(r.reaction())
+                );
+                addPercept(agent, reactionLit);
+                current.add(reactionLit);
+            });
+
             if (includePublicVars) {
-                mwv.publicVars().forEach((key, value) ->
-                    addPercept(agent, createLiteral("message_var",
+                mwv.publicVars().forEach((key, value) -> {
+                    Literal varLit = createLiteral("message_var",
                         createNumber(m.id),
                         createString(key),
                         JavaToJasonTranslator.objectToTerm(value)
-                    ))
-                );
+                    );
+                    addPercept(agent, varLit);
+                    current.add(varLit);
+                });
             }
         });
 
         List<Term> ids = messages.stream()
             .map(mwv -> (Term) createNumber(mwv.message().id))
             .toList();
-        addPercept(agent, createLiteral("feed_order", createList(ids)));
+        Literal feedOrderLit = createLiteral("feed_order", createList(ids));
+        addPercept(agent, feedOrderLit);
+        current.add(feedOrderLit);
+
+        lastFeedPercepts.put(agent, current);
     }
 
     private boolean createPost(String agent, Structure action) {

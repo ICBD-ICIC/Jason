@@ -77,57 +77,75 @@
         Content: string
         Interpretation: map of key(value) pairs, e.g. [sentiment(negative), ...]
 ========================================================== */
-cycle(0).
+
+mem(crearPublicacion([cambio_climatico], [sentimiento(negativo)]), [msg(1)], t1).
+mem(buscarContenido("cambio_climatico", true), [msg(1, sentimiento(negativo)), msg(2, sentimiento(negativo))], t2).
 
 !start.
 
-+!start: true <- 
-    ask(some_fact(A, B));
-    readPublicProfile("Alice");
-    createLink("dummy");
-    updateFeed.
++!start: true <-
+    updateFeed(false);
+    .wait(feed_order([M2]));
+    +mem(actualizarFeed(false), msg(M2), t3);
 
-+some_fact(A, B): true <- 
-    .print("Received some_fact with A=", A, " and B=", B).
+    searchContent("cambio_climatico", false);
+    .wait(feed_order([M2, M1]));
+    +mem(buscarContenido("cambio_climatico", false), [msg(M2), msg(M1)], t4);
 
-+follows(Agent): true <- 
-    .print("Now following ", Agent).
+    searchAuthor(bob, true);
+    .wait(feed_order([M2]));
+    .wait(message_var(M2, sentimiento, SentimientoM2));
+    +mem(buscarAutor(bob, true), [msg(M2, sentimiento(SentimientoM2))], t5);
 
-+followed_by(Agent): true <- 
-    .print("Now followed by ", Agent).
+    TopicsM4 = [inundaciones];
+    VarsM4   = [concientizar(true), emocion(preocupacion)];
+    ia.createContent(TopicsM4, VarsM4, ContenidoM4);
+    createPost(TopicsM4, VarsM4, ContenidoM4);
+    +mem(crearPublicacion(TopicsM4, VarsM4), ContenidoM4, t6);
 
-+public_profile(Agent, Key, Value): true <- 
-    .print("Public profile of ", Agent, ": ", Key, " = ", Value).
-
-+feed_order([Id|Ids]): cycle(0) <- 
-    -+cycle(1);
-    .wait(message(Id, Author, Content, Original, Timestamp));
-    .print("New message from ", Author, ": ", Content, " (Original: ", Original, ", Timestamp: ", Timestamp, ")");
-    ia.interpretContent(Content, Interpretation);
-    .print("Interpreted content: ", Interpretation);
-    Topics = [floods, "climate change awareness"];
-    Variables = [sentiment(positive), emotion("worry")];
-    ia.createContent(Topics, Variables, CommentContent);
-    createPost(Topics, Variables, CommentContent);
-    comment(Id, Topics, Variables, CommentContent);
-    repost(Id);
-    react(Id, like);
-    searchAuthor(Author);
-    searchContent(example);
     .wait(10000);
-    searchAuthor(social_agent).
+    updateFeed(false);
+    .wait(feed_order([M4 | OtherIds]));
+    react(M4, me_encanta);
+    +mem(reaccionar(M4, me_encanta), msg(M4, reaccion(me_encanta)), t7);
 
-+reaction(Id, Author, Reaction): true <- 
-    .print("New reaction from ", Author, ": ", Reaction, " on message ", Id).
+    ask(norma(X));
+    !wait_n_normas(3, Normas);
+    +mem(consultarNorma(norma(X)), Normas, t8);
 
-+feed_order(FeedList): cycle(1) <- 
-    !collect_messages(FeedList, "", Conversation);
-    .print(Conversation).
+    createLink(carol);
+    +mem(crearVinculo(carol), none, t9).
 
-+!collect_messages([] , Conversation, Conversation) : true <- true.
++!wait_n_normas(N, Normas): true <-
+    .wait(norma(_));
+    .findall(Y, norma(Y), L);
+    .length(L, Len);
+    if (Len >= N) {
+        Normas = L;
+    } else {
+        !wait_n_normas(N, Normas);
+    }.
 
-+!collect_messages([ID|Tail], Conversation, Result) : true <-
-    .wait(message(ID, Author, Content, _, _));
-    .concat("\n@", Author, ": ", Content, Post);
-    .concat(Post, Conversation, UpdatedConversation);
-    !collect_messages(Tail, UpdatedConversation, Result).
++followed_by(dave): true <-
+    readPublicProfile(dave);
+    .wait(public_profile(dave, _, _));
+    .findall(public_profile(dave, Attr, Val), public_profile(dave, Attr, Val), PerfilDave);
+    +mem(leerPerfilPublico(dave), PerfilDave, t10).
+
+/* ==========================================================
+   Política de actualización de memoria (pi)
+   Se activa cuando la memoria alcanza 10 registros y retiene
+   únicamente los 5 más recientes.
+========================================================== */
++mem(Action, Content, Timestamp)[source(self)]: true <-
+    .findall(mem(A, C, T), mem(A, C, T)[source(self)], Records);
+    .length(Records, N);
+    if (N >= 10) {
+        .sort(Records, Sorted);
+        .length(Sorted, Total);
+        ToDrop = Total - 5;
+        for (.range(I, 0, ToDrop - 1)) {
+            .nth(I, Sorted, mem(Ai, Ci, Ti));
+            -mem(Ai, Ci, Ti)[source(self)];
+        }
+    }.

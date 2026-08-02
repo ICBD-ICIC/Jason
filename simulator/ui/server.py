@@ -19,6 +19,7 @@ BASE_DIR  = Path(__file__).parent.parent   # simulator/
 AGT_DIR   = BASE_DIR / "agt"
 ARCH_DIR  = BASE_DIR / "arch"
 BB_DIR    = BASE_DIR / "bb"
+ENV_DIR   = BASE_DIR / "env"
 INIT_DIR  = BASE_DIR / "initializer"
 ENV_CLASS = "env.Env"
 
@@ -50,6 +51,20 @@ def discover_asl_files() -> list[str]:
         return []
     return sorted(f.name for f in AGT_DIR.glob("*.asl"))
 
+def discover_env_manager_classes(suffix: str) -> list[str]:
+    """
+    Discover env/ classes whose name ends with `suffix` (e.g. "ContentManager"
+    or "KnowledgeManager"), excluding the bare base class itself (a class
+    literally named "ContentManager"/"KnowledgeManager") and interfaces.
+    """
+    all_classes = discover_java_classes(ENV_DIR, "env")
+    results = []
+    for full in all_classes:
+        cls_name = full.rsplit(".", 1)[-1]
+        if cls_name.endswith(suffix) and cls_name != suffix:
+            results.append(full)
+    return results
+
 def _safe_folder_name(name: str) -> str:
     clean = name.replace("\\", "/").strip("/")
     if not clean or ".." in clean.split("/"):
@@ -71,6 +86,8 @@ def options():
         "asl_files":           discover_asl_files(),
         "arch_classes":        discover_java_classes(ARCH_DIR, "arch"),
         "bb_classes":          discover_java_classes(BB_DIR,   "bb"),
+        "content_managers":    discover_env_manager_classes("ContentManager"),
+        "knowledge_managers":  discover_env_manager_classes("KnowledgeManager"),
         "initializer_schemas": INITIALIZER_SCHEMAS,
     })
 
@@ -129,10 +146,12 @@ def generate():
 
     mas_name       = (data.get("mas_name")      or DEFAULT_MAS_NAME).strip()
     raw_folder     = (data.get("output_folder") or DEFAULT_OUTPUT_FOLDER).strip()
-    mind_inspector = bool(data.get("mind_inspector", False))
-    silent_logging = bool(data.get("silent_logging", False))
-    thread_pool   = max(1, int(data.get("thread_pool") or 4))
-    output_folder  = _safe_folder_name(raw_folder)
+    mind_inspector   = bool(data.get("mind_inspector", False))
+    silent_logging   = bool(data.get("silent_logging", False))
+    thread_pool      = max(1, int(data.get("thread_pool") or 4))
+    content_manager  = (data.get("content_manager")   or "").strip()
+    knowledge_manager = (data.get("knowledge_manager") or "").strip()
+    output_folder    = _safe_folder_name(raw_folder)
 
     agent_types  = data.get("agent_types",  [])
     initializers = data.get("initializers", {})
@@ -242,7 +261,14 @@ def generate():
         gen_files.append(str(out_path.relative_to(BASE_DIR)))
 
     # ── .mas2j ────────────────────────────────────────────────────────────────
-    mas2j     = _build_mas2j(mas_name, ENV_CLASS, agent_lines,
+    env_args = []
+    if content_manager:
+        env_args.append(f'"contentManager={content_manager}"')
+    if knowledge_manager:
+        env_args.append(f'"knowledgeManager={knowledge_manager}"')
+    env_class_full = ENV_CLASS + (f"({', '.join(env_args)})" if env_args else "")
+
+    mas2j     = _build_mas2j(mas_name, env_class_full, agent_lines,
                               asl_source_path="./agt",
                               mind_inspector=mind_inspector,
                               thread_pool=thread_pool)
