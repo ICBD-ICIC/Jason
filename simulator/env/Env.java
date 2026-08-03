@@ -224,16 +224,12 @@ public class Env extends Environment {
     private boolean createLink(String agent, Structure action) {
         String to = JasonToJavaTranslator.translateString(action.getTerm(0));
         networkManager.addEdge(agent, to);
-        addPercept(agent, createLiteral("follows", createString(to)));
-        addPercept(to, createLiteral("followed_by", createString(agent)));
         return true;
     }
 
     private boolean removeLink(String agent, Structure action) {
         String to = JasonToJavaTranslator.translateString(action.getTerm(0));
         networkManager.removeEdge(agent, to);
-        removePercept(agent, createLiteral("follows", createString(to)));
-        removePercept(to, createLiteral("followed_by", createString(agent)));
         return true;
     }
 

@@ -48,22 +48,28 @@ public class NetworkManager {
     }
 
     //If already exists, it will be ignored.
-    public void addEdge(String from, String to, double weight) {
+    public boolean addEdge(String from, String to, double weight) {
         Edge link = new Edge(from, to, weight);
         boolean added = socialNetwork.add(link);
         if (added) {
             env.addPercept(from, ASSyntax.createLiteral("follows",     ASSyntax.createAtom(to)));
             env.addPercept(to,   ASSyntax.createLiteral("followed_by", ASSyntax.createAtom(from)));
         }
+        return added;
     }
 
-    public void addEdge(String from, String to) {
-        addEdge(from, to, DEFAULT_WEIGHT);
+    public boolean addEdge(String from, String to) {
+        return addEdge(from, to, DEFAULT_WEIGHT);
     }
 
-    public void removeEdge(String from, String to) {
+    public boolean removeEdge(String from, String to) {
         Edge link = new Edge(from, to);
-        socialNetwork.remove(link);
+        boolean removed = socialNetwork.remove(link);
+        if (removed) {
+            env.removePercept(from, ASSyntax.createLiteral("follows",     ASSyntax.createAtom(to)));
+            env.removePercept(to,   ASSyntax.createLiteral("followed_by", ASSyntax.createAtom(from)));
+        }
+        return removed;
     }
 
     public Set<Edge> getSocialNetwork() {
