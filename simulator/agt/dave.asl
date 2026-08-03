@@ -1,6 +1,6 @@
 !start.
 
 +!start: true <-
-    .wait(25000);
+    .wait(10000);
     createLink(alice);
     createLink(bob).

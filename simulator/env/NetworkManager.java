@@ -3,6 +3,9 @@ package env;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
+import jason.asSyntax.ASSyntax;
+import jason.environment.Environment;
+
 public class NetworkManager {
     public static class Edge {
         public final String from;
@@ -22,7 +25,7 @@ public class NetworkManager {
         }
 
         @Override
-        public boolean equals(Object obj) { 
+        public boolean equals(Object obj) {
             if (this == obj) return true;
             if (obj == null || getClass() != obj.getClass()) return false;
             Edge edge = (Edge) obj;
@@ -38,11 +41,20 @@ public class NetworkManager {
     private static final double DEFAULT_WEIGHT = 1;
 
     private final Set<Edge> socialNetwork = ConcurrentHashMap.newKeySet();
+    private final Environment env;
+
+    public NetworkManager(Environment env) {
+        this.env = env;
+    }
 
     //If already exists, it will be ignored.
     public void addEdge(String from, String to, double weight) {
         Edge link = new Edge(from, to, weight);
-        socialNetwork.add(link);
+        boolean added = socialNetwork.add(link);
+        if (added) {
+            env.addPercept(from, ASSyntax.createLiteral("follows",     ASSyntax.createAtom(to)));
+            env.addPercept(to,   ASSyntax.createLiteral("followed_by", ASSyntax.createAtom(from)));
+        }
     }
 
     public void addEdge(String from, String to) {

@@ -21,7 +21,7 @@ public class Env extends Environment {
 
     private static final Logger logger = Logger.getLogger(Env.class.getName());
 
-    private final NetworkManager networkManager = new NetworkManager();
+    private final NetworkManager networkManager = new NetworkManager(this);
     private ContentManager contentManager;
     private KnowledgeManager knowledgeManager;
     private final Map<String, Map<String, Object>> publicProfiles = new ConcurrentHashMap<>();
@@ -44,7 +44,7 @@ public class Env extends Environment {
         try {
             MessageLoader.load(contentManager, "initializer/messages.csv", logger);
             PublicProfileLoader.load(publicProfiles, "initializer/public_profiles.csv", logger);
-            NetworkLoader.load(networkManager, this, "initializer/network.csv", logger);
+            NetworkLoader.load(networkManager, "initializer/network.csv", logger);
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize: " + e.getMessage(), e);
         }
@@ -172,7 +172,7 @@ public class Env extends Environment {
                 mwv.publicVars().forEach((key, value) -> {
                     Literal varLit = createLiteral("message_var",
                         createNumber(m.id),
-                        createString(key),
+                        createAtom(key),
                         JavaToJasonTranslator.objectToTerm(value)
                     );
                     addPercept(agent, varLit);
@@ -254,7 +254,7 @@ public class Env extends Environment {
         if (profile != null) {
             profile.forEach((attribute, value) ->
                 addPercept(agent, createLiteral("public_profile",
-                    createString(requestedAgent),
+                    createAtom(requestedAgent),
                     createString(attribute),
                     JavaToJasonTranslator.objectToTerm(value)
                 ))

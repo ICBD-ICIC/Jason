@@ -1,10 +1,6 @@
 package initializer;
 
 import tech.tablesaw.api.*;
-import tech.tablesaw.io.csv.CsvReadOptions;
-
-import jason.asSyntax.ASSyntax;
-import jason.environment.Environment;
 
 import java.io.IOException;
 import java.util.*;
@@ -15,8 +11,8 @@ import env.NetworkManager;
 public class NetworkLoader {
 
     /**
-     * Loads edges from CSV into NetworkManager and injects follows/followed_by
-     * percepts directly into the Jason environment for each agent.
+     * Loads edges from CSV into NetworkManager, which internally registers
+     * the follows/followed_by percepts in the Jason environment.
      *
      * CSV columns: from, to, weight
      *
@@ -24,13 +20,12 @@ public class NetworkLoader {
      * - from, to: non-empty strings representing agent names.
      * - weight optional, defaults to NetworkManager.DEFAULT_WEIGHT if missing or empty.
      *
-     * @param networkManager the network used to register links/edges
-     * @param env            the Jason environment used to inject agent percepts
+     * @param networkManager the network used to register links/edges (and percepts)
      * @param csvPath        path to the CSV file to load
      * @param logger         the logger used to log messages
      * @throws IOException if the file cannot be read or a row is malformed
      */
-    public static void load(NetworkManager networkManager, Environment env, String csvPath, Logger logger) throws IOException {
+    public static void load(NetworkManager networkManager, String csvPath, Logger logger) throws IOException {
         Optional<Table> result = CsvLoader.load(csvPath, List.of("from", "to", "weight"), logger);
         if (result.isEmpty()) return;
         Table table = result.get();
@@ -54,10 +49,6 @@ public class NetworkLoader {
             } else {
                 networkManager.addEdge(from, to);
             }
-
-            // Inject network beliefs as percepts — same pattern as createLink/removeLink in Env
-            env.addPercept(from, ASSyntax.createLiteral("follows",     ASSyntax.createString(to)));
-            env.addPercept(to,   ASSyntax.createLiteral("followed_by", ASSyntax.createString(from)));
         }
     }
 }

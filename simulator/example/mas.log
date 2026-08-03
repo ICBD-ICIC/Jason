@@ -1,4 +1,4 @@
-Aug 03, 2026 12:51:43 AM jason.control.ExecutionControlGUI receiveFinishedCycle
+Aug 03, 2026 11:35:02 AM jason.control.ExecutionControlGUI receiveFinishedCycle
 SEVERE: Error:
 java.lang.NullPointerException: Cannot invoke "jason.infra.local.LocalAgArch.getFirstAgArch()" because the return value of "jason.infra.local.BaseLocalMAS.getAg(String)" is null
 	at jason.infra.local.LocalExecutionControl.getAgState(LocalExecutionControl.java:76)
@@ -8,17 +8,7 @@ java.lang.NullPointerException: Cannot invoke "jason.infra.local.LocalAgArch.get
 	at jason.infra.local.LocalAgArch.run(LocalAgArch.java:279)
 	at java.base/java.lang.VirtualThread.run(VirtualThread.java:329)
 
-Aug 03, 2026 12:51:43 AM jason.control.ExecutionControlGUI receiveFinishedCycle
-SEVERE: Error:
-java.lang.NullPointerException: Cannot invoke "jason.infra.local.LocalAgArch.getFirstAgArch()" because the return value of "jason.infra.local.BaseLocalMAS.getAg(String)" is null
-	at jason.infra.local.LocalExecutionControl.getAgState(LocalExecutionControl.java:76)
-	at jason.control.ExecutionControlGUI.receiveFinishedCycle(ExecutionControlGUI.java:445)
-	at jason.infra.local.LocalExecutionControl.receiveFinishedCycle(LocalExecutionControl.java:53)
-	at jason.infra.local.LocalAgArch.informCycleFinished(LocalAgArch.java:474)
-	at jason.infra.local.LocalAgArch.run(LocalAgArch.java:279)
-	at java.base/java.lang.VirtualThread.run(VirtualThread.java:329)
-
-Aug 03, 2026 12:51:43 AM jason.control.ExecutionControlGUI receiveFinishedCycle
+Aug 03, 2026 11:35:02 AM jason.control.ExecutionControlGUI receiveFinishedCycle
 SEVERE: Error:
 java.lang.NullPointerException: Cannot invoke "jason.infra.local.LocalAgArch.getFirstAgArch()" because the return value of "jason.infra.local.BaseLocalMAS.getAg(String)" is null
 	at jason.infra.local.LocalExecutionControl.getAgState(LocalExecutionControl.java:76)

@@ -78,43 +78,43 @@
         Interpretation: map of key(value) pairs, e.g. [sentiment(negative), ...]
 ========================================================== */
 
-mem(crearPublicacion([cambio_climatico], [sentimiento(negativo)]), [msg(1)], t1).
-mem(buscarContenido("cambio_climatico", true), [msg(1, sentimiento(negativo)), msg(2, sentimiento(negativo))], t2).
+mem(crearPublicacion([cambio_climatico], [sentimiento(negativo)]), [msg(1)], 1).
+mem(buscarContenido("cambio_climatico", true), [msg(1, sentimiento(negativo)), msg(2, sentimiento(negativo))], 2).
 
 !start.
 
 +!start: true <-
     updateFeed(false);
     .wait(feed_order([M2]));
-    +mem(actualizarFeed(false), msg(M2), t3);
+    +mem(actualizarFeed(false), msg(M2), 3);
 
     searchContent("cambio_climatico", false);
     .wait(feed_order([M2, M1]));
-    +mem(buscarContenido("cambio_climatico", false), [msg(M2), msg(M1)], t4);
+    +mem(buscarContenido("cambio_climatico", false), [msg(M2), msg(M1)], 4);
 
     searchAuthor(bob, true);
     .wait(feed_order([M2]));
     .wait(message_var(M2, sentimiento, SentimientoM2));
-    +mem(buscarAutor(bob, true), [msg(M2, sentimiento(SentimientoM2))], t5);
+    +mem(buscarAutor(bob, true), [msg(M2, sentimiento(SentimientoM2))], 5);
 
     TopicsM4 = [inundaciones];
     VarsM4   = [concientizar(true), emocion(preocupacion)];
     ia.createContent(TopicsM4, VarsM4, ContenidoM4);
     createPost(TopicsM4, VarsM4, ContenidoM4);
-    +mem(crearPublicacion(TopicsM4, VarsM4), ContenidoM4, t6);
+    +mem(crearPublicacion(TopicsM4, VarsM4), ContenidoM4, 6);
 
     .wait(10000);
-    updateFeed(false);
-    .wait(feed_order([M4 | OtherIds]));
-    react(M4, me_encanta);
-    +mem(reaccionar(M4, me_encanta), msg(M4, reaccion(me_encanta)), t7);
+    searchAuthor(bob, false); //no estaba en el ejemplo original
+    .wait(feed_order([M5 | OtherIds]));
+    react(M5, me_encanta);
+    +mem(reaccionar(M5, me_encanta), msg(M5, reaccion(me_encanta)), 7);
 
     ask(norma(X));
     !wait_n_normas(3, Normas);
-    +mem(consultarNorma(norma(X)), Normas, t8);
+    +mem(consultarNorma(norma(X)), Normas, 8);
 
     createLink(carol);
-    +mem(crearVinculo(carol), none, t9).
+    +mem(crearVinculo(carol), none, 9).
 
 +!wait_n_normas(N, Normas): true <-
     .wait(norma(_));
@@ -130,22 +130,23 @@ mem(buscarContenido("cambio_climatico", true), [msg(1, sentimiento(negativo)), m
     readPublicProfile(dave);
     .wait(public_profile(dave, _, _));
     .findall(public_profile(dave, Attr, Val), public_profile(dave, Attr, Val), PerfilDave);
-    +mem(leerPerfilPublico(dave), PerfilDave, t10).
+    +mem(leerPerfilPublico(dave), PerfilDave, 10).
 
 /* ==========================================================
-   Política de actualización de memoria (pi)
+   Politica de actualizacion de memoria
    Se activa cuando la memoria alcanza 10 registros y retiene
-   únicamente los 5 más recientes.
+   unicamente los 5 mas recientes (por Timestamp numerico).
 ========================================================== */
 +mem(Action, Content, Timestamp)[source(self)]: true <-
     .findall(mem(A, C, T), mem(A, C, T)[source(self)], Records);
     .length(Records, N);
     if (N >= 10) {
-        .sort(Records, Sorted);
-        .length(Sorted, Total);
+        .findall(par(T, mem(A, C, T)), mem(A, C, T)[source(self)], Pairs);
+        .sort(Pairs, SortedPairs);
+        .length(SortedPairs, Total);
         ToDrop = Total - 5;
         for (.range(I, 0, ToDrop - 1)) {
-            .nth(I, Sorted, mem(Ai, Ci, Ti));
+            .nth(I, SortedPairs, par(Ti, mem(Ai, Ci, Ti)));
             -mem(Ai, Ci, Ti)[source(self)];
         }
     }.

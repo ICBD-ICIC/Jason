@@ -1,9 +1,13 @@
 !start.
 
 +!start: true <-
-    .wait(10000);
-    updateFeed(false).
+    searchAuthor(alice, false);
+    !esperarFeed.
 
-+feed_order([Ids]): true <-
-    .wait(message(M4, alice, ContentM4, OriginalM4, TimestampM4));
++!esperarFeed: feed_order([M4, M1]) <-
     repost(M4).
+
++!esperarFeed: not feed_order([_,_]) <-
+    .wait(1000);
+    searchAuthor(alice, false);
+    !esperarFeed.
