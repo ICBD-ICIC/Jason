@@ -243,18 +243,27 @@ function buildInstancesTable(t) {
     </table></div>`;
   }
 
+  const noAttrMsg = !t.columns.length
+    ? `<p class="no-attr-msg">No attribute columns yet — click <strong>+ Column</strong> above to add per-agent attributes.</p>`
+    : '';
+
   const colHeaders = t.columns.map((c, ci) =>
     `<th>${esc(c)}<button class="btn-del-col" onclick="deleteCol(${t.id},${ci})" title="Remove">✕</button></th>`
   ).join('');
-  const colCount = t.columns.length + 3; // idx + count + cols + del
+
+  const colgroupCols = t.columns.length
+    ? `<col style="width:44px"><col style="width:90px">${t.columns.map(() => '<col>').join('')}<col style="width:36px">`
+    : `<col style="width:44px"><col style="width:120px"><col style="width:36px">`;
 
   const h = Math.max(120, Math.min(480, t.instances.length * AGENT_VIRT_ROW_H + 44));
 
   return `
+    ${noAttrMsg}
     <div class="virt-scroll-wrap" id="agent-virt-wrap-${t.id}"
          style="height:${h}px;overflow-y:auto;"
          onscroll="onAgentVirtScroll(${t.id})">
       <table class="data-table" style="width:100%;table-layout:fixed;">
+        <colgroup>${colgroupCols}</colgroup>
         <thead style="position:sticky;top:0;z-index:2;background:var(--card);">
           <tr>
             <th class="col-idx" style="width:44px">#</th>
@@ -267,6 +276,7 @@ function buildInstancesTable(t) {
       <div style="position:relative;height:${t.instances.length * AGENT_VIRT_ROW_H}px;">
         <table class="data-table" id="agent-virt-table-${t.id}"
                style="width:100%;table-layout:fixed;position:absolute;top:0;left:0;">
+          <colgroup>${colgroupCols}</colgroup>
           <tbody id="agent-virt-tbody-${t.id}"></tbody>
         </table>
       </div>

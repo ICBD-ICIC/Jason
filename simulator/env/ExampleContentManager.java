@@ -11,9 +11,9 @@ public class ExampleContentManager extends ContentManager {
 
     @Override
     protected boolean passFilter(Message message, MessageCreationParams params) {
-        return true;
+        return !params.topics().contains("spam");
     }
-
+    
     private boolean hasStrongEdge(String agent, String creator) {
         return networkManager.getSocialNetwork().stream()
             .anyMatch(edge -> edge.from.equals(agent)
