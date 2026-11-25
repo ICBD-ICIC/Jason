@@ -74,6 +74,11 @@ public abstract class ContentManager {
 
     public int addMessage(String agent, String messageContent,
                           List<String> topics, Map<String, Object> variables, int originalId) {
+        if (originalId != Message.EMPTY_REFERENCE && !filteredContent.containsKey(originalId)) {
+            throw new IllegalArgumentException(
+                "Original message with ID " + originalId + " does not exist.");
+        }
+
         Message message = new Message(
             messageCounter.incrementAndGet(),
             agent,
