@@ -11,7 +11,8 @@ public class ExampleContentManager extends ContentManager {
 
     @Override
     protected boolean passFilter(Message message, MessageCreationParams params) {
-        return !params.topics().contains("spam");
+        Object spam = params.variables().get("spam");
+        return !(spam != null && "true".equalsIgnoreCase(String.valueOf(spam)));
     }
     
     private boolean hasStrongEdge(String agent, String creator) {
